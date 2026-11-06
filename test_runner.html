@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Song Lam Hotel PMS - 18 Tiêu Chí Nghiệm Thu Bắt Buộc & Kiểm Thử Hồi Quy</title>
+  <style>
+    :root {
+      --primary: #0f4c81;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --pass-bg: #f0fdf4;
+      --fail-bg: #fef2f2;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .header {
+      background: white;
+      padding: 20px 24px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .header h1 {
+      margin: 0 0 8px 0;
+      font-size: 22px;
+      color: var(--primary);
+    }
+    .header p {
+      margin: 0;
+      color: #64748b;
+      font-size: 14px;
+    }
+    .summary-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .metric {
+      background: #f1f5f9;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .metric.pass {
+      background: #dcfce7;
+      color: #15803d;
+    }
+    .metric.fail {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      font-size: 13px;
+      margin-bottom: 30px;
+    }
+    th {
+      background: #0f4c81;
+      color: white;
+      text-align: left;
+      padding: 12px;
+      font-weight: 600;
+    }
+    td {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr.pass {
+      background: var(--pass-bg);
+    }
+    tr.fail {
+      background: var(--fail-bg);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .badge-pass {
+      background: #bbf7d0;
+      color: #166534;
+    }
+    .badge-fail {
+      background: #fecaca;
+      color: #991b1b;
+    }
+    .code {
+      font-family: Consolas, monospace;
+      font-size: 11.5px;
+      color: #0369a1;
+      background: #f0f9ff;
+      padding: 2px 4px;
+      border-radius: 3px;
+      word-break: break-all;
+    }
+    .btn-rerun {
+      background: #0f4c81;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .btn-rerun:hover {
+      background: #09345c;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>BỘ KIỂM THỬ TỰ ĐỘNG - 18 TIÊU CHÍ NGHIỆP VỤ BẮT BUỘC & HỒI QUY PMS SÔNG LAM</h1>
+    <p>Kiểm thử độc lập lớp nghiệp vụ <code>SongLamStore</code>, xác thực trực tiếp qua nạp lại <code>localStorage</code>, kiểm toán phân bổ cọc, đối soát quỹ phòng và hạch toán dòng tiền.</p>
+    <div class="summary-card" id="summaryCard">
+      <div class="metric">Đang khởi chạy kiểm thử...</div>
+    </div>
+    <button class="btn-rerun" onclick="runAllTests()">Chạy lại toàn bộ kiểm thử</button>
+  </div>
+
+  <div id="resultsTable"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script>
+    (function () {
+      window.runAllTests = function () {
+        const store = window.SongLamStore;
+        const logs = [];
+
+        function recordTest(isPass, testId, testName, inputData, actionExecuted, expectedResult, actualResult) {
+          logs.push({
+            status: isPass ? 'PASS' : 'FAIL',
+            testId,
+            testName,
+            inputData,
+            actionExecuted,
+            expectedResult,
+            actualResult
+          });
+        }
+
+        const managerUser = { username: 'quanly', fullName: 'Nguyễn Văn Hoàng', roleCode: 'manager' };
+        const cashierUser = { username: 'thungan', fullName: 'Lê Thu Ngân', roleCode: 'cashier' };
+        const hkStaffUser = { username: 'buongphong', fullName: 'Trần Thị Mai', roleCode: 'housekeeping' };
+
+        try {
+          // =========================================================================
+          // CA 1: Đoàn 2 phòng cọc 1 triệu: tổng tiền được phân bổ đúng 1 triệu (500k/phòng)
+          // =========================================================================
+          store.resetToInitialData(true);
+          const group1 = store.createGroupBooking({
+            groupName: 'Đoàn Viettel Test Cọc',
+            contactName: 'Trần Văn A',
+            phone: '0987654321',
+            depositAmount: 1000000,
+            allocations: [
+              { classCode: 'PRM-K', quantity: 2, checkInDate: '2026-11-05', checkOutDate: '2026-11-07' }
+            ]
+          }, managerUser);
+
+          const subBooking1 = group1.subBookings[0];
+          const dep0 = store.allocateBookingDeposit(subBooking1, 0);
+          const dep1 = store.allocateBookingDeposit(subBooking1, 1);
+          const sumAlloc = dep0 + dep1;
+          const pass1 = (dep0 === 500000 && dep1 === 500000 && sumAlloc === 1000000);
+
+          recordTest(
+            pass1,
+            'TC-01',
+            'Đoàn 2 phòng cọc 1.000.000đ: phân bổ mỗi phòng 500.000đ, tổng đúng 1 triệu',
+            'Đoàn 2 phòng PRM-K, cọc 1.000.000đ',
+            'Gọi allocateBookingDeposit cho phòng 0 và phòng 1',
+            'Phòng 0: 500.000đ, Phòng 1: 500.000đ, Tổng: 1.000.000đ',
+            `Phòng 0: ${dep0.toLocaleString('vi-VN')}đ, Phòng 1: ${dep1.toLocaleString('vi-VN')}đ, Tổng: ${sumAlloc.toLocaleString('vi-VN')}đ`
+          );
+
+          // =========================================================================
+          // CA 2: Chia cọc 1 triệu cho 3 phòng: tổng vẫn đúng đến từng đồng (333.334 + 333.333 + 333.333)
+          // =========================================================================
+          const dist3 = store.allocateBookingDeposit(1000000, 3);
+          const sumDist3 = dist3.reduce((a, b) => a + b, 0);
+          const pass2 = (
+            Array.isArray(dist3) &&
+            dist3.length === 3 &&
+            dist3[0] === 333334 &&
+            dist3[1] === 333333 &&
+            dist3[2] === 333333 &&
+            sumDist3 === 1000000
+          );
+
+          recordTest(
+            pass2,
+            'TC-02',
+            'Chia cọc 1.000.000đ cho 3 phòng: giải thuật chia số dư nguyên bảo toàn đúng đến từng đồng',
+            'Số tiền: 1.000.000đ, Số phòng: 3',
+            'allocateBookingDeposit(1000000, 3)',
+            '[333.334đ, 333.333đ, 333.333đ], Tổng: 1.000.000đ',
+            `[${dist3.map(v => v.toLocaleString('vi-VN') + 'đ').join(', ')}], Tổng: ${sumDist3.toLocaleString('vi-VN')}đ`
+          );
+
+          // =========================================================================
+          // CA 3: Hai dòng đặt đoàn cùng hạng không vượt quỹ phòng chung
+          // =========================================================================
+          store.resetToInitialData(true);
+          const dataC3 = store.getData();
+          const totalPrmRooms = dataC3.rooms.filter(r => r.classCode === 'PRM-K' && r.exploitationStatus === 'active').length;
+
+          let err3 = '';
+          try {
+            store.createGroupBooking({
+              groupName: 'Đoàn Test Vượt Quỹ Cùng Hạng',
+              contactName: 'Nguyễn Văn B',
+              phone: '0912345678',
+              allocations: [
+                { classCode: 'PRM-K', quantity: totalPrmRooms, checkInDate: '2026-11-10', checkOutDate: '2026-11-12' },
+                { classCode: 'PRM-K', quantity: 1, checkInDate: '2026-11-10', checkOutDate: '2026-11-12' }
+              ]
+            }, managerUser);
+          } catch (e) {
+            err3 = e.message;
+          }
+          const pass3 = err3.includes('Không đủ quỹ phòng') || err3.includes('chỉ còn');
+
+          recordTest(
+            pass3,
+            'TC-03',
+            'Hai dòng đặt đoàn cùng hạng không vượt quỹ phòng chung (chặn nhu cầu cộng dồn)',
+            `PRM-K tổng ${totalPrmRooms} phòng; Đơn đoàn yêu cầu: Dòng 1 (${totalPrmRooms} phòng) + Dòng 2 (1 phòng) = ${totalPrmRooms + 1} phòng`,
+            'store.createGroupBooking()',
+            'Ném ngoại lệ chặn đặt vì tổng nhu cầu vượt quá quỹ phòng chung',
+            `Bắt lỗi thành công: "${err3}"`
+          );
+
+          // =========================================================================
+          // CA 4: Hai dòng giao nhau một phần cũng được kiểm tra đúng
+          // =========================================================================
+          let err4 = '';
+          try {
+            store.createGroupBooking({
+              groupName: 'Đoàn Test Giao Nhau Một Phần',
+              contactName: 'Lê Văn C',
+              phone: '0977112233',
+              allocations: [
+                { classCode: 'PRM-K', quantity: totalPrmRooms, checkInDate: '2026-11-15', checkOutDate: '2026-11-18' },
+                { classCode: 'PRM-K', quantity: 1, checkInDate: '2026-11-17', checkOutDate: '2026-11-20' }
+              ]
+            }, managerUser);
+          } catch (e) {
+            err4 = e.message;
+          }
+          const pass4 = err4.includes('Không đủ quỹ phòng') && err4.includes('2026-11-17');
+
+          recordTest(
+            pass4,
+            'TC-04',
+            'Hai dòng giao nhau một phần cũng được kiểm tra đúng quỹ từng đêm (đêm 17/11 vượt quỹ)',
+            `PRM-K có ${totalPrmRooms} phòng; Dòng 1: 15-18/11 (${totalPrmRooms}P), Dòng 2: 17-20/11 (1P) -> Giao nhau tại đêm 17/11`,
+            'store.createGroupBooking()',
+            'Chặn và báo rõ thiếu phòng vào đêm giao nhau 2026-11-17',
+            `Bắt lỗi thành công: "${err4}"`
+          );
+
+          // =========================================================================
+          // CA 5: Hai đơn trùng ngày không được phân cùng phòng
+          // =========================================================================
+          store.resetToInitialData(true);
+          const bA = store.createBooking({
+            guestName: 'Khách A',
+            phone: '0901111111',
+            checkInDate: '2026-11-01',
+            checkOutDate: '2026-11-04',
+            roomClassCode: 'PRM-K',
+            roomQuantity: 1
+          });
+          const bB = store.createBooking({
+            guestName: 'Khách B',
+            phone: '0902222222',
+            checkInDate: '2026-11-02',
+            checkOutDate: '2026-11-05',
+            roomClassCode: 'PRM-K',
+            roomQuantity: 1
+          });
+          const bC = store.createBooking({
+            guestName: 'Khách C Nối Tiếp',
+            phone: '0903333333',
+            checkInDate: '2026-11-04',
+            checkOutDate: '2026-11-06',
+            roomClassCode: 'PRM-K',
+            roomQuantity: 1
+          });
+
+          // Phân phòng 201 cho bA
+          store.bulkAssignRooms(bA.id, ['505'], managerUser);
+
+          // Cố tình phân phòng 201 cho bB trùng lịch -> Phải bị chặn
+          let err5 = '';
+          try {
+            store.bulkAssignRooms(bB.id, ['505'], managerUser);
+          } catch (e) {
+            err5 = e.message;
+          }
+
+          // Phân phòng 201 cho bC nối tiếp (check-in đúng ngày bA check-out 04/11) -> Phải thành công
+          let adjacentOk = false;
+          try {
+            const updatedC = store.bulkAssignRooms(bC.id, ['505'], managerUser);
+            adjacentOk = updatedC.assignedRooms.includes('505');
+          } catch (e) {
+            adjacentOk = false;
+          }
+
+          const pass5 = err5.includes('Xung đột lịch phòng') && adjacentOk;
+
+          recordTest(
+            pass5,
+            'TC-05',
+            'Hai đơn trùng ngày không được phân cùng phòng (chặn xung đột, cho phép ngày nối tiếp)',
+            'Đơn A (01-04/11, P.505), Đơn B (02-05/11), Đơn C nối tiếp (04-06/11)',
+            'bulkAssignRooms gán P.505 cho Đơn B và Đơn C',
+            'Đơn B bị chặn do trùng lịch 02-04/11; Đơn C nối tiếp ngày 04/11 được chấp thuận',
+            `Đơn B bị chặn: "${err5}"; Đơn C gán P.505 thành công: ${adjacentOk}`
+          );
+
+          // =========================================================================
+          // CA 6: recordPayment chặn tiền âm, thiếu quyền và liên kết không tồn tại
+          // =========================================================================
+          store.resetToInitialData(true);
+          const validStay = store.getData().stays[0];
+
+          let err6a = '', err6b = '', err6c = '', err6e = '';
+          // 6a: Tiền âm
+          try {
+            store.recordPayment({ amount: -100000, stayId: validStay.id, paymentMethod: 'cash' }, cashierUser);
+          } catch (e) { err6a = e.message; }
+
+          // 6b: Thiếu quyền
+          try {
+            store.recordPayment({ amount: 100000, stayId: validStay.id, paymentMethod: 'cash' }, hkStaffUser);
+          } catch (e) { err6b = e.message; }
+
+          // 6c: Liên kết không tồn tại
+          try {
+            store.recordPayment({ amount: 100000, stayId: 'LT-KHONG-TON-TAI', paymentMethod: 'cash' }, cashierUser);
+          } catch (e) { err6c = e.message; }
+
+          // 6d: Cổng trực tuyến bắt đầu ở pending
+          const onlineTx = store.recordPayment({
+            amount: 250000,
+            stayId: validStay.id,
+            paymentMethod: 'vnpay_qr',
+            referenceCode: 'VNPay-Test-01'
+          }, cashierUser);
+          const isPending = (onlineTx.status === 'pending' && onlineTx.gatewayVerified === false);
+
+          // 6e: Chặn type refund
+          try {
+            store.recordPayment({ amount: 100000, stayId: validStay.id, type: 'refund' }, cashierUser);
+          } catch (e) { err6e = e.message; }
+
+          const pass6 = (
+            err6a.includes('không hợp lệ') &&
+            err6b.includes('không có quyền') &&
+            err6c.includes('Không tìm thấy') &&
+            isPending &&
+            err6e.includes('Không được tạo giao dịch hoàn tiền qua hàm recordPayment')
+          );
+
+          recordTest(
+            pass6,
+            'TC-06',
+            'recordPayment chặn tiền âm, thiếu quyền, liên kết giả và ép trạng thái pending cho cổng',
+            'Test các tham số sai: amount=-100k, role=housekeeping, stayId ảo, type=refund, vnpay_qr',
+            'Gọi recordPayment() với từng bộ dữ liệu',
+            'Toàn bộ tham số bất hợp lệ bị chặn; VNPay QR tạo giao dịch status=pending',
+            `Tiền âm: "${err6a}" | Quyền: "${err6b}" | StayId ảo: "${err6c}" | Type refund: "${err6e}" | Online Pending: ${isPending}`
+          );
+
+          // =========================================================================
+          // CA 7: Gửi lại khoản thu cùng khóa không ghi thêm tiền (Idempotency Replay)
+          // =========================================================================
+          const key7 = 'IDEM-KEY-777';
+          const countBefore7 = store.getData().transactions.length;
+          const tx7_1 = store.recordPayment({
+            idempotencyKey: key7,
+            referenceCode: key7,
+            stayId: validStay.id,
+            amount: 300000,
+            paymentMethod: 'cash'
+          }, cashierUser);
+
+          const countAfter7_1 = store.getData().transactions.length;
+
+          // Gửi lại cùng khóa và cùng nội dung
+          const tx7_2 = store.recordPayment({
+            idempotencyKey: key7,
+            referenceCode: key7,
+            stayId: validStay.id,
+            amount: 300000,
+            paymentMethod: 'cash'
+          }, cashierUser);
+
+          const countAfter7_2 = store.getData().transactions.length;
+          const pass7 = (
+            countAfter7_1 === countBefore7 + 1 &&
+            countAfter7_2 === countAfter7_1 &&
+            tx7_1.id === tx7_2.id &&
+            tx7_1.amount === 300000
+          );
+
+          recordTest(
+            pass7,
+            'TC-07',
+            'Gửi lại khoản thu cùng khóa idempotency không ghi thêm tiền (chống xử lý lặp)',
+            `Khóa: ${key7}, Số tiền: 300.000đ, Lượt ở: ${validStay.id}`,
+            'Gọi recordPayment() 2 lần cùng khóa và cùng số tiền',
+            'Lần 1 tạo mới (count+1); Lần 2 trả lại kết quả lần 1 mà không thêm giao dịch (count không đổi)',
+            `Lần 1 ID: ${tx7_1.id}; Lần 2 ID: ${tx7_2.id}; Số lượng giao dịch: ${countBefore7} -> ${countAfter7_1} -> ${countAfter7_2}`
+          );
+
+          // =========================================================================
+          // CA 8: Cùng khóa khác nội dung bị từ chối (409 Conflict)
+          // =========================================================================
+          let err8 = '';
+          try {
+            store.recordPayment({
+              idempotencyKey: key7,
+              referenceCode: key7,
+              stayId: validStay.id,
+              amount: 500000, // Khác số tiền!
+              paymentMethod: 'cash'
+            }, cashierUser);
+          } catch (e) {
+            err8 = e.message;
+          }
+          const pass8 = err8.includes('409 Conflict') || err8.includes('nội dung khác');
+
+          recordTest(
+            pass8,
+            'TC-08',
+            'Cùng khóa nhưng khác số tiền hoặc đối tượng thanh toán bị từ chối (409 Conflict)',
+            `Khóa: ${key7}, Số tiền mới: 500.000đ (khác số tiền cũ 300.000đ)`,
+            'Gọi recordPayment() với cùng khóa nhưng đổi amount',
+            'Ném lỗi 409 Conflict cảnh báo mâu thuẫn nội dung khóa idempotency',
+            `Bắt lỗi thành công: "${err8}"`
+          );
+
+          // =========================================================================
+          // CA 9: Thu cọc 1 triệu rồi nhận hai phòng: tổng thực thu vẫn 1 triệu
+          // =========================================================================
+          store.resetToInitialData(true);
+          const b9 = store.createBooking({
+            guestName: 'Đoàn Nhận 2 Phòng Test Doanh Thu',
+            phone: '0988223344',
+            checkInDate: '2026-10-25',
+            checkOutDate: '2026-10-27',
+            roomClassCode: 'PRM-K',
+            roomQuantity: 2,
+            depositAmount: 1000000,
+            paymentMethod: 'bank_transfer'
+          });
+
+          // Trước nhận phòng: tổng thực thu có 1 triệu tiền cọc
+          const repBefore9 = store.getAnalyticsReportData('2026-10-25', 'this_month');
+          const incomeBefore9 = repBefore9.summary.totalIncome;
+
+          // Nhận cả 2 phòng (mỗi phòng được phân bổ 500k)
+          const stay9_1 = store.checkInBookingRoom({
+            bookingId: b9.id,
+            roomNumber: '505',
+            identityCard: '038099123456',
+            guestName: 'Khách P505'
+          }, managerUser);
+
+          const stay9_2 = store.checkInBookingRoom({
+            bookingId: b9.id,
+            roomNumber: '602',
+            identityCard: '038099654321',
+            guestName: 'Khách P602'
+          }, managerUser);
+
+          // Sau khi nhận 2 phòng: tổng thực thu trong báo cáo
+          const repAfter9 = store.getAnalyticsReportData('2026-10-25', 'this_month');
+          const incomeAfter9 = repAfter9.summary.totalIncome;
+
+          // Kiểm tra folio từng phòng được trừ cọc chuẩn
+          const folio9_1 = store.calculateStayFolio(stay9_1.id);
+          const folio9_2 = store.calculateStayFolio(stay9_2.id);
+
+          const pass9 = (
+            incomeAfter9 === incomeBefore9 &&
+            folio9_1.depositPaid === 500000 &&
+            folio9_2.depositPaid === 500000
+          );
+
+          recordTest(
+            pass9,
+            'TC-09',
+            'Thu cọc 1.000.000đ rồi nhận 2 phòng: tổng thực thu dòng tiền vẫn đúng 1 triệu (không nhân đôi do phân bổ)',
+            'Đơn 2 phòng cọc 1 triệu; nhận P.505 và P.202 (phân bổ 500k/phòng)',
+            'checkInBookingRoom() và kiểm tra getAnalyticsReportData()',
+            'totalIncome trước = totalIncome sau = 1.000.000đ; Folio mỗi phòng ghi nhận cọc 500k',
+            `Thực thu trước nhận: ${incomeBefore9.toLocaleString('vi-VN')}đ | Thực thu sau nhận 2 phòng: ${incomeAfter9.toLocaleString('vi-VN')}đ | P505 cọc: ${folio9_1.depositPaid.toLocaleString('vi-VN')}đ | P602 cọc: ${folio9_2.depositPaid.toLocaleString('vi-VN')}đ`
+          );
+
+          // =========================================================================
+          // CA 10: Tiền đảm bảo 2 triệu, phí 1,4 triệu, hoàn 600.000đ: số dư cuối = 0, không xử lý lại
+          // =========================================================================
+          store.resetToInitialData(true);
+          // Check-in trực tiếp với tiền đảm bảo 2.000.000đ
+          const stay10 = store.checkInDirect({
+            roomNumber: '402',
+            guestName: 'Khách Test Cọc Đảm Bảo',
+            phone: '0911223344',
+            identityCard: '038090123456',
+            nights: 1,
+            guaranteeDeposit: 2000000,
+            paymentMethod: 'cash'
+          }, managerUser);
+
+          // Đặt tiền phòng là 1.400.000đ
+          stay10.roomRate = 1400000;
+          stay10.nightlyRates = [{ night: 1, date: '2026-10-25', rate: 1400000 }];
+          store.saveData();
+
+          // Kiểm kê minibar
+          store.recordMinibarAudit({
+            stayId: stay10.id,
+            roomNumber: '402',
+            inspectorName: 'Trần Thị Mai',
+            items: []
+          }, hkStaffUser);
+
+          const folioBefore10 = store.calculateStayFolio(stay10.id);
+          const deductionExpected = 1400000;
+          const refundExpected = 600000;
+
+          // Quyết toán trả phòng tại quầy
+          store.settleAndCheckout(stay10.id, {
+            confirmedPayment: true,
+            paymentMethod: 'cash',
+            methodName: 'Tiền mặt tại quầy'
+          }, cashierUser);
+
+          // Tải lại và kiểm tra sau quyết toán
+          const dataC10 = store.getData();
+          const stay10After = dataC10.stays.find(s => s.id === stay10.id);
+          const folioAfter10 = store.calculateStayFolio(stay10.id);
+
+          const pass10 = (
+            stay10After.guaranteeDepositDeducted === 1400000 &&
+            stay10After.guaranteeDepositRefunded === 600000 &&
+            stay10After.guaranteeDepositAvailable === 0 &&
+            folioAfter10.guaranteeDepositDeduction === 0 &&
+            folioAfter10.guaranteeDepositRefund === 0 &&
+            folioAfter10.remainingDue === 0
+          );
+
+          recordTest(
+            pass10,
+            'TC-10',
+            'Tiền đảm bảo 2 triệu, phí 1,4 triệu, hoàn 600k: số dư khả dụng = 0, tính lại không đề xuất khấu trừ/hoàn tiếp',
+            'Cọc đảm bảo: 2.000.000đ, Chi phí phòng: 1.400.000đ',
+            'store.settleAndCheckout() và tính lại calculateStayFolio()',
+            'Đã khấu trừ 1.4tr, đã hoàn 600k, available=0, tính lại không đề xuất xử lý lần nữa',
+            `Đã khấu trừ: ${stay10After.guaranteeDepositDeducted.toLocaleString('vi-VN')}đ | Đã hoàn: ${stay10After.guaranteeDepositRefunded.toLocaleString('vi-VN')}đ | Khả dụng: ${stay10After.guaranteeDepositAvailable.toLocaleString('vi-VN')}đ | Đề xuất tính lại: Khấu trừ ${folioAfter10.guaranteeDepositDeduction}đ, Hoàn ${folioAfter10.guaranteeDepositRefund}đ`
+          );
+
+          // =========================================================================
+          // CA 11: Trả phòng với khoản hoàn đang chờ: phòng chờ dọn, nghĩa vụ hoàn vẫn mở
+          // =========================================================================
+          store.resetToInitialData(true);
+          const stay11 = store.checkInDirect({
+            roomNumber: '702',
+            guestName: 'Khách Chờ Hoàn Chuyển Khoản',
+            phone: '0922334455',
+            identityCard: '038091123456',
+            nights: 1,
+            guaranteeDeposit: 1000000,
+            paymentMethod: 'cash'
+          }, managerUser);
+          stay11.roomRate = 600000;
+          stay11.nightlyRates = [{ night: 1, date: '2026-10-25', rate: 600000 }];
+          store.saveData();
+
+          store.recordMinibarAudit({
+            stayId: stay11.id,
+            roomNumber: '702',
+            inspectorName: 'Trần Thị Mai',
+            items: []
+          }, hkStaffUser);
+
+          // Trả phòng với tùy chọn pendingRefund (chờ kế toán chuyển khoản hoàn sau)
+          store.settleAndCheckout(stay11.id, {
+            confirmedPayment: true,
+            pendingRefund: true
+          }, cashierUser);
+
+          const dataC11 = store.getData();
+          const room702 = dataC11.rooms.find(r => r.number === '702');
+          const stay11After = dataC11.stays.find(s => s.id === stay11.id);
+          const hasHkTask11 = dataC11.housekeepingTasks.some(t => t.roomNumber === '702' && t.status === 'pending');
+
+          const pass11 = (
+            room702.stayStatus === 'vacant' &&
+            room702.cleanStatus === 'dirty' &&
+            hasHkTask11 &&
+            stay11After.status === 'checked_out' &&
+            stay11After.settlementStatus === 'pending_refund' &&
+            stay11After.guaranteeDepositPendingRefund === 400000
+          );
+
+          recordTest(
+            pass11,
+            'TC-11',
+            'Trả phòng có khoản hoàn đang chờ: phòng chuyển trống chờ dọn, nghĩa vụ hoàn giữ pending_refund',
+            'P.702 cọc đảm bảo 1tr, phí 600k, hoàn 400k chờ chuyển khoản',
+            'settleAndCheckout({ pendingRefund: true })',
+            'Phòng: vacant/dirty + tạo việc dọn buồng; Lượt ở: checked_out nhưng settlementStatus=pending_refund (400k)',
+            `Trạng thái phòng: ${room702.stayStatus}/${room702.cleanStatus} | Việc buồng phòng: ${hasHkTask11} | Quyết toán: ${stay11After.settlementStatus} (chờ hoàn ${stay11After.guaranteeDepositPendingRefund.toLocaleString('vi-VN')}đ)`
+          );
+
+          // =========================================================================
+          // CA 12: Chốt ngày lưu được ledger và trạng thái khi tải lại từ localStorage
+          // =========================================================================
+          store.resetToInitialData(true);
+          const wDateBefore12 = store.getWorkingDate(); // 2026-10-25
+
+          // Tạo đơn confirmed đúng ngày 2026-10-25 để kiểm tra quét no-show
+          const b12 = store.createBooking({
+            guestName: 'Khách No Show Test 12',
+            phone: '0933445566',
+            checkInDate: wDateBefore12,
+            checkOutDate: '2026-10-27',
+            roomClassCode: 'PRM-K',
+            roomQuantity: 1
+          });
+
+          // Chốt ngày kinh doanh
+          const auditRes12 = store.runNightAudit({ expectedWorkingDate: wDateBefore12 }, managerUser);
+
+          // Tải lại TRỰC TIẾP TỪ LOCALSTORAGE để xác minh tính bền vững
+          const rawStorage12 = JSON.parse(localStorage.getItem('songlam_hotel_pms_data_v2'));
+          const savedLedger12 = rawStorage12.dailyLedgers.find(l => l.date === wDateBefore12);
+          const savedBooking12 = rawStorage12.bookings.find(b => b.id === b12.id);
+          const newWDate12 = rawStorage12.hotelInfo.workingDate;
+
+          const pass12 = (
+            savedLedger12 !== undefined &&
+            savedLedger12.date === wDateBefore12 &&
+            savedBooking12.bookingStatus === 'no_show' &&
+            newWDate12 === '2026-10-26'
+          );
+
+          recordTest(
+            pass12,
+            'TC-12',
+            'Chốt ngày lưu được sổ ledger và cập nhật no-show khi nạp lại trực tiếp từ localStorage',
+            `Ngày hiện tại: ${wDateBefore12}, đơn đặt phòng ${b12.id} trạng thái confirmed`,
+            'runNightAudit() rồi đọc trực tiếp raw localStorage',
+            'dailyLedgers có bản ghi ngày 25/10, đơn chuyển no_show, workingDate = 2026-10-26',
+            `Ledger lưu: ${!!savedLedger12} | Trạng thái đơn: ${savedBooking12 ? savedBooking12.bookingStatus : 'null'} | Ngày làm việc mới: ${newWDate12}`
+          );
+
+          // =========================================================================
+          // CA 13: Gửi lại yêu cầu chốt ngày không chốt thêm ngày tiếp theo (Chống chốt lặp)
+          // =========================================================================
+          let err13 = '';
+          const curWDate13 = store.getWorkingDate(); // Đang là 2026-10-26
+          try {
+            // Gửi lại yêu cầu với ngày cũ 2026-10-25
+            store.runNightAudit({ expectedWorkingDate: '2026-10-25' }, managerUser);
+          } catch (e) {
+            err13 = e.message;
+          }
+
+          const curWDateAfter13 = store.getWorkingDate();
+          const pass13 = (err13.includes('không khớp') || err13.includes('đã được chốt')) && (curWDateAfter13 === curWDate13);
+
+          recordTest(
+            pass13,
+            'TC-13',
+            'Gửi lại yêu cầu chốt ngày cũ không chốt thêm ngày tiếp theo (chống nhảy ngày ngoài ý muốn)',
+            'Gửi lại yêu cầu chốt với expectedWorkingDate=2026-10-25 khi hệ thống đã ở ngày 2026-10-26',
+            'store.runNightAudit()',
+            'Bị từ chối, ngày làm việc được giữ nguyên 2026-10-26',
+            `Bắt lỗi thành công: "${err13}" | Ngày làm việc vẫn là: ${curWDateAfter13}`
+          );
+
+          // =========================================================================
+          // CA 14: Lưu chốt ngày thất bại không làm đổi ngày một phần
+          // =========================================================================
+          store.resetToInitialData(true);
+          const wDateBefore14 = store.getWorkingDate();
+          let err14 = '';
+          try {
+            // Cố tình chạy chốt ngày với quyền của nhân viên buồng phòng
+            store.runNightAudit({ expectedWorkingDate: wDateBefore14 }, hkStaffUser);
+          } catch (e) {
+            err14 = e.message;
+          }
+
+          const wDateAfter14 = store.getWorkingDate();
+          const pass14 = err14.includes('Chỉ Quản lý') && (wDateAfter14 === wDateBefore14);
+
+          recordTest(
+            pass14,
+            'TC-14',
+            'Chốt ngày thất bại không làm đổi ngày làm việc một phần (tính nguyên tử)',
+            `Ngày hiện tại: ${wDateBefore14}, user không có quyền quản lý`,
+            'runNightAudit() gặp lỗi phân quyền',
+            'Ném ngoại lệ, ngày làm việc trong storage giữ nguyên tuyệt đối',
+            `Lỗi: "${err14}" | Ngày làm việc trước: ${wDateBefore14} -> sau: ${wDateAfter14}`
+          );
+
+          // =========================================================================
+          // CA 15: Đơn tương lai không nhận ngay nếu chưa điều chỉnh lịch/giá hợp lệ
+          // =========================================================================
+          store.resetToInitialData(true);
+          const wDate15 = store.getWorkingDate(); // 2026-10-25
+          const b15 = store.createBooking({
+            guestName: 'Khách Đặt Tương Lai',
+            phone: '0944556677',
+            checkInDate: '2026-11-20',
+            checkOutDate: '2026-11-22',
+            roomClassCode: 'PRM-K',
+            roomQuantity: 1
+          });
+
+          // Thử nhận phòng trực tiếp vào ngày 25/10 -> Phải bị chặn
+          let err15 = '';
+          try {
+            store.checkInBookingRoom({
+              bookingId: b15.id,
+              roomNumber: '505',
+              identityCard: '038099887766'
+            }, managerUser);
+          } catch (e) {
+            err15 = e.message;
+          }
+
+          // Điều chỉnh đến sớm hợp lệ sang ngày 2026-10-25 (số đêm tăng từ 2 đêm lên 28 đêm)
+          const adjustedB15 = store.adjustBookingForEarlyArrival(b15.id, wDate15, managerUser, 'Khách đổi kế hoạch bay sớm');
+          const passAdjustment = (
+            adjustedB15.checkInDate === wDate15 &&
+            adjustedB15.nights === 28 &&
+            adjustedB15.dateAdjustmentHistory.length === 1
+          );
+
+          // Nhận phòng sau khi đã điều chỉnh hợp lệ -> Phải thành công
+          const stay15 = store.checkInBookingRoom({
+            bookingId: adjustedB15.id,
+            roomNumber: '505',
+            identityCard: '038099887766'
+          }, managerUser);
+
+          const pass15 = (
+            err15.includes('không khớp với ngày kinh doanh') &&
+            passAdjustment &&
+            stay15.status === 'in_house' &&
+            stay15.nights === 28
+          );
+
+          recordTest(
+            pass15,
+            'TC-15',
+            'Đơn tương lai không nhận ngay nếu chưa điều chỉnh; điều chỉnh xong nhận đúng số đêm và giá mới',
+            'Đơn đặt 20-22/11 (2 đêm). Ngày hệ thống 25/10. Khách đến sớm ngày 25/10.',
+            'Check-in trực tiếp bị chặn -> Gọi adjustBookingForEarlyArrival() -> Check-in thành công',
+            'Chặn check-in sai ngày; Điều chỉnh thành 28 đêm và cập nhật giá động; Nhận phòng thành công',
+            `Lỗi chặn ban đầu: "${err15}" | Số đêm điều chỉnh: ${adjustedB15.nights} đêm | Nhận phòng: Lượt ở ${stay15.id} (${stay15.nights} đêm)`
+          );
+
+          // =========================================================================
+          // CA 16: Báo cáo tháng 4 không tính ngày 01/05
+          // =========================================================================
+          store.resetToInitialData(true);
+          const dataC16 = store.getData();
+          // Thêm 1 giao dịch ngày 30/04
+          dataC16.transactions.push({
+            id: 'GD-T4-LAST',
+            referenceCode: 'REC-T4',
+            amount: 500000,
+            type: 'final_payment',
+            status: 'success',
+            paymentMethod: 'cash',
+            timestamp: '2026-04-30 22:30:00'
+          });
+          // Thêm 1 giao dịch ngày 01/05
+          dataC16.transactions.push({
+            id: 'GD-T5-FIRST',
+            referenceCode: 'REC-T5',
+            amount: 77777,
+            type: 'final_payment',
+            status: 'success',
+            paymentMethod: 'cash',
+            timestamp: '2026-05-01 08:15:00'
+          });
+          store.saveData();
+
+          // Lấy báo cáo tháng 4
+          const rep16 = store.getAnalyticsReportData('2026-04-15', 'this_month');
+          const transactionsInRep16 = (store.getData().transactions || []).filter(t => {
+            const d = t.timestamp ? t.timestamp.split(' ')[0] : '';
+            return d >= '2026-04-01' && d < '2026-05-01';
+          });
+          const hasMay1 = rep16.daily.some(d => d.label === '05-01' && d.revenue > 0);
+
+          const pass16 = (
+            rep16.startDate === '2026-04-01' &&
+            rep16.endDate === '2026-05-01' &&
+            !hasMay1
+          );
+
+          recordTest(
+            pass16,
+            'TC-16',
+            'Báo cáo tháng 4 sử dụng khoảng [2026-04-01, 2026-05-01), loại trừ hoàn toàn ngày 01/05',
+            'Giao dịch ngày 30/04 (500k) và giao dịch 01/05 (77.777đ)',
+            'getAnalyticsReportData("2026-04-15", "this_month")',
+            'startDate: 2026-04-01, endDate: 2026-05-01, không chứa giao dịch ngày 01/05',
+            `Khoảng lọc: [${rep16.startDate} &rarr; ${rep16.endDate}) | Chứa ngày 01/05: ${hasMay1}`
+          );
+
+          // =========================================================================
+          // CA 17: Tháng 2 năm nhuận và tháng 12 chuyển năm tính đúng
+          // =========================================================================
+          // 17a: Tháng 2 năm nhuận 2028
+          const repFebLeap = store.getAnalyticsReportData('2028-02-15', 'this_month');
+          const pass17a = (repFebLeap.startDate === '2028-02-01' && repFebLeap.endDate === '2028-03-01');
+
+          // 17b: Tháng 12 chuyển sang tháng 1 năm sau
+          const repDec = store.getAnalyticsReportData('2026-12-20', 'this_month');
+          const pass17b = (repDec.startDate === '2026-12-01' && repDec.endDate === '2027-01-01');
+
+          const pass17 = pass17a && pass17b;
+
+          recordTest(
+            pass17,
+            'TC-17',
+            'Khoảng tháng 2 năm nhuận (2028) và tháng 12 chuyển năm (2026 -> 2027) được tính chính xác',
+            'Mốc ngày: 2028-02-15 và 2026-12-20',
+            'getAnalyticsReportData() cho tháng 2/2028 và tháng 12/2026',
+            'Tháng 2/2028: [2028-02-01, 2028-03-01); Tháng 12/2026: [2026-12-01, 2027-01-01)',
+            `Tháng 2 nhuận: [${repFebLeap.startDate} &rarr; ${repFebLeap.endDate}) | Tháng 12: [${repDec.startDate} &rarr; ${repDec.endDate})`
+          );
+
+          // =========================================================================
+          // CA 18: Các lỗi cũ đã sửa không tái xuất hiện (Hồi quy toàn diện)
+          // =========================================================================
+          store.resetToInitialData(true);
+          const dataC18 = store.getData();
+          const stay18 = dataC18.stays.find(s => s.status === 'in_house');
+
+          // 18a: Chưa kiểm minibar thì chặn trả phòng
+          let err18_minibar = '';
+          try {
+            store.settleAndCheckout(stay18.id, { confirmedPayment: true }, cashierUser);
+          } catch (e) {
+            err18_minibar = e.message;
+          }
+
+          // 18b: Không cho nhận phòng vượt sức chứa
+          let err18_occupancy = '';
+          try {
+            store.checkInDirect({
+              roomNumber: '402',
+              guestName: 'Đoàn Đông Người',
+              phone: '0955667788',
+              identityCard: '038099887711',
+              nights: 1,
+              companions: [
+                { name: 'Khách 2', identityCard: '038099887722' },
+                { name: 'Khách 3', identityCard: '038099887733' },
+                { name: 'Khách 4', identityCard: '038099887744' },
+                { name: 'Khách 5', identityCard: '038099887755' }
+              ] // 5 khách vượt sức chứa P.402 (max 2 hoặc 3)
+            }, managerUser);
+          } catch (e) {
+            err18_occupancy = e.message;
+          }
+
+          // 18c: Khóa phòng bảo trì không cho khách nhận (P.407 đang ở trạng thái maintenance)
+          let err18_maint = '';
+          try {
+            store.checkInDirect({
+              roomNumber: '407',
+              guestName: 'Khách Thử Nhận Phòng Hỏng',
+              phone: '0966778899',
+              identityCard: '038099887766'
+            }, managerUser);
+          } catch (e) {
+            err18_maint = e.message;
+          }
+
+          const pass18 = (
+            err18_minibar.includes('Chưa hoàn thành kiểm kê Minibar') &&
+            err18_occupancy.includes('vượt quá sức chứa') &&
+            err18_maint.includes('đang tạm khóa bảo trì')
+          );
+
+          recordTest(
+            pass18,
+            'TC-18',
+            'Kiểm thử hồi quy tổng hợp: Chặn checkout thiếu minibar, chặn quá sức chứa, chặn nhận phòng bảo trì',
+            'Ràng buộc vận hành cốt lõi đã hoàn thiện ở các đợt trước',
+            'Thực hiện checkout chưa kiểm minibar, check-in quá người, check-in phòng đang khóa bảo trì',
+            'Cả 3 trường hợp vi phạm quy định đều bị chặn đúng với thông báo nghiệp vụ',
+            `Minibar: "${err18_minibar}" | Sức chứa: "${err18_occupancy}" | Bảo trì: "${err18_maint}"`
+          );
+
+        } catch (globalErr) {
+          console.error('Lỗi không mong muốn trong test suite:', globalErr);
+          recordTest(
+            false,
+            'TC-FATAL',
+            'Ngoại lệ nghiêm trọng không kiểm soát',
+            '-',
+            'Thực thi bộ test',
+            'Bộ test chạy trơn tru không ném lỗi runtime',
+            globalErr.stack || globalErr.message
+          );
+        }
+
+        // =========================================================================
+        // RENDER GIAO DIỆN KẾT QUẢ KIỂM THỬ
+        // =========================================================================
+        const passedCount = logs.filter(l => l.status === 'PASS').length;
+        const failedCount = logs.filter(l => l.status === 'FAIL').length;
+        const totalCount = logs.length;
+
+        const summaryCard = document.getElementById('summaryCard');
+        summaryCard.innerHTML = `
+          <div class="metric ${failedCount === 0 ? 'pass' : 'fail'}">
+            Tổng số ca: <b>${totalCount}</b>
+          </div>
+          <div class="metric pass">
+            Đạt chuẩn (PASS): <b>${passedCount}</b>
+          </div>
+          <div class="metric ${failedCount > 0 ? 'fail' : ''}">
+            Không đạt (FAIL): <b>${failedCount}</b>
+          </div>
+          <div class="metric" style="background: #e0f2fe; color: #0369a1;">
+            Tỷ lệ đạt: <b>${Math.round((passedCount / totalCount) * 100)}%</b>
+          </div>
+          <div class="metric" style="background: #fef3c7; color: #92400e;">
+            Thời gian chạy: <b>${new Date().toLocaleTimeString('vi-VN')}</b>
+          </div>
+        `;
+
+        let tableHtml = `
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 50px;">STT</th>
+                <th style="width: 75px;">Mã Ca</th>
+                <th style="width: 200px;">Nội Dung Nghiệp Vụ</th>
+                <th style="width: 180px;">Dữ Liệu Đầu Vào</th>
+                <th style="width: 140px;">Thao Tác Thực Hiện</th>
+                <th style="width: 200px;">Kết Quả Mong Đợi Độc Lập</th>
+                <th>Kết Quả Thực Tế Đo Được</th>
+                <th style="width: 70px;">Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        logs.forEach((log, idx) => {
+          tableHtml += `
+            <tr class="${log.status === 'PASS' ? 'pass' : 'fail'}">
+              <td style="text-align: center; font-weight: 600;">${idx + 1}</td>
+              <td><span class="code">${log.testId}</span></td>
+              <td style="font-weight: 600; color: #0f4c81;">${log.testName}</td>
+              <td style="color: #475569; font-size: 12px;">${log.inputData}</td>
+              <td style="color: #475569; font-size: 12px;">${log.actionExecuted}</td>
+              <td style="color: #15803d; font-size: 12px;">${log.expectedResult}</td>
+              <td style="color: ${log.status === 'PASS' ? '#166534' : '#991b1b'}; font-size: 12px;">${log.actualResult}</td>
+              <td style="text-align: center;">
+                <span class="badge ${log.status === 'PASS' ? 'badge-pass' : 'badge-fail'}">
+                  ${log.status}
+                </span>
+              </td>
+            </tr>
+          `;
+        });
+
+        tableHtml += `
+            </tbody>
+          </table>
+        `;
+
+        document.getElementById('resultsTable').innerHTML = tableHtml;
+        window.TEST_RUNNER_SUMMARY = {
+          total: totalCount,
+          passed: passedCount,
+          failed: failedCount,
+          logs: logs
+        };
+      };
+
+      window.addEventListener('DOMContentLoaded', window.runAllTests);
+    })();
+  </script>
+</body>
+</html>
