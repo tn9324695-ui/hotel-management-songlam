@@ -1,0 +1,833 @@
+-- =====================================================================
+-- 019-consumption.sql.pending: G8 Consumption Procedures & Permissions
+-- Protocol: songlam.consumption.v1
+-- ActorMode: app-user-parameter
+-- Procedures: pms.usp_AppConsumptionRead, pms.usp_AppConsumptionCommand
+-- =====================================================================
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE OR ALTER PROCEDURE pms.usp_AppConsumptionRead
+    @AppUserId bigint,
+    @Resource varchar(16),
+    @Operation varchar(16),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80)
+WITH EXECUTE AS OWNER AS
+BEGIN
+    SET NOCOUNT ON;
+    SET ANSI_WARNINGS ON;
+    SET ANSI_NULLS ON;
+
+    IF ISJSON(@InputJson) <> 1 OR DATALENGTH(@InputJson) > 32768
+        THROW 54100, 'Invalid JSON input.', 1;
+
+    DECLARE @now datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(24) = CONVERT(varchar(23), @now, 126) + 'Z';
+    DECLARE @offset int = COALESCE(TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.offset')), 0);
+    DECLARE @limit int = COALESCE(TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.limit')), 50);
+    DECLARE @id bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.id'));
+    DECLARE @stayId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.stayId'));
+    DECLARE @roomSegmentId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.roomSegmentId'));
+    DECLARE @status varchar(20) = JSON_VALUE(@InputJson, '$.status');
+
+    IF @Resource NOT IN ('orders', 'audits') OR @Operation NOT IN ('catalog', 'context', 'list', 'detail')
+        THROW 54100, 'Unsupported consumption resource or operation.', 1;
+
+    -- =================================================================
+    -- OPERATION: catalog
+    -- =================================================================
+    IF @Operation = 'catalog'
+    BEGIN
+        IF @Resource = 'orders'
+        BEGIN
+            IF pms.fn_WebPermission(@AppUserId, 'addServiceOrder') = 1
+                EXEC pms.usp_WebAuthorize @AppUserId, 'addServiceOrder';
+            ELSE
+                EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+            DECLARE @orderCatRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), s.ServiceId) AS serviceId,
+                    s.Code AS code,
+                    s.Name AS name,
+                    s.Category AS category,
+                    s.Unit AS unit,
+                    CONVERT(varchar(30), s.PriceVnd) AS unitPriceVnd,
+                    CONVERT(varchar(18), CONVERT(binary(8), s.RowVer), 1) AS version,
+                    s.IsActive AS active
+                FROM pms.Service s
+                WHERE s.Category <> 'MINIBAR' AND s.IsActive = 1
+                ORDER BY s.ServiceId
+                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @orderCatTotal bigint = (SELECT COUNT_BIG(*) FROM pms.Service WHERE Category <> 'MINIBAR' AND IsActive = 1);
+
+            SELECT (
+                SELECT 'orders' AS resource, 'catalog' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@orderCatRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @orderCatTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @orderCatTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Resource = 'audits'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+            DECLARE @auditCatRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), s.ServiceId) AS serviceId,
+                    s.Code AS code,
+                    s.Name AS name,
+                    s.Category AS category,
+                    s.Unit AS unit,
+                    CONVERT(varchar(30), s.PriceVnd) AS unitPriceVnd,
+                    CONVERT(varchar(18), CONVERT(binary(8), s.RowVer), 1) AS version,
+                    s.IsActive AS active
+                FROM pms.Service s
+                WHERE s.Category = 'MINIBAR' AND s.IsActive = 1
+                ORDER BY s.ServiceId
+                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @auditCatTotal bigint = (SELECT COUNT_BIG(*) FROM pms.Service WHERE Category = 'MINIBAR' AND IsActive = 1);
+
+            SELECT (
+                SELECT 'audits' AS resource, 'catalog' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@auditCatRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @auditCatTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @auditCatTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- OPERATION: context
+    -- =================================================================
+    IF @Operation = 'context'
+    BEGIN
+        IF @Resource = 'orders'
+        BEGIN
+            IF pms.fn_WebPermission(@AppUserId, 'addServiceOrder') = 1
+                EXEC pms.usp_WebAuthorize @AppUserId, 'addServiceOrder';
+            ELSE
+                EXEC pms.usp_WebAuthorize @AppUserId, 'manageCheckOut';
+
+            DECLARE @orderCtx nvarchar(max) = (
+                SELECT TOP 1
+                    CONVERT(varchar(20), s.StayId) AS stayId,
+                    s.Code AS stayCode,
+                    CONVERT(varchar(18), CONVERT(binary(8), s.RowVer), 1) AS stayVersion,
+                    s.Status AS stayStatus,
+                    CONVERT(varchar(20), f.FolioId) AS folioId,
+                    CONVERT(varchar(18), CONVERT(binary(8), f.RowVer), 1) AS folioVersion,
+                    f.Status AS folioStatus
+                FROM pms.Stay s
+                JOIN pms.Folio f ON f.BookingRoomId = s.BookingRoomId AND f.Status = 'OPEN'
+                WHERE s.StayId = @stayId AND s.Status = 'IN_HOUSE'
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'orders' AS resource, 'context' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(@orderCtx) AS context
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Resource = 'audits'
+        BEGIN
+            IF pms.fn_WebPermission(@AppUserId, 'manageHousekeepingTasks') = 1
+                EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+            ELSE
+                EXEC pms.usp_WebAuthorize @AppUserId, 'manageCheckOut';
+
+            DECLARE @auditCtx nvarchar(max) = (
+                SELECT TOP 1
+                    CONVERT(varchar(20), s.StayId) AS stayId,
+                    s.Code AS stayCode,
+                    CONVERT(varchar(18), CONVERT(binary(8), s.RowVer), 1) AS stayVersion,
+                    s.Status AS stayStatus,
+                    CONVERT(varchar(20), f.FolioId) AS folioId,
+                    CONVERT(varchar(18), CONVERT(binary(8), f.RowVer), 1) AS folioVersion,
+                    f.Status AS folioStatus,
+                    CONVERT(varchar(20), seg.RoomId) AS roomId,
+                    CONVERT(varchar(20), seg.SegmentId) AS roomSegmentId,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 'occ:' + CONVERT(varchar(20), s.StayId) + ':' + CONVERT(varchar(20), seg.SegmentId) + ':' + CONVERT(varchar(30), seg.ArrivedAtUtc, 126)), 2)) AS occupancyToken,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 'scope:' + CONVERT(varchar(20), s.StayId) + ':' + CONVERT(varchar(20), seg.SegmentId) + ':' + CONVERT(varchar(10), @now, 120)), 2)) AS inspectionScopeToken
+                FROM pms.Stay s
+                JOIN pms.StayRoomSegment seg ON seg.StayId = s.StayId AND seg.SegmentId = @roomSegmentId AND seg.DepartedAtUtc IS NULL
+                JOIN pms.Folio f ON f.BookingRoomId = s.BookingRoomId AND f.Status = 'OPEN'
+                WHERE s.StayId = @stayId AND s.Status = 'IN_HOUSE'
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'audits' AS resource, 'context' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(@auditCtx) AS context
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: orders (list & detail)
+    -- =================================================================
+    IF @Resource = 'orders'
+    BEGIN
+        IF pms.fn_WebPermission(@AppUserId, 'addServiceOrder') = 1
+            EXEC pms.usp_WebAuthorize @AppUserId, 'addServiceOrder';
+        ELSE
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageCheckOut';
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @orderDetail nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), o.ServiceOrderId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), o.RowVer), 1) AS version,
+                    CONVERT(varchar(20), o.StayId) AS stayId,
+                    o.Status AS status,
+                    CONVERT(varchar(23), o.OrderedAtUtc, 126) + 'Z' AS pricedAtUtc,
+                    CONVERT(varchar(30), ISNULL((SELECT SUM(l.AmountVnd) FROM pms.ServiceOrderLine l WHERE l.ServiceOrderId = o.ServiceOrderId), 0)) AS totalVnd,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.MinibarAuditLine mal WHERE mal.ServiceOrderLineId IN (SELECT l.ServiceOrderLineId FROM pms.ServiceOrderLine l WHERE l.ServiceOrderId = o.ServiceOrderId)) THEN 'MINIBAR' ELSE 'SERVICE' END AS source,
+                    CONVERT(varchar(20), o.OrderedBy) AS orderedById,
+                    CONVERT(varchar(23), o.OrderedAtUtc, 126) + 'Z' AS orderedAtUtc,
+                    CASE WHEN o.Status = 'DELIVERED' THEN CONVERT(varchar(23), ISNULL((SELECT TOP 1 e.CreatedAtUtc FROM pms.AuditLog e WHERE e.EntityType='ServiceOrder' AND e.EntityKey=CONVERT(varchar(20), o.ServiceOrderId) AND e.Action='deliver' ORDER BY e.AuditLogId DESC), o.OrderedAtUtc), 126) + 'Z' ELSE NULL END AS deliveredAtUtc,
+                    o.CancellationReason AS cancellationReason,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(20), l.ServiceOrderLineId) AS id,
+                            CONVERT(varchar(20), l.ServiceId) AS serviceId,
+                            sv.Name AS description,
+                            CONVERT(varchar(18), CONVERT(binary(8), sv.RowVer), 1) AS serviceVersionAtPricing,
+                            CONVERT(varchar(30), l.UnitPriceVnd) AS unitPriceVnd,
+                            CONVERT(varchar(30), l.Quantity) AS quantity,
+                            CONVERT(varchar(30), l.AmountVnd) AS amountVnd,
+                            JSON_QUERY((
+                                SELECT TOP 1
+                                    CONVERT(varchar(20), fe.FolioEntryId) AS id,
+                                    CONVERT(varchar(20), fe.FolioId) AS folioId,
+                                    CONVERT(varchar(20), fe.StayId) AS stayId,
+                                    CONVERT(varchar(20), fe.ServiceOrderLineId) AS serviceOrderLineId,
+                                    CONVERT(varchar(30), fe.AmountVnd) AS amountVnd,
+                                    fe.Kind AS kind,
+                                    fe.Category AS category
+                                FROM pms.FolioEntry fe
+                                WHERE fe.ServiceOrderLineId = l.ServiceOrderLineId AND fe.Kind = 'CHARGE'
+                                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                            )) AS charge,
+                            JSON_QUERY(COALESCE((
+                                SELECT
+                                    CONVERT(varchar(20), fc.FolioEntryId) AS id,
+                                    CONVERT(varchar(20), fc.FolioId) AS folioId,
+                                    CONVERT(varchar(20), fc.StayId) AS stayId,
+                                    CONVERT(varchar(30), fc.AmountVnd) AS amountVnd,
+                                    fc.Kind AS kind,
+                                    fc.Category AS category,
+                                    CONVERT(varchar(20), fc.ReversesEntryId) AS reversesEntryId
+                                FROM pms.FolioEntry fc
+                                WHERE fc.ReversesEntryId IN (SELECT fe2.FolioEntryId FROM pms.FolioEntry fe2 WHERE fe2.ServiceOrderLineId = l.ServiceOrderLineId AND fe2.Kind = 'CHARGE')
+                                  AND fc.Kind = 'CHARGE_CREDIT'
+                                FOR JSON PATH, INCLUDE_NULL_VALUES
+                            ), '[]')) AS credits
+                        FROM pms.ServiceOrderLine l
+                        JOIN pms.Service sv ON sv.ServiceId = l.ServiceId
+                        WHERE l.ServiceOrderId = o.ServiceOrderId
+                        ORDER BY l.ServiceOrderLineId
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS lines
+                FROM pms.ServiceOrder o
+                WHERE o.ServiceOrderId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'orders' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(@orderDetail) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @orderIds TABLE (ServiceOrderId bigint PRIMARY KEY);
+            INSERT INTO @orderIds
+            SELECT o.ServiceOrderId
+            FROM pms.ServiceOrder o
+            WHERE (@stayId IS NULL OR o.StayId = @stayId)
+              AND (@status IS NULL OR o.Status = @status);
+
+            DECLARE @orderTotal bigint = (SELECT COUNT_BIG(*) FROM @orderIds);
+            DECLARE @orderRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), o.ServiceOrderId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), o.RowVer), 1) AS version,
+                    CONVERT(varchar(20), o.StayId) AS stayId,
+                    o.Status AS status,
+                    CONVERT(varchar(23), o.OrderedAtUtc, 126) + 'Z' AS pricedAtUtc,
+                    CONVERT(varchar(30), ISNULL((SELECT SUM(l.AmountVnd) FROM pms.ServiceOrderLine l WHERE l.ServiceOrderId = o.ServiceOrderId), 0)) AS totalVnd,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.MinibarAuditLine mal WHERE mal.ServiceOrderLineId IN (SELECT l.ServiceOrderLineId FROM pms.ServiceOrderLine l WHERE l.ServiceOrderId = o.ServiceOrderId)) THEN 'MINIBAR' ELSE 'SERVICE' END AS source,
+                    CONVERT(varchar(20), o.OrderedBy) AS orderedById,
+                    CONVERT(varchar(23), o.OrderedAtUtc, 126) + 'Z' AS orderedAtUtc,
+                    CASE WHEN o.Status = 'DELIVERED' THEN CONVERT(varchar(23), ISNULL((SELECT TOP 1 e.CreatedAtUtc FROM pms.AuditLog e WHERE e.EntityType='ServiceOrder' AND e.EntityKey=CONVERT(varchar(20), o.ServiceOrderId) AND e.Action='deliver' ORDER BY e.AuditLogId DESC), o.OrderedAtUtc), 126) + 'Z' ELSE NULL END AS deliveredAtUtc,
+                    o.CancellationReason AS cancellationReason
+                FROM (
+                    SELECT ServiceOrderId FROM @orderIds ORDER BY ServiceOrderId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.ServiceOrder o ON o.ServiceOrderId = ids.ServiceOrderId
+                ORDER BY o.ServiceOrderId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'orders' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@orderRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @orderTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @orderTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: audits (list & detail)
+    -- =================================================================
+    IF @Resource = 'audits'
+    BEGIN
+        IF pms.fn_WebPermission(@AppUserId, 'manageHousekeepingTasks') = 1
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+        ELSE
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageCheckOut';
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @auditDetail nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.MinibarAuditId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), a.RowVer), 1) AS version,
+                    CONVERT(varchar(20), a.StayId) AS stayId,
+                    a.Status AS status,
+                    CONVERT(varchar(23), a.CheckedAtUtc, 126) + 'Z' AS pricedAtUtc,
+                    CONVERT(varchar(30), ISNULL((SELECT SUM(ROUND(al.ConsumedQuantity * sv.PriceVnd, 0)) FROM pms.MinibarAuditLine al JOIN pms.Service sv ON sv.ServiceId = al.ServiceId WHERE al.MinibarAuditId = a.MinibarAuditId), 0)) AS totalVnd,
+                    CONVERT(varchar(20), a.RoomId) AS roomId,
+                    CONVERT(varchar(20), ISNULL((SELECT TOP 1 seg.SegmentId FROM pms.StayRoomSegment seg WHERE seg.StayId = a.StayId AND seg.RoomId = a.RoomId), 1)) AS roomSegmentId,
+                    CONVERT(varchar(20), a.CheckedBy) AS checkedById,
+                    CONVERT(varchar(23), a.CheckedAtUtc, 126) + 'Z' AS checkedAtUtc,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 'scope:' + CONVERT(varchar(20), a.StayId) + ':' + CONVERT(varchar(20), a.RoomId) + ':' + CONVERT(varchar(10), a.CheckedAtUtc, 120)), 2)) AS inspectionScopeToken,
+                    CAST(CASE WHEN NOT EXISTS(SELECT 1 FROM pms.MinibarAuditLine al WHERE al.MinibarAuditId = a.MinibarAuditId AND al.ConsumedQuantity > 0) THEN 1 ELSE 0 END AS bit) AS zeroConsumptionConfirmed,
+                    a.Notes AS notes,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(20), al.ServiceId) AS serviceId,
+                            sv.Name AS description,
+                            CONVERT(varchar(18), CONVERT(binary(8), sv.RowVer), 1) AS serviceVersionAtPricing,
+                            CONVERT(varchar(30), sv.PriceVnd) AS unitPriceVnd,
+                            CONVERT(varchar(30), ROUND(al.ConsumedQuantity * sv.PriceVnd, 0)) AS amountVnd,
+                            al.ConsumedQuantity AS consumedQuantity,
+                            CONVERT(varchar(20), sol.ServiceOrderId) AS serviceOrderId,
+                            CONVERT(varchar(20), al.ServiceOrderLineId) AS serviceOrderLineId,
+                            JSON_QUERY((
+                                SELECT TOP 1
+                                    CONVERT(varchar(20), sol.ServiceOrderLineId) AS id,
+                                    CONVERT(varchar(20), sol.ServiceOrderId) AS serviceOrderId,
+                                    CONVERT(varchar(20), sol.ServiceId) AS serviceId,
+                                    CONVERT(varchar(20), so.StayId) AS stayId,
+                                    so.Status AS orderStatus,
+                                    CONVERT(varchar(30), sol.UnitPriceVnd) AS unitPriceVnd,
+                                    CONVERT(varchar(30), sol.AmountVnd) AS amountVnd,
+                                    CONVERT(varchar(30), sol.Quantity) AS quantity
+                                FROM pms.ServiceOrderLine sol
+                                JOIN pms.ServiceOrder so ON so.ServiceOrderId = sol.ServiceOrderId
+                                WHERE sol.ServiceOrderLineId = al.ServiceOrderLineId
+                                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                            )) AS sourceLine,
+                            JSON_QUERY((
+                                SELECT TOP 1
+                                    CONVERT(varchar(20), fe.FolioEntryId) AS id,
+                                    CONVERT(varchar(20), fe.FolioId) AS folioId,
+                                    CONVERT(varchar(20), fe.StayId) AS stayId,
+                                    CONVERT(varchar(20), fe.ServiceOrderLineId) AS serviceOrderLineId,
+                                    CONVERT(varchar(30), fe.AmountVnd) AS amountVnd,
+                                    fe.Kind AS kind,
+                                    fe.Category AS category
+                                FROM pms.FolioEntry fe
+                                WHERE fe.ServiceOrderLineId = al.ServiceOrderLineId AND fe.Kind = 'CHARGE'
+                                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                            )) AS charge,
+                            JSON_QUERY(COALESCE((
+                                SELECT
+                                    CONVERT(varchar(20), fc.FolioEntryId) AS id,
+                                    CONVERT(varchar(20), fc.FolioId) AS folioId,
+                                    CONVERT(varchar(20), fc.StayId) AS stayId,
+                                    CONVERT(varchar(30), fc.AmountVnd) AS amountVnd,
+                                    fc.Kind AS kind,
+                                    fc.Category AS category,
+                                    CONVERT(varchar(20), fc.ReversesEntryId) AS reversesEntryId
+                                FROM pms.FolioEntry fc
+                                WHERE fc.ReversesEntryId IN (SELECT fe2.FolioEntryId FROM pms.FolioEntry fe2 WHERE fe2.ServiceOrderLineId = al.ServiceOrderLineId AND fe2.Kind = 'CHARGE')
+                                  AND fc.Kind = 'CHARGE_CREDIT'
+                                FOR JSON PATH, INCLUDE_NULL_VALUES
+                            ), '[]')) AS credits
+                        FROM pms.MinibarAuditLine al
+                        JOIN pms.Service sv ON sv.ServiceId = al.ServiceId
+                        LEFT JOIN pms.ServiceOrderLine sol ON sol.ServiceOrderLineId = al.ServiceOrderLineId
+                        WHERE al.MinibarAuditId = a.MinibarAuditId
+                        ORDER BY al.ServiceId
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS lines
+                FROM pms.MinibarAudit a
+                WHERE a.MinibarAuditId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'audits' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(@auditDetail) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @auditIds TABLE (MinibarAuditId bigint PRIMARY KEY);
+            INSERT INTO @auditIds
+            SELECT a.MinibarAuditId
+            FROM pms.MinibarAudit a
+            WHERE (@stayId IS NULL OR a.StayId = @stayId)
+              AND (@status IS NULL OR a.Status = @status);
+
+            DECLARE @auditTotal bigint = (SELECT COUNT_BIG(*) FROM @auditIds);
+            DECLARE @auditRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.MinibarAuditId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), a.RowVer), 1) AS version,
+                    CONVERT(varchar(20), a.StayId) AS stayId,
+                    a.Status AS status,
+                    CONVERT(varchar(23), a.CheckedAtUtc, 126) + 'Z' AS pricedAtUtc,
+                    CONVERT(varchar(30), ISNULL((SELECT SUM(ROUND(al.ConsumedQuantity * sv.PriceVnd, 0)) FROM pms.MinibarAuditLine al JOIN pms.Service sv ON sv.ServiceId = al.ServiceId WHERE al.MinibarAuditId = a.MinibarAuditId), 0)) AS totalVnd,
+                    CONVERT(varchar(20), a.RoomId) AS roomId,
+                    CONVERT(varchar(20), ISNULL((SELECT TOP 1 seg.SegmentId FROM pms.StayRoomSegment seg WHERE seg.StayId = a.StayId AND seg.RoomId = a.RoomId), 1)) AS roomSegmentId,
+                    CONVERT(varchar(20), a.CheckedBy) AS checkedById,
+                    CONVERT(varchar(23), a.CheckedAtUtc, 126) + 'Z' AS checkedAtUtc,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 'scope:' + CONVERT(varchar(20), a.StayId) + ':' + CONVERT(varchar(20), a.RoomId) + ':' + CONVERT(varchar(10), a.CheckedAtUtc, 120)), 2)) AS inspectionScopeToken,
+                    CAST(CASE WHEN NOT EXISTS(SELECT 1 FROM pms.MinibarAuditLine al WHERE al.MinibarAuditId = a.MinibarAuditId AND al.ConsumedQuantity > 0) THEN 1 ELSE 0 END AS bit) AS zeroConsumptionConfirmed,
+                    a.Notes AS notes
+                FROM (
+                    SELECT MinibarAuditId FROM @auditIds ORDER BY MinibarAuditId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.MinibarAudit a ON a.MinibarAuditId = ids.MinibarAuditId
+                ORDER BY a.MinibarAuditId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'audits' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@auditRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @auditTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @auditTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    THROW 54100, 'Invalid consumption read request.', 1;
+END;
+GO
+
+-- =====================================================================
+-- COMMAND RPC: pms.usp_AppConsumptionCommand
+-- =====================================================================
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE OR ALTER PROCEDURE pms.usp_AppConsumptionCommand
+    @AppUserId bigint,
+    @Resource varchar(16),
+    @Operation varchar(16),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80),
+    @IdempotencyKey varchar(120),
+    @IntentHash varchar(64)
+WITH EXECUTE AS OWNER AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET ANSI_WARNINGS ON;
+    SET ARITHABORT ON;
+
+    IF @@TRANCOUNT <> 0 THROW 52400, 'Consumption command owns its transaction.', 1;
+
+    IF ISJSON(@InputJson) <> 1 OR DATALENGTH(@InputJson) > 32768
+       OR @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120
+       OR @IntentHash IS NULL OR LEN(@IntentHash) <> 64
+        THROW 54100, 'Invalid consumption command payload.', 1;
+
+    DECLARE @lock int;
+    DECLARE @now datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(24) = CONVERT(varchar(23), @now, 126) + 'Z';
+    DECLARE @request uniqueidentifier = TRY_CONVERT(uniqueidentifier, @RequestId);
+    DECLARE @idempotencyOp varchar(60) = 'CONSUMPTION_' + UPPER(@Resource) + '_' + UPPER(@Operation);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- Global inventory lock
+        EXEC @lock = sys.sp_getapplock @Resource = N'SongLam:Inventory', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        IF @lock < 0 THROW 51002, 'Inventory lock unavailable.', 1;
+
+        -- Check idempotency
+        DECLARE @saved nvarchar(max), @savedHash binary(32);
+        SELECT @saved = ResponseJson, @savedHash = RequestHash
+        FROM pms.ApiRequest WITH(UPDLOCK, HOLDLOCK)
+        WHERE ActorId = @AppUserId AND Operation = @idempotencyOp AND IdempotencyKey = @IdempotencyKey;
+
+        IF @savedHash IS NOT NULL
+        BEGIN
+            IF @savedHash <> CONVERT(binary(32), @IntentHash, 2)
+                THROW 52404, 'Idempotency conflict.', 1;
+            COMMIT TRANSACTION;
+            SELECT JSON_MODIFY(@saved, '$.replayed', CAST(1 AS bit)) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @request IS NOT NULL AND EXISTS(SELECT 1 FROM pms.ApiRequest WHERE RequestId = @request)
+            THROW 52404, 'Request ID already used.', 1;
+
+        -- Verify working business day
+        DECLARE @workingDate date;
+        SELECT @workingDate = h.WorkingDate
+        FROM pms.HotelSettings h WITH(HOLDLOCK)
+        JOIN pms.BusinessDay b WITH(HOLDLOCK) ON b.BusinessDate = h.WorkingDate AND b.Status = 'OPEN'
+        WHERE h.HotelId = 1;
+        IF @workingDate IS NULL THROW 52406, 'Open business date required.', 1;
+
+        IF @request IS NULL SET @request = NEWID();
+        INSERT INTO pms.ApiRequest (RequestId, ActorId, Operation, IdempotencyKey, RequestHash, Status, CreatedAtUtc)
+        VALUES (@request, @AppUserId, @idempotencyOp, @IdempotencyKey, CONVERT(binary(32), @IntentHash, 2), 'PROCESSING', @now);
+        INSERT INTO pms.CommandExecution (SessionId, RequestId) VALUES (@@SPID, @request);
+
+        -- Read input fields
+        DECLARE @targetId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.id'));
+        DECLARE @stayId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.stayId'));
+        DECLARE @folioId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.folioId'));
+        DECLARE @expectedVersion binary(8) = TRY_CONVERT(binary(8), JSON_VALUE(@InputJson, '$.expectedVersion'), 1);
+        DECLARE @reason nvarchar(500) = JSON_VALUE(@InputJson, '$.reason');
+        DECLARE @note nvarchar(1000) = JSON_VALUE(@InputJson, '$.note');
+
+        -- Resolve stay and folio from input or target
+        IF @stayId IS NULL AND @targetId IS NOT NULL
+        BEGIN
+            IF @Resource = 'orders'
+                SELECT @stayId = StayId FROM pms.ServiceOrder WHERE ServiceOrderId = @targetId;
+            ELSE
+                SELECT @stayId = StayId FROM pms.MinibarAudit WHERE MinibarAuditId = @targetId;
+        END;
+
+        IF @folioId IS NULL AND @stayId IS NOT NULL
+        BEGIN
+            SELECT TOP 1 @folioId = f.FolioId
+            FROM pms.Folio f
+            JOIN pms.Stay s ON s.BookingRoomId = f.BookingRoomId AND f.Status = 'OPEN'
+            WHERE s.StayId = @stayId;
+        END;
+
+        -- Read contextBefore
+        DECLARE @tblCtxBefore TABLE (p nvarchar(max));
+        DECLARE @ctxInput nvarchar(max) = (
+            SELECT CONVERT(varchar(20), @stayId) AS stayId,
+                   JSON_VALUE(@InputJson, '$.roomSegmentId') AS roomSegmentId
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        );
+        INSERT INTO @tblCtxBefore EXEC pms.usp_AppConsumptionRead @AppUserId, @Resource, 'context', @ctxInput, @RequestId;
+        DECLARE @contextBefore nvarchar(max);
+        SELECT @contextBefore = JSON_QUERY(p, '$.context') FROM @tblCtxBefore;
+        IF @contextBefore IS NULL THROW 52417, 'Stay or Folio context unavailable.', 1;
+
+        DECLARE @before nvarchar(max) = NULL;
+        DECLARE @row nvarchar(max) = NULL;
+
+        -- =============================================================
+        -- RESOURCE: orders
+        -- =============================================================
+        IF @Resource = 'orders'
+        BEGIN
+            IF @Operation IN ('create', 'deliver') EXEC pms.usp_WebAuthorize @AppUserId, 'addServiceOrder';
+            ELSE IF @Operation = 'cancel' EXEC pms.usp_WebAuthorize @AppUserId, 'cancelServiceOrder';
+            ELSE THROW 54100, 'Unsupported order operation.', 1;
+
+            IF @Operation = 'create'
+            BEGIN
+                INSERT INTO pms.ServiceOrder (StayId, Status, OrderedBy, OrderedAtUtc)
+                VALUES (@stayId, 'OPEN', @AppUserId, @now);
+                SET @targetId = SCOPE_IDENTITY();
+
+                -- Insert lines
+                INSERT INTO pms.ServiceOrderLine (ServiceOrderId, ServiceId, Quantity, UnitPriceVnd, AmountVnd)
+                SELECT
+                    @targetId,
+                    TRY_CONVERT(int, JSON_VALUE(val.value, '$.serviceId')),
+                    TRY_CONVERT(decimal(12,3), JSON_VALUE(val.value, '$.quantity')),
+                    sv.PriceVnd,
+                    ROUND(TRY_CONVERT(decimal(12,3), JSON_VALUE(val.value, '$.quantity')) * sv.PriceVnd, 0)
+                FROM OPENJSON(@InputJson, '$.lines') val
+                JOIN pms.Service sv ON sv.ServiceId = TRY_CONVERT(int, JSON_VALUE(val.value, '$.serviceId'))
+                WHERE sv.Category <> 'MINIBAR' AND sv.IsActive = 1;
+            END
+            ELSE
+            BEGIN
+                -- Read before
+                DECLARE @tblOrderBefore TABLE (p nvarchar(max));
+                DECLARE @orderDetailIn nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+                INSERT INTO @tblOrderBefore EXEC pms.usp_AppConsumptionRead @AppUserId, 'orders', 'detail', @orderDetailIn, @RequestId;
+                SELECT @before = JSON_QUERY(p, '$.row') FROM @tblOrderBefore;
+                IF @before IS NULL THROW 52412, 'Order not found.', 1;
+
+                DECLARE @curOrdRowVer rowversion, @curOrdStatus varchar(12);
+                SELECT @curOrdRowVer = RowVer, @curOrdStatus = Status FROM pms.ServiceOrder WITH(UPDLOCK, HOLDLOCK) WHERE ServiceOrderId = @targetId;
+                IF @expectedVersion IS NOT NULL AND @curOrdRowVer <> @expectedVersion THROW 52412, 'Order version conflict.', 1;
+
+                IF @Operation = 'deliver'
+                BEGIN
+                    IF @curOrdStatus <> 'OPEN' THROW 52412, 'Order must be open to deliver.', 1;
+
+                    UPDATE pms.ServiceOrder SET Status = 'DELIVERED' WHERE ServiceOrderId = @targetId;
+
+                    -- Insert FolioEntry CHARGE for each line with AmountVnd > 0
+                    INSERT INTO pms.FolioEntry (FolioId, StayId, Kind, Category, AmountVnd, Description, BusinessDate, CreatedBy, ServiceOrderLineId, OperationKey)
+                    SELECT
+                        @folioId,
+                        @stayId,
+                        'CHARGE',
+                        'SERVICE',
+                        sol.AmountVnd,
+                        N'Dịch vụ phòng #' + CONVERT(varchar(20), sol.ServiceOrderId) + N': ' + sv.Name,
+                        @workingDate,
+                        @AppUserId,
+                        sol.ServiceOrderLineId,
+                        'sorder:' + CONVERT(varchar(36), ISNULL(@request, NEWID())) + ':' + CONVERT(varchar(20), sol.ServiceOrderLineId)
+                    FROM pms.ServiceOrderLine sol
+                    JOIN pms.Service sv ON sv.ServiceId = sol.ServiceId
+                    WHERE sol.ServiceOrderId = @targetId AND sol.AmountVnd > 0;
+                END
+                ELSE IF @Operation = 'cancel'
+                BEGIN
+                    IF @curOrdStatus NOT IN ('OPEN', 'DELIVERED') THROW 52412, 'Order cannot be cancelled.', 1;
+
+                    UPDATE pms.ServiceOrder SET Status = 'CANCELLED', CancellationReason = @reason WHERE ServiceOrderId = @targetId;
+
+                    -- If was delivered, create credit entries for each line's charge
+                    IF @curOrdStatus = 'DELIVERED'
+                    BEGIN
+                        INSERT INTO pms.FolioEntry (FolioId, StayId, Kind, Category, AmountVnd, Description, BusinessDate, CreatedBy, ReversesEntryId, OperationKey)
+                        SELECT
+                            fe.FolioId,
+                            fe.StayId,
+                            'CHARGE_CREDIT',
+                            'SERVICE',
+                            fe.AmountVnd,
+                            N'Hủy dịch vụ: ' + COALESCE(@reason, N'Khách hủy'),
+                            @workingDate,
+                            @AppUserId,
+                            fe.FolioEntryId,
+                            'sorder_credit:' + CONVERT(varchar(36), ISNULL(@request, NEWID())) + ':' + CONVERT(varchar(20), fe.FolioEntryId)
+                        FROM pms.FolioEntry fe
+                        WHERE fe.ServiceOrderLineId IN (SELECT sol2.ServiceOrderLineId FROM pms.ServiceOrderLine sol2 WHERE sol2.ServiceOrderId = @targetId)
+                          AND fe.Kind = 'CHARGE'
+                          AND NOT EXISTS(SELECT 1 FROM pms.FolioEntry rev WHERE rev.ReversesEntryId = fe.FolioEntryId);
+                    END;
+                END;
+            END;
+
+            -- Read after
+            DECLARE @tblOrderAfter TABLE (p nvarchar(max));
+            DECLARE @orderDetailAfterIn nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+            INSERT INTO @tblOrderAfter EXEC pms.usp_AppConsumptionRead @AppUserId, 'orders', 'detail', @orderDetailAfterIn, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblOrderAfter;
+        END
+
+        -- =============================================================
+        -- RESOURCE: audits
+        -- =============================================================
+        ELSE IF @Resource = 'audits'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+            IF @Operation = 'create'
+            BEGIN
+                DECLARE @audRoomId int = TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.roomId'));
+                DECLARE @audZero bit = CASE WHEN JSON_VALUE(@InputJson, '$.zeroConsumptionConfirmed') = 'true' THEN 1 ELSE 0 END;
+
+                INSERT INTO pms.MinibarAudit (StayId, RoomId, Status, CheckedBy, CheckedAtUtc, Notes)
+                VALUES (@stayId, @audRoomId, 'PENDING', @AppUserId, @now, @note);
+                SET @targetId = SCOPE_IDENTITY();
+
+                -- Insert lines
+                INSERT INTO pms.MinibarAuditLine (MinibarAuditId, ServiceId, ConsumedQuantity)
+                SELECT
+                    @targetId,
+                    TRY_CONVERT(int, JSON_VALUE(val.value, '$.serviceId')),
+                    TRY_CONVERT(int, JSON_VALUE(val.value, '$.consumedQuantity'))
+                FROM OPENJSON(@InputJson, '$.lines') val
+                JOIN pms.Service sv ON sv.ServiceId = TRY_CONVERT(int, JSON_VALUE(val.value, '$.serviceId'))
+                WHERE sv.Category = 'MINIBAR';
+            END
+            ELSE
+            BEGIN
+                -- Read before
+                DECLARE @tblAuditBefore TABLE (p nvarchar(max));
+                DECLARE @auditDetailIn nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+                INSERT INTO @tblAuditBefore EXEC pms.usp_AppConsumptionRead @AppUserId, 'audits', 'detail', @auditDetailIn, @RequestId;
+                SELECT @before = JSON_QUERY(p, '$.row') FROM @tblAuditBefore;
+                IF @before IS NULL THROW 52412, 'Audit not found.', 1;
+
+                DECLARE @curAudRowVer rowversion, @curAudStatus varchar(12), @curAudStayId bigint, @curAudRoomId int;
+                SELECT @curAudRowVer = RowVer, @curAudStatus = Status, @curAudStayId = StayId, @curAudRoomId = RoomId
+                FROM pms.MinibarAudit WITH(UPDLOCK, HOLDLOCK) WHERE MinibarAuditId = @targetId;
+                IF @expectedVersion IS NOT NULL AND @curAudRowVer <> @expectedVersion THROW 52412, 'Audit version conflict.', 1;
+
+                IF @Operation = 'confirm'
+                BEGIN
+                    IF @curAudStatus NOT IN ('PENDING', 'DISPUTED') THROW 52412, 'Audit cannot be confirmed.', 1;
+
+                    -- Check if any consumed quantity > 0
+                    IF EXISTS(SELECT 1 FROM pms.MinibarAuditLine WHERE MinibarAuditId = @targetId AND ConsumedQuantity > 0)
+                    BEGIN
+                        -- Create DELIVERED ServiceOrder
+                        DECLARE @audOrderId bigint;
+                        INSERT INTO pms.ServiceOrder (StayId, Status, OrderedBy, OrderedAtUtc)
+                        VALUES (@curAudStayId, 'DELIVERED', @AppUserId, @now);
+                        SET @audOrderId = SCOPE_IDENTITY();
+
+                        -- Insert lines into ServiceOrderLine and link to MinibarAuditLine
+                        DECLARE @curAlServiceId int, @curAlConsumed int, @curAlPrice decimal(19,0), @curLineId bigint;
+                        DECLARE alCursor CURSOR LOCAL FAST_FORWARD FOR
+                            SELECT al.ServiceId, al.ConsumedQuantity, sv.PriceVnd
+                            FROM pms.MinibarAuditLine al
+                            JOIN pms.Service sv ON sv.ServiceId = al.ServiceId
+                            WHERE al.MinibarAuditId = @targetId AND al.ConsumedQuantity > 0;
+
+                        OPEN alCursor;
+                        FETCH NEXT FROM alCursor INTO @curAlServiceId, @curAlConsumed, @curAlPrice;
+                        WHILE @@FETCH_STATUS = 0
+                        BEGIN
+                            DECLARE @curAmount decimal(19,0) = ROUND(@curAlConsumed * @curAlPrice, 0);
+                            INSERT INTO pms.ServiceOrderLine (ServiceOrderId, ServiceId, Quantity, UnitPriceVnd, AmountVnd)
+                            VALUES (@audOrderId, @curAlServiceId, @curAlConsumed, @curAlPrice, @curAmount);
+                            SET @curLineId = SCOPE_IDENTITY();
+
+                            UPDATE pms.MinibarAuditLine SET ServiceOrderLineId = @curLineId WHERE MinibarAuditId = @targetId AND ServiceId = @curAlServiceId;
+
+                            IF @curAmount > 0
+                            BEGIN
+                                INSERT INTO pms.FolioEntry (FolioId, StayId, Kind, Category, AmountVnd, Description, BusinessDate, CreatedBy, ServiceOrderLineId, OperationKey)
+                                VALUES (
+                                    @folioId,
+                                    @curAudStayId,
+                                    'CHARGE',
+                                    'SERVICE',
+                                    @curAmount,
+                                    N'Tiêu thụ minibar phòng #' + CONVERT(varchar(20), @curAudRoomId),
+                                    @workingDate,
+                                    @AppUserId,
+                                    @curLineId,
+                                    'minibar:' + CONVERT(varchar(36), ISNULL(@request, NEWID())) + ':' + CONVERT(varchar(20), @curLineId)
+                                );
+                            END;
+
+                            FETCH NEXT FROM alCursor INTO @curAlServiceId, @curAlConsumed, @curAlPrice;
+                        END;
+                        CLOSE alCursor;
+                        DEALLOCATE alCursor;
+                    END;
+
+                    UPDATE pms.MinibarAudit SET Status = 'CONFIRMED' WHERE MinibarAuditId = @targetId;
+                END
+                ELSE IF @Operation = 'dispute'
+                BEGIN
+                    IF @curAudStatus <> 'PENDING' THROW 52412, 'Audit must be pending to dispute.', 1;
+                    UPDATE pms.MinibarAudit SET Status = 'DISPUTED', Notes = COALESCE(@reason, Notes) WHERE MinibarAuditId = @targetId;
+                END;
+            END;
+
+            -- Read after
+            DECLARE @tblAuditAfter TABLE (p nvarchar(max));
+            DECLARE @auditDetailAfterIn nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+            INSERT INTO @tblAuditAfter EXEC pms.usp_AppConsumptionRead @AppUserId, 'audits', 'detail', @auditDetailAfterIn, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblAuditAfter;
+        END
+        ELSE THROW 54100, 'Invalid resource.', 1;
+
+        -- Record AuditLog
+        DECLARE @cEntityType varchar(60) = CASE WHEN @Resource = 'orders' THEN 'ServiceOrder' ELSE 'MinibarAudit' END;
+        DECLARE @cAuditId bigint;
+        INSERT INTO pms.AuditLog (ActorId, Action, EntityType, EntityKey, RequestId, AfterJson, Reason, CreatedAtUtc)
+        VALUES (@AppUserId, @Operation, @cEntityType, CONVERT(varchar(20), @targetId), @request, @row, COALESCE(@reason, @note), @now);
+        SET @cAuditId = SCOPE_IDENTITY();
+
+        -- Event for receipt
+        DECLARE @cEventJson nvarchar(max) = (
+            SELECT
+                CONVERT(varchar(20), @cAuditId) AS id,
+                @Operation AS operation,
+                CONVERT(varchar(20), @AppUserId) AS actorId,
+                @nowIso AS atUtc,
+                COALESCE(@reason, @note) AS reason
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        );
+
+        -- Build final response
+        DECLARE @cResponseJson nvarchar(max) = (
+            SELECT
+                CAST(1 AS bit) AS committed,
+                CAST(0 AS bit) AS replayed,
+                @Resource AS resource,
+                @Operation AS operation,
+                CONVERT(varchar(20), @AppUserId) AS actorId,
+                @IntentHash AS intentHash,
+                @IdempotencyKey AS idempotencyKey,
+                JSON_QUERY(@contextBefore) AS contextBefore,
+                JSON_QUERY(@before) AS before,
+                JSON_QUERY(@row) AS row,
+                JSON_QUERY(@cEventJson) AS event
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        );
+
+        -- Update ApiRequest and clean up CommandExecution
+        DELETE FROM pms.CommandExecution WHERE SessionId = @@SPID AND RequestId = @request;
+        UPDATE pms.ApiRequest SET Status = 'SUCCEEDED', ResponseJson = @cResponseJson WHERE RequestId = @request;
+
+        COMMIT TRANSACTION;
+        SELECT @cResponseJson AS PayloadJson;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+-- Grant permissions to pms_web_auth_test
+GRANT EXECUTE ON pms.usp_AppConsumptionRead TO pms_web_auth_test;
+GRANT EXECUTE ON pms.usp_AppConsumptionCommand TO pms_web_auth_test;
+GO

@@ -1,0 +1,74 @@
+-- PENDING APPROVAL. CREATE only; no data/role/permission changes in this file.
+-- Target: .\SQLEXPRESS / SongLamPms_Design. Read-only prepare for existing G5.
+-- Supports reassignment within the same room type and cancellation WITHOUT
+-- any financial ledger. Financial cancellations need a separate review contract.
+CREATE PROCEDURE pms.usp_AppBookingMutationPrepare
+ @AppUserId bigint,@Operation varchar(32),@InputJson nvarchar(max),@RequestId nvarchar(80),
+ @IdempotencyKey varchar(120),@IntentHash varchar(64)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ IF @Operation IS NULL OR @Operation NOT IN('assign','cancel','cancel-rooms') THROW 54100,'Unsupported booking mutation.',1;
+ IF @Operation='assign' EXEC pms.usp_WebAuthorize @AppUserId,'createBooking';
+ ELSE EXEC pms.usp_WebAuthorize @AppUserId,'cancelBooking';
+ IF @Operation='assign' EXEC pms.usp_WebAuthorize @AppUserId,'viewRoomRack';
+ IF ISJSON(@InputJson)<>1 OR DATALENGTH(@InputJson)>65536 OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL
+ OR @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120 OR @IntentHash IS NULL
+ OR LEN(@IntentHash)<>64 OR TRY_CONVERT(binary(32),@IntentHash,2) IS NULL
+ OR @IntentHash<>LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',CONVERT(varchar(max),@InputJson COLLATE Latin1_General_100_BIN2_UTF8)),2))
+ THROW 54100,'Invalid canonical mutation intent.',1;
+ DECLARE @saved nvarchar(max),@savedHash binary(32),@op varchar(40)='WEB_BOOKING_'+UPPER(REPLACE(@Operation,'-','_')),
+ @booking bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingId')),@room bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingRoomId')),
+ @target int=TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.roomId')),@version binary(8)=TRY_CONVERT(binary(8),JSON_VALUE(@InputJson,'$.expectedVersion'),1),
+ @rooms nvarchar(max),@received nvarchar(max),@policy nvarchar(max),@reason nvarchar(1000)=JSON_VALUE(@InputJson,'$.reason');
+ SELECT @saved=ResponseJson,@savedHash=RequestHash FROM pms.ApiRequest WHERE ActorId=@AppUserId AND Operation=@op AND IdempotencyKey=@IdempotencyKey;
+ IF @savedHash IS NOT NULL
+ BEGIN
+  IF @savedHash<>CONVERT(binary(32),@IntentHash,2) THROW 52404,'Idempotency key conflict.',1;
+  IF @saved IS NULL THROW 54109,'Request outcome pending.',1;
+  SELECT (SELECT CONVERT(varchar(20),@AppUserId) actorId,@Operation operation,@IntentHash intentHash,CAST(1 AS bit) replayed,
+   JSON_QUERY(JSON_MODIFY(@saved,'$.replayed',CAST(1 AS bit))) result FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) PayloadJson; RETURN;
+ END;
+ IF @version IS NULL OR NOT EXISTS(SELECT 1 FROM pms.Booking WHERE BookingId=@booking AND RowVer=@version AND Status IN('PENDING','CONFIRMED','PARTIALLY_CHECKED_IN'))
+ THROW 54201,'Booking version/state changed.',1;
+ IF @Operation<>'assign' AND (NULLIF(LTRIM(RTRIM(@reason)),N'') IS NULL OR DATALENGTH(@reason)>2000) THROW 54100,'Cancellation reason required.',1;
+ DECLARE @selected TABLE(id bigint PRIMARY KEY);
+ IF @Operation='assign' INSERT @selected VALUES(@room);
+ ELSE IF @Operation='cancel-rooms'
+ BEGIN
+  IF JSON_QUERY(@InputJson,'$.bookingRoomIds') IS NULL OR (SELECT COUNT(*) FROM OPENJSON(@InputJson,'$.bookingRoomIds')) NOT BETWEEN 1 AND 50
+   OR EXISTS(SELECT 1 FROM OPENJSON(@InputJson,'$.bookingRoomIds') WHERE TRY_CONVERT(bigint,value) IS NULL)
+   OR EXISTS(SELECT value FROM OPENJSON(@InputJson,'$.bookingRoomIds') GROUP BY value HAVING COUNT(*)>1) THROW 54100,'Invalid partial cancellation scope.',1;
+  INSERT @selected SELECT CONVERT(bigint,value) FROM OPENJSON(@InputJson,'$.bookingRoomIds');
+ END
+ ELSE INSERT @selected SELECT BookingRoomId FROM pms.BookingRoom WHERE BookingId=@booking AND Status IN('HELD','CONFIRMED');
+ IF NOT EXISTS(SELECT 1 FROM @selected) OR (SELECT COUNT(*) FROM @selected)>50
+ OR EXISTS(SELECT 1 FROM @selected x LEFT JOIN pms.BookingRoom r ON r.BookingRoomId=x.id WHERE r.BookingId IS NULL OR r.BookingId<>@booking OR r.Status NOT IN('HELD','CONFIRMED')
+  OR EXISTS(SELECT 1 FROM pms.Stay s WHERE s.BookingRoomId=x.id)) THROW 54202,'Only unreceived rooms may be changed.',1;
+ IF @Operation='cancel' AND EXISTS(SELECT 1 FROM pms.Stay s JOIN pms.BookingRoom r ON r.BookingRoomId=s.BookingRoomId WHERE r.BookingId=@booking)
+ THROW 54202,'Received group requires explicit partial cancellation.',1;
+ -- Never fabricate a zero financial summary or move deposits from received rooms.
+ IF @Operation<>'assign' AND (EXISTS(SELECT 1 FROM pms.DepositAccount WHERE BookingId=@booking)
+  OR EXISTS(SELECT 1 FROM pms.Payment WHERE BookingId=@booking) OR EXISTS(SELECT 1 FROM pms.Folio WHERE BookingId=@booking))
+ THROW 54206,'Financial cancellation requires manager review/obligation contract.',1;
+ IF @Operation='assign' AND NOT EXISTS(SELECT 1 FROM pms.Room t JOIN pms.BookingRoom r ON r.RoomTypeId=t.RoomTypeId WHERE t.RoomId=@target AND t.IsActive=1 AND r.BookingRoomId=@room)
+ THROW 54203,'Active target in booked room type required.',1;
+ IF @Operation='assign' AND EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingRoomId=@room AND Status='HELD' AND HoldExpiresAtUtc<=SYSUTCDATETIME())
+ THROW 54202,'Expired hold cannot be reassigned.',1;
+ SET @rooms=(SELECT CONVERT(varchar(20),r.BookingRoomId) id,CONVERT(varchar(20),r.RoomTypeId) roomTypeId,r.Status status,
+  CONVERT(varchar(18),CONVERT(binary(8),r.RowVer),1) version,CONVERT(varchar(23),r.StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),r.EndsAtUtc,126)+'Z' endsAtUtc,
+  JSON_QUERY((SELECT CONVERT(varchar(20),a.AllocationId) id,CONVERT(varchar(20),a.RoomId) roomId,CONVERT(varchar(20),a.BookingRoomId) bookingRoomId,
+   CONVERT(varchar(18),CONVERT(binary(8),a.RowVer),1) version,a.IsCancelled isCancelled FROM pms.RoomAllocation a WHERE a.BookingRoomId=r.BookingRoomId AND a.IsCancelled=0 ORDER BY a.AllocationId FOR JSON PATH)) allocations
+  FROM pms.BookingRoom r JOIN @selected x ON x.id=r.BookingRoomId ORDER BY r.BookingRoomId FOR JSON PATH);
+ SET @received=COALESCE((SELECT N'['+STRING_AGG(CONVERT(nvarchar(max),N'"'+CONVERT(varchar(20),r.BookingRoomId)+N'"'),N',')+N']'
+  FROM pms.BookingRoom r WHERE r.BookingId=@booking AND EXISTS(SELECT 1 FROM pms.Stay s WHERE s.BookingRoomId=r.BookingRoomId)),N'[]');
+ SET @policy=(SELECT JSON_VALUE(CONVERT(nvarchar(max),value),'$.bookingPolicyId') id,JSON_VALUE(CONVERT(nvarchar(max),value),'$.bookingPolicyHash') hash
+  FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Booking012.Release' FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+ SELECT (SELECT CONVERT(varchar(20),@AppUserId) actorId,@Operation operation,@IntentHash intentHash,CAST(0 AS bit) replayed,
+  JSON_QUERY(@policy) policy,JSON_QUERY(pms.fn_WebBookingJson(@booking,0)) booking,JSON_QUERY(@rooms) rooms,JSON_QUERY(@received) receivedRoomIds,
+  JSON_QUERY(CASE WHEN @Operation='assign' THEN (SELECT CONVERT(varchar(20),RoomId) id,CONVERT(varchar(20),RoomTypeId) roomTypeId,IsActive active
+   FROM pms.Room WHERE RoomId=@target FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) END) targetRoom,
+  JSON_QUERY(CASE WHEN @Operation<>'assign' THEN pms.fn_WebZeroDeposits() END) depositSummary,
+  CAST(CASE WHEN @Operation<>'assign' THEN 1 ELSE 0 END AS bit) cancellationAccountingComplete,JSON_QUERY(N'[]') accountingChanges
+  FOR JSON PATH,INCLUDE_NULL_VALUES,WITHOUT_ARRAY_WRAPPER) PayloadJson;
+END;

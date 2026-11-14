@@ -1,0 +1,19 @@
+{
+  "source": "SYNTHETIC_REVIEW_REPRODUCTIONS_NOT_SQL",
+  "findings": [
+    {
+      "id": "REVIEW-SESSION-RACE",
+      "file": "js/services/session-service.js",
+      "reproduced": false,
+      "staleResponseRejected": true,
+      "description": "An already pending restore repopulates frontend session state after clear(). Backend authorization is not bypassed by this probe."
+    },
+    {
+      "id": "REVIEW-READINESS-DIAGNOSTICS",
+      "file": "backend/src/app.js",
+      "reproduced": false,
+      "description": "Readiness copies live SQL connection status but keeps hard-coded pending authentication/session/catalog checks. Fixture tests diagnostic consistency only."
+    }
+  ],
+  "sqlExecuted": false
+}

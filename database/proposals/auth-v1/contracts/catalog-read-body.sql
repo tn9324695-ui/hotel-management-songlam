@@ -1,0 +1,135 @@
+-- Source only. Rooms expose current states, NOT G7 operational eligibility.
+-- Generated 007 deploy artifact keeps all changes behind approval/target guards.
+CREATE PROCEDURE pms.usp_AppCatalogRead
+ @AppUserId bigint,@Resource nvarchar(128),@Mode varchar(12),@RecordKey nvarchar(40)=NULL,
+ @Offset int=0,@Limit int=50,@FiltersJson nvarchar(max)=N'{}',@RequestId nvarchar(80)=NULL
+AS
+BEGIN
+ SET NOCOUNT ON;
+ SET XACT_ABORT ON;
+ IF ISNULL(IS_ROLEMEMBER(N'pms_web_catalog_reader'),0)<>1
+  OR ISNULL(IS_SRVROLEMEMBER(N'sysadmin'),1)<>0 OR ISNULL(IS_MEMBER(N'db_owner'),1)<>0
+  THROW 52403,'Catalog caller not authorized.',1;
+ IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+  THROW 53800,'Unexpected catalog target.',1;
+ IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+  OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+  THROW 53801,'Verified D1 markers required.',1;
+ IF @@TRANCOUNT<>0 THROW 53802,'Catalog read owns its transaction.',1;
+ IF @Resource IS NULL OR @Resource COLLATE Latin1_General_100_BIN2 NOT IN(N'RoomType',N'vRoomStatus',N'Service',N'HotelSettings',N'BusinessDay')
+  OR @AppUserId IS NULL OR @AppUserId<=0 OR @RequestId IS NULL OR LEN(@RequestId) NOT BETWEEN 1 AND 80
+  OR @RequestId COLLATE Latin1_General_100_BIN2 LIKE N'%[^-A-Za-z0-9._]%'
+  OR @Mode IS NULL OR @Mode COLLATE Latin1_General_100_BIN2 NOT IN('list','detail','singleton','current')
+  OR @Offset IS NULL OR @Offset NOT BETWEEN 0 AND 1000000 OR @Limit IS NULL OR @Limit NOT BETWEEN 1 AND 200
+  OR @FiltersJson IS NULL OR DATALENGTH(@FiltersJson)>8192 OR ISJSON(@FiltersJson)<>1 OR LEFT(LTRIM(@FiltersJson),1)<>N'{'
+  THROW 53803,'Invalid catalog parameters.',1;
+ IF (@Resource=N'HotelSettings' AND @Mode<>'singleton') OR (@Resource<>N'HotelSettings' AND @Mode='singleton')
+  OR (@Mode='current' AND @Resource<>N'BusinessDay')
+  OR (@Mode<>'detail' AND @RecordKey IS NOT NULL)
+  OR (@Mode<>'list' AND (@Offset<>0 OR @Limit<>1 OR EXISTS(SELECT 1 FROM OPENJSON(@FiltersJson))))
+  THROW 53804,'Unsupported catalog mode.',1;
+ IF @Mode='detail' AND (@RecordKey IS NULL OR
+  (@Resource<>N'BusinessDay' AND (TRY_CONVERT(int,@RecordKey) IS NULL OR TRY_CONVERT(int,@RecordKey)<=0 OR CONVERT(nvarchar(40),TRY_CONVERT(int,@RecordKey))<>@RecordKey)) OR
+  (@Resource=N'BusinessDay' AND (TRY_CONVERT(date,@RecordKey,23) IS NULL OR CONVERT(nvarchar(10),TRY_CONVERT(date,@RecordKey,23),23)<>@RecordKey)))
+  THROW 53805,'Invalid catalog key.',1;
+ DECLARE @Allowed TABLE(Name nvarchar(40) COLLATE Latin1_General_100_BIN2 PRIMARY KEY);
+ IF @Resource IN(N'RoomType',N'Service') INSERT @Allowed VALUES(N'q'),(N'active');
+ IF @Resource=N'Service' INSERT @Allowed VALUES(N'category');
+ IF @Resource=N'vRoomStatus' INSERT @Allowed VALUES(N'q'),(N'roomTypeId'),(N'floor'),(N'occupancyStatus'),(N'cleanlinessStatus'),(N'exploitationStatus');
+ IF @Resource=N'BusinessDay' INSERT @Allowed VALUES(N'from'),(N'to'),(N'status');
+ IF EXISTS(SELECT 1 FROM OPENJSON(@FiltersJson) f WHERE NOT EXISTS(SELECT 1 FROM @Allowed a WHERE a.Name=f.[key] COLLATE Latin1_General_100_BIN2)
+   OR (f.[key]<>N'active' AND f.type<>1) OR (f.[key]=N'active' AND f.type<>3))
+  OR EXISTS(SELECT 1 FROM OPENJSON(@FiltersJson) GROUP BY [key] COLLATE Latin1_General_100_BIN2 HAVING COUNT_BIG(*)>1)
+  THROW 53806,'Unsupported catalog filters.',1;
+ DECLARE @Q nvarchar(160)=JSON_VALUE(@FiltersJson,'$.q'),@ActiveText nvarchar(5)=JSON_VALUE(@FiltersJson,'$.active'),
+  @Category nvarchar(30)=JSON_VALUE(@FiltersJson,'$.category'),@Floor nvarchar(30)=JSON_VALUE(@FiltersJson,'$.floor'),
+  @TypeText nvarchar(40)=JSON_VALUE(@FiltersJson,'$.roomTypeId'),@Occupancy nvarchar(20)=JSON_VALUE(@FiltersJson,'$.occupancyStatus'),
+  @Clean nvarchar(20)=JSON_VALUE(@FiltersJson,'$.cleanlinessStatus'),@Exploitation nvarchar(20)=JSON_VALUE(@FiltersJson,'$.exploitationStatus'),
+  @FromText nvarchar(40)=JSON_VALUE(@FiltersJson,'$.from'),@ToText nvarchar(40)=JSON_VALUE(@FiltersJson,'$.to'),@Status nvarchar(20)=JSON_VALUE(@FiltersJson,'$.status');
+ -- Validate full source values before using bounded typed variables above.
+ IF EXISTS(SELECT 1 FROM OPENJSON(@FiltersJson) WHERE LEN(value)=0 OR
+    ([key]=N'q' AND LEN(value)>CASE @Resource WHEN N'vRoomStatus' THEN 20 WHEN N'RoomType' THEN 120 ELSE 160 END) OR
+    ([key] IN(N'floor',N'category') AND LEN(value)>30) OR
+    ([key] IN(N'roomTypeId',N'from',N'to') AND LEN(value)>40) OR
+    ([key] IN(N'occupancyStatus',N'cleanlinessStatus',N'exploitationStatus',N'status') AND LEN(value)>20))
+  OR (@ActiveText IS NOT NULL AND @ActiveText NOT IN(N'true',N'false'))
+  OR (@TypeText IS NOT NULL AND (TRY_CONVERT(int,@TypeText) IS NULL OR TRY_CONVERT(int,@TypeText)<=0 OR CONVERT(nvarchar(40),TRY_CONVERT(int,@TypeText))<>@TypeText))
+  OR (@Occupancy IS NOT NULL AND @Occupancy NOT IN(N'VACANT',N'OCCUPIED'))
+  OR (@Clean IS NOT NULL AND @Clean NOT IN(N'CLEAN',N'DIRTY',N'CLEANING',N'INSPECTING'))
+  OR (@Exploitation IS NOT NULL AND @Exploitation NOT IN(N'ACTIVE',N'INACTIVE',N'MAINTENANCE'))
+  OR (@Status IS NOT NULL AND @Status NOT IN(N'OPEN',N'CLOSED'))
+  OR (@FromText IS NOT NULL AND (TRY_CONVERT(date,@FromText,23) IS NULL OR CONVERT(nvarchar(10),TRY_CONVERT(date,@FromText,23),23)<>@FromText))
+  OR (@ToText IS NOT NULL AND (TRY_CONVERT(date,@ToText,23) IS NULL OR CONVERT(nvarchar(10),TRY_CONVERT(date,@ToText,23),23)<>@ToText))
+  OR (@FromText IS NOT NULL AND @ToText IS NOT NULL AND @FromText>@ToText)
+  THROW 53807,'Invalid filter values.',1;
+ DECLARE @Pattern nvarchar(700)=CASE WHEN @Q IS NULL THEN NULL ELSE N'%'+REPLACE(REPLACE(REPLACE(REPLACE(@Q,N'~',N'~~'),N'%',N'~%'),N'_',N'~_'),N'[',N'~[')+N'%' END;
+ DECLARE @Active bit=CASE @ActiveText WHEN N'true' THEN 1 WHEN N'false' THEN 0 ELSE NULL END;
+ DECLARE @Keys TABLE(Id varchar(40) PRIMARY KEY);
+ DECLARE @Page TABLE(Id varchar(40) PRIMARY KEY);
+ DECLARE @Total bigint,@WorkingDate date;
+ BEGIN TRY
+  BEGIN TRANSACTION;
+  -- Rights are held consistent with both data/count recordsets. No pooled actor state.
+  IF NOT EXISTS(SELECT 1 FROM pms.AppUser u WITH(HOLDLOCK)
+   JOIN pms.UserRole ur WITH(HOLDLOCK) ON ur.UserId=u.UserId
+   JOIN pms.AppRole ar WITH(HOLDLOCK) ON ar.RoleId=ur.RoleId
+   JOIN pms.RolePermission rp WITH(HOLDLOCK) ON rp.RoleId=ar.RoleId
+   JOIN pms.Permission p WITH(HOLDLOCK) ON p.PermissionId=rp.PermissionId
+   WHERE u.UserId=@AppUserId AND u.IsActive=1 AND ar.IsActive=1 AND
+    ((@Resource IN(N'RoomType',N'vRoomStatus',N'HotelSettings') AND p.Code='viewRoomRack') OR
+     (@Resource=N'Service' AND p.Code IN('addServiceOrder','manageHousekeepingTasks')) OR
+     (@Resource=N'BusinessDay' AND p.Code='viewDailyRevenue')))
+   THROW 52403,'Actor lacks current catalog permission.',1;
+
+  IF @Resource=N'RoomType'
+   INSERT @Keys SELECT CONVERT(varchar(40),RoomTypeId) FROM pms.RoomType WITH(HOLDLOCK)
+   WHERE (@Mode='list' OR RoomTypeId=TRY_CONVERT(int,@RecordKey)) AND (@Active IS NULL OR IsActive=@Active)
+    AND (@Pattern IS NULL OR Code LIKE @Pattern ESCAPE N'~' OR Name LIKE @Pattern ESCAPE N'~');
+  IF @Resource=N'vRoomStatus'
+   INSERT @Keys SELECT CONVERT(varchar(40),RoomId) FROM pms.vRoomStatus WITH(HOLDLOCK)
+   WHERE (@Mode='list' OR RoomId=TRY_CONVERT(int,@RecordKey)) AND (@TypeText IS NULL OR RoomTypeId=TRY_CONVERT(int,@TypeText))
+    AND (@Floor IS NULL OR FloorLabel=@Floor) AND (@Pattern IS NULL OR Number LIKE @Pattern ESCAPE N'~')
+    AND (@Occupancy IS NULL OR StayStatus=@Occupancy) AND (@Clean IS NULL OR CleanStatus=@Clean)
+    AND (@Exploitation IS NULL OR ExploitationStatus=@Exploitation);
+  IF @Resource=N'Service'
+   INSERT @Keys SELECT CONVERT(varchar(40),ServiceId) FROM pms.Service WITH(HOLDLOCK)
+   WHERE (@Mode='list' OR ServiceId=TRY_CONVERT(int,@RecordKey)) AND (@Active IS NULL OR IsActive=@Active)
+    AND (@Category IS NULL OR Category=@Category) AND (@Pattern IS NULL OR Code LIKE @Pattern ESCAPE N'~' OR Name LIKE @Pattern ESCAPE N'~');
+  IF @Resource=N'HotelSettings'
+   INSERT @Keys SELECT CONVERT(varchar(40),HotelId) FROM pms.HotelSettings WITH(HOLDLOCK) WHERE HotelId=1;
+  IF @Resource=N'BusinessDay'
+  BEGIN
+   IF @Mode='current' SELECT @WorkingDate=WorkingDate FROM pms.HotelSettings WITH(HOLDLOCK) WHERE HotelId=1;
+   INSERT @Keys SELECT CONVERT(varchar(10),BusinessDate,23) FROM pms.BusinessDay WITH(HOLDLOCK)
+   WHERE (@Mode='list' OR (@Mode='detail' AND BusinessDate=TRY_CONVERT(date,@RecordKey,23)) OR (@Mode='current' AND BusinessDate=@WorkingDate))
+    AND (@FromText IS NULL OR BusinessDate>=TRY_CONVERT(date,@FromText,23)) AND (@ToText IS NULL OR BusinessDate<=TRY_CONVERT(date,@ToText,23))
+    AND (@Status IS NULL OR Status=@Status);
+  END;
+  SELECT @Total=COUNT_BIG(*) FROM @Keys;
+  INSERT @Page SELECT Id FROM @Keys ORDER BY CASE WHEN @Resource=N'BusinessDay' THEN Id END,TRY_CONVERT(bigint,Id)
+   OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+  IF @Resource=N'RoomType'
+   SELECT r.RoomTypeId,r.Code,r.Name,CONVERT(varchar(30),r.AreaM2) AS AreaM2,r.StandardOccupancy,r.MaxOccupancy,r.BedConfiguration,r.Description,r.IsActive
+   FROM pms.RoomType r JOIN @Page p ON r.RoomTypeId=TRY_CONVERT(int,p.Id) ORDER BY r.RoomTypeId;
+  IF @Resource=N'vRoomStatus'
+   SELECT r.RoomId,r.Number,r.RoomTypeId,r.FloorLabel,r.StayStatus,r.CleanStatus,r.ExploitationStatus
+   FROM pms.vRoomStatus r JOIN @Page p ON r.RoomId=TRY_CONVERT(int,p.Id) ORDER BY r.RoomId;
+  IF @Resource=N'Service'
+   SELECT s.ServiceId,s.Code,s.Name,s.Category,s.Unit,CONVERT(varchar(20),s.PriceVnd) AS PriceVnd,s.IsActive
+   FROM pms.Service s JOIN @Page p ON s.ServiceId=TRY_CONVERT(int,p.Id) ORDER BY s.ServiceId;
+  IF @Resource=N'HotelSettings'
+   SELECT h.HotelId,h.Name,h.Address,h.Phone,h.Email,h.TimeZoneId,h.Currency,CONVERT(varchar(10),h.WorkingDate,23) AS WorkingDate,
+    CONVERT(varchar(8),h.CheckInTime,108) AS CheckInTime,CONVERT(varchar(8),h.CheckOutTime,108) AS CheckOutTime
+   FROM pms.HotelSettings h JOIN @Page p ON h.HotelId=TRY_CONVERT(int,p.Id);
+  IF @Resource=N'BusinessDay'
+   SELECT CONVERT(varchar(10),b.BusinessDate,23) AS BusinessDate,b.Status,
+    CASE WHEN b.ClosedAtUtc IS NULL THEN NULL ELSE CONVERT(varchar(33),b.ClosedAtUtc,126)+'Z' END AS ClosedAtUtc
+   FROM pms.BusinessDay b JOIN @Page p ON b.BusinessDate=TRY_CONVERT(date,p.Id,23) ORDER BY b.BusinessDate;
+  SELECT CONVERT(varchar(20),@Total) AS TotalCount;
+  COMMIT;
+ END TRY
+ BEGIN CATCH
+  IF XACT_STATE()<>0 ROLLBACK;
+  THROW;
+ END CATCH;
+END;

@@ -1,0 +1,36 @@
+-- Separate approval required. Correct only Unicode LIKE character classes in
+-- already-deployed 006/007. No data, role, table or password changes.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovalReference nvarchar(200)=N'USER-20261112-APPROVED-008-UNICODE-FIX';
+IF NULLIF(@ApprovalReference,N'') IS NULL THROW 53960,'Unicode validation fix requires approval.',1;
+IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53961,'Unexpected fix target.',1;
+IF @@TRANCOUNT<>0 THROW 53962,'No ambient transaction permitted.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53963,'Test markers required.',1;
+DECLARE @seed nvarchar(max)=OBJECT_DEFINITION(OBJECT_ID(N'pms.usp_SeedTestStaffBatch')),
+ @catalog nvarchar(max)=OBJECT_DEFINITION(OBJECT_ID(N'pms.usp_AppCatalogRead'));
+IF @seed IS NULL OR @catalog IS NULL
+ OR CONVERT(varchar(64),HASHBYTES('SHA2_256',@seed),2)<>'4494B579DA8E3E3F02BE7A86CF7C820A885018C037DB3DDE9234A8CA3B332229'
+ OR CONVERT(varchar(64),HASHBYTES('SHA2_256',@catalog),2)<>'92EDC0F323417163C2BB40953CA1983D88B7CFE40BB41555A0667127E419F107'
+ THROW 53964,'Definitions differ from reviewed deployment; stop.',1;
+-- Hyphen first is literal in SQL Server Unicode bracket expressions. Tests
+-- showed the old Unicode patterns rejected valid underscore/hyphen characters.
+SET @seed=REPLACE(@seed,N'%[^A-Za-z0-9_-]%',N'%[^-A-Za-z0-9_]%');
+SET @catalog=REPLACE(@catalog,N'%[^A-Za-z0-9._-]%',N'%[^-A-Za-z0-9._]%');
+SET @seed=REPLACE(@seed,N'CREATE PROCEDURE pms.usp_SeedTestStaffBatch',N'ALTER PROCEDURE pms.usp_SeedTestStaffBatch');
+SET @catalog=REPLACE(@catalog,N'CREATE PROCEDURE pms.usp_AppCatalogRead',N'ALTER PROCEDURE pms.usp_AppCatalogRead');
+BEGIN TRY
+ BEGIN TRANSACTION;
+ EXEC sys.sp_executesql @seed;
+ EXEC sys.sp_executesql @catalog;
+ COMMIT;
+ SELECT N'UNICODE_VALIDATION_FIXED_INTEGRATION_NOT_YET_VERIFIED' AS Status;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

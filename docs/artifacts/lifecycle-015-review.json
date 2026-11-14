@@ -1,0 +1,204 @@
+{
+  "format": "songlam.lifecycle-015-review.v1",
+  "preparedAtUtc": "2026-11-13T13:56:51.787Z",
+  "approved": false,
+  "sqlExecuted": false,
+  "target": {
+    "server": ".\\SQLEXPRESS",
+    "database": "SongLamPms_Design",
+    "databaseGuid": "C4DD399E-5661-4741-A424-5ABFEEFBC1AC",
+    "environment": "test"
+  },
+  "baseDeploymentId": "f916e0c6-20d4-477c-966f-dcd278dfb083",
+  "baselineDefinitions": [
+    {
+      "Name": "fn_WebBookingJson",
+      "DefinitionSha256": "250E5AC191797331E1A1AB29DF4D08DA7729D66465973DD72006F25EE71E5489",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "fn_WebInventoryUsage",
+      "DefinitionSha256": "159061E5658633301EC9AAA56B3DCDD963472CDBA1C4F3D3081EB2DF5BD0FC1B",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "fn_WebPermission",
+      "DefinitionSha256": "848E16E3297FB6D38A825BC31EBE05BACB7926859412956F3E05592B0F185FDA",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "fn_WebPricingContext",
+      "DefinitionSha256": "7DD4E6010CD6342FFE40B046FC7864BF21FE18256B60C9E309B37382F1C5B90F",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "fn_WebQuotedAmounts",
+      "DefinitionSha256": "E8D4088182798426CCDEEC8D325C546B72BA6D8C192F1C2BE97944DB6D540BBF",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "fn_WebZeroDeposits",
+      "DefinitionSha256": "732B9C2901FCD9C3E4926CF55DC7C7DF3F33934FBEAB718CCEB297F178606FD3",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "tr_AuditLog_CommandOnly",
+      "DefinitionSha256": "1EC5F2C91FB6A965D099C108562F2E71806373320228EC4BF75B5E4E25563951",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "tr_Booking_CommandOnly",
+      "DefinitionSha256": "1223488FAA56357CBA937502E94EE65B040E91D30A60F1C337C23FF0D9CE6F79",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "tr_BookingNightRate_CommandOnly",
+      "DefinitionSha256": "187432E22DC9660FFBB32742C0A9CBFE1A50239ED476E372ACF47F7EDAC73F07",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "tr_BookingRoom_CommandOnly",
+      "DefinitionSha256": "31EC406FEABD417C444A27FE3BAD85FCC4B6CAA15E70EDA8EC7CD844D2823DBD",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "tr_RoomAllocation_CommandOnly",
+      "DefinitionSha256": "105EFE5936E1285AC672517AE86493326F522F6844B4C3472742630F2A783B64",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AppBookingCommit",
+      "DefinitionSha256": "AB0165C7C6B5289C2AC58B19B66969DCAF6938CEB80E84C4EB1C3308E3C95D86",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AppBookingPrepare",
+      "DefinitionSha256": "EB1333156408510C8115C69A660A4BB11A716771D1BD43F7C3EA08AD4ED24A1B",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AppBookingRead",
+      "DefinitionSha256": "1A36D51D45A2A3EA223B25146CDF08B6379472C33BF666673801914EEC78649F",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AppCustomerCreate",
+      "DefinitionSha256": "67C5E2B3D6445BB0584FC6CE99124F5E0B787B00ECBC199FA64D5DFA6B069842",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AppPricingContext",
+      "DefinitionSha256": "2BD269E64CA7CEA9ECF6C70653B890AF807538FA4FBA6C9CA2714AEE35042903",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AppReferenceRead",
+      "DefinitionSha256": "DE4E32B4F2857E3B8AADB78BC03B180AFBC17ED4EA337091B91059A9FB8AA53D",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AssertBusinessState",
+      "DefinitionSha256": "D204A148BDCD78C7DDA22B1890E0E1012CBB6101047C0CE3F6EBD0A1899D4ED8",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_AssertInventory",
+      "DefinitionSha256": "7B40CF9CD87A6BAE91934832E530C93D2E356DA35C25A09D47F32C2E950AC099",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_WebAuthorize",
+      "DefinitionSha256": "99972091CCA7379E634AFA4914B76C6B9A0E0CB16789784214F2A143BE3CCB69",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_WebBookingRuntime",
+      "DefinitionSha256": "57D171B895AE89F3EBFD1850F15E10375D30EF97C085887F433EA77158619DCA",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    },
+    {
+      "Name": "usp_WebReceiptLookup",
+      "DefinitionSha256": "597FCCF811F152D34DD836C5D1561AF14176DD2402F5A6AB137FF2D1C708EADF",
+      "AnsiNullsOn": true,
+      "QuotedIdentifierOn": true
+    }
+  ],
+  "metadataInspectedAtUtc": "2026-11-13T13:31:56.537Z",
+  "businessDataCountsAtInspection": {
+    "bookings": 5,
+    "stays": 0,
+    "folios": 0,
+    "payments": 0,
+    "deposits": 0,
+    "refunds": 0,
+    "shifts": 0,
+    "minibarAudits": 0
+  },
+  "sqlFiles": [
+    {
+      "path": "database/proposals/booking-lifecycle/015-backup.sql.pending",
+      "sha256": "079fc795f641db201925f9787ca5b4940662acaa93debf98008fd981164115fe",
+      "bytes": 1518
+    },
+    {
+      "path": "database/proposals/booking-lifecycle/015-preflight-and-grants.sql.pending",
+      "sha256": "850ee53a5b11a9c91cb580b33d60604c06ffc86315624b5cdc959b354d45c759",
+      "bytes": 2821
+    },
+    {
+      "path": "database/proposals/booking-lifecycle/015-booking-mutation-prepare.sql.pending",
+      "sha256": "46fcd45b88045379fe792372359f483921bad2c0091062aa7764e2540b09090d",
+      "bytes": 7223
+    },
+    {
+      "path": "database/proposals/booking-lifecycle/015-booking-mutation-commit.sql.pending",
+      "sha256": "ae015b7a27665a48627426635e00bb568479a611c74222e4b852d6fc8de3cd4b",
+      "bytes": 14737
+    },
+    {
+      "path": "database/proposals/booking-lifecycle/015-proof-and-receipt.sql.pending",
+      "sha256": "86eddf76c43318059dd5d583772f11e43c4e2d44a676cedb84f9d5616f165837",
+      "bytes": 3344
+    }
+  ],
+  "packageSha256": "1b47ffd431b635801dde95e11507257be2daa1632835099136d7335e57b34393",
+  "proposedExecuteGrants": [
+    "pms.usp_AppBookingMutationPrepare",
+    "pms.usp_AppBookingMutationCommit",
+    "pms.usp_WebBookingMutationRuntime",
+    "pms.usp_WebBookingMutationReceipt"
+  ],
+  "serviceUser": "pms_web_auth_test",
+  "scope": "UNRECEIVED_SAME_TYPE_ASSIGNMENT_AND_ZERO_FINANCE_CANCELLATION",
+  "proposedOperations": [
+    "bookings.assign",
+    "bookings.cancel",
+    "bookings.cancelRooms"
+  ],
+  "activationRequiresRealSqlReceipt": true,
+  "financialCancellationEnabled": false,
+  "staysEnabled": false,
+  "financialWritesEnabled": false,
+  "operationalCutover": false
+}

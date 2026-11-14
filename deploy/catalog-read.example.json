@@ -1,0 +1,18 @@
+{
+  "approved": false,
+  "approvalReference": "",
+  "database": "SongLamPms_Design",
+  "environment": "test",
+  "protocol": "songlam.catalog.v1",
+  "actorMode": "app-user-parameter",
+  "procedure": "pms.usp_AppCatalogRead",
+  "roomEligibility": "CURRENT_STATUS_ONLY_V1",
+  "roomReadScope": "current-status-only",
+  "resources": {
+    "roomTypes": {"operations":["list","detail"],"filters":["q","active"],"pagination":true,"maxLimit":200},
+    "rooms": {"operations":["list","detail"],"filters":["q","roomTypeId","floor","occupancyStatus","cleanlinessStatus","exploitationStatus"],"pagination":true,"maxLimit":200},
+    "services": {"operations":["list","detail"],"filters":["q","active","category"],"pagination":true,"maxLimit":200},
+    "hotelSettings": {"operations":["singleton"],"filters":[],"pagination":false,"maxLimit":1},
+    "businessDays": {"operations":["list","detail","current"],"filters":["from","to","status"],"pagination":true,"maxLimit":200}
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "passed": 13,
+  "checks": [
+    "1366x768: unconfigured, disabled and no horizontal overflow",
+    "1366x768: original storage sentinel preserved and no legacy script loaded",
+    "1920x1080: unconfigured, disabled and no horizontal overflow",
+    "1920x1080: original storage sentinel preserved and no legacy script loaded",
+    "390x844: unconfigured, disabled and no horizontal overflow",
+    "390x844: original storage sentinel preserved and no legacy script loaded",
+    "forced submit cannot send a password, create a session, redirect or alter source storage",
+    "offline API leaves login disabled and reports unconfigured",
+    "real HTTP server has health 200 and readiness 503",
+    "demo link resolves without executing demo scripts: /index.html",
+    "demo link resolves without executing demo scripts: /reception.html",
+    "demo link resolves without executing demo scripts: /housekeeping.html",
+    "no JavaScript console exceptions or failed page assets"
+  ],
+  "errors": [],
+  "screenshots": [
+    "screenshots/g1/login-1366.png",
+    "screenshots/g1/login-1920.png",
+    "screenshots/g1/login-390.png"
+  ]
+}

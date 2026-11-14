@@ -1,0 +1,45 @@
+-- OPTIONAL A3 READ PROBE. Not required by login; separate approval from 001/003.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovedDatabase sysname=NULL,@ApprovalReference nvarchar(200)=NULL;
+IF @ApprovedDatabase IS NULL OR NULLIF(@ApprovalReference,N'') IS NULL
+ THROW 53000,'SQL draft is not approved.',1;
+IF DB_NAME()<>@ApprovedDatabase OR DB_NAME() IN(N'master',N'model',N'msdb',N'tempdb')
+ THROW 53001,'Explicit approved database required.',1;
+IF CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID()
+ AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53003,'Approved physical target mismatch.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity'
+ AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53004,'Approved D1 marker required.',1;
+IF @@TRANCOUNT<>0 THROW 53005,'No ambient transaction permitted.',1;
+IF OBJECT_ID(N'pms.usp_AppActorProbe') IS NOT NULL OR DATABASE_PRINCIPAL_ID(N'pms_web_actor_reader') IS NOT NULL
+ THROW 53006,'Existing actor probe/role requires separate upgrade review.',1;
+BEGIN TRY
+ BEGIN TRANSACTION;
+ EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_AppActorProbe
+ @AppUserId bigint,@PermissionCode varchar(80),@RequestId nvarchar(80)
+ AS
+ BEGIN
+  SET NOCOUNT ON;
+  IF ISNULL(IS_ROLEMEMBER(N''pms_web_actor_reader''),0)<>1 THROW 53010,''RPC caller not authorized.'',1;
+  IF @AppUserId IS NULL OR @AppUserId<=0 OR NULLIF(@PermissionCode,'''') IS NULL
+    OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL THROW 53014,''Invalid actor probe.'',1;
+  IF NOT EXISTS(SELECT 1 FROM pms.AppUser u JOIN pms.UserRole ur ON ur.UserId=u.UserId
+    JOIN pms.AppRole ar ON ar.RoleId=ur.RoleId JOIN pms.RolePermission rp ON rp.RoleId=ar.RoleId
+    JOIN pms.Permission p ON p.PermissionId=rp.PermissionId
+    WHERE u.UserId=@AppUserId AND u.IsActive=1 AND ar.IsActive=1 AND p.Code=@PermissionCode)
+    THROW 53015,''Actor authorization rejected.'',1;
+  SELECT CONVERT(varchar(20),@AppUserId) AS ActorId,@RequestId AS RequestId,''AUTHORIZED'' AS Status;
+ END';
+ IF DATABASE_PRINCIPAL_ID(N'pms_web_actor_reader') IS NULL
+  EXEC(N'CREATE ROLE pms_web_actor_reader AUTHORIZATION dbo');
+ GRANT EXECUTE ON OBJECT::pms.usp_AppActorProbe TO pms_web_actor_reader;
+ COMMIT;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

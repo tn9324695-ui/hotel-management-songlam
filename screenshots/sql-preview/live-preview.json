@@ -1,0 +1,297 @@
+{
+  "source": "REAL_BROWSER_REAL_HTTP_NO_API_INTERCEPTION",
+  "generatedAt": "2026-11-12T04:52:14.770Z",
+  "origin": "http://127.0.0.1:8091",
+  "checks": [
+    "login.html: no legacy Store",
+    "login.html: viewport 1366x768",
+    "login.html: viewport 1920x1080",
+    "reception-api.html: no legacy Store",
+    "reception-api.html: viewport 1366x768",
+    "reception-api.html: viewport 1920x1080",
+    "housekeeping-api.html: no legacy Store",
+    "housekeeping-api.html: viewport 1366x768",
+    "housekeeping-api.html: viewport 1920x1080",
+    "services-api.html: no legacy Store",
+    "services-api.html: viewport 1366x768",
+    "services-api.html: viewport 1920x1080",
+    "finance-api.html: no legacy Store",
+    "finance-api.html: viewport 1366x768",
+    "finance-api.html: viewport 1920x1080",
+    "admin-api.html: no legacy Store",
+    "admin-api.html: viewport 1366x768",
+    "admin-api.html: viewport 1920x1080",
+    "health reached real backend",
+    "every API response has correlation ID",
+    "protected reads return no success data while authentication unavailable",
+    "readiness does not claim operational acceptance",
+    "unavailable login remains locked in actual browser",
+    "failed session restoration does not leave a perpetual loading identity",
+    "direct login request cannot fabricate a session when contracts are missing",
+    "no cookies created for unconfigured login",
+    "no console exceptions or missing assets"
+  ],
+  "requests": [
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "63f3bca4-6091-4c23-83d4-aacad9f801c7"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "9ef52869-5449-449b-8810-458e6a22a28e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "167c1e92-364d-44d6-a472-01d600e575db"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "e6dd1938-ec0c-4673-8f3f-53ac4a9f53a5"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "3b650220-e9d1-4df2-b858-7e3eac5c5c91"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "20751b8a-3d28-481e-9d1d-0752df7cf00d"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "46d705b6-6b11-4e75-8601-95666ac7a758"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "0921ed54-1c61-43c0-8420-3455921d7a99"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "c26c0bbb-755f-4a6f-9567-359fc9df8573"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "0d6ca0d5-4e7d-4c1d-901d-755dee709f85"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "1fc8be05-41da-42b7-89c7-1b247c43adc2"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "39a29feb-d534-4725-9616-77e6ebc42d0c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "e498af1a-c9b0-404f-892a-0b1f306068b6"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "862dff2b-cd02-4359-93f5-401f5c6d8698"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "cd2fae37-b1b9-44be-aa08-84ba406dddae"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 503,
+      "requestId": "54c4487d-3c13-443e-b18e-3d59c42318b4"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "8c36104c-a39a-4697-8531-d48af73480f8"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "d5164d57-3959-493b-9bd1-4bc529a03275"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "14bc5caf-f4d0-4b1d-99af-c4344ed97608"
+    },
+    {
+      "path": "/health",
+      "status": 200,
+      "requestId": "fc823739-08e5-42d2-aeaa-cd25c2907a5b"
+    },
+    {
+      "path": "/ready",
+      "status": 503,
+      "requestId": "393df230-1f69-4f31-a370-e4dd03a8a0a7"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "44772226-e482-4261-b435-a71b93144e86"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "209cd316-cbd3-42d0-ac57-32e66bf35af0"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "445ee668-1179-4890-b6b1-67865d283730"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 503,
+      "requestId": "8161fd3b-85aa-42f4-94a1-6f014e94f4ee"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 503,
+      "requestId": "5c169076-8869-4a33-b891-1fef03617a0c"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 503,
+      "requestId": "80a3d917-9e3c-49d3-ace6-2cbc9f72b772"
+    },
+    {
+      "path": "/api/v1/bookings/timeline",
+      "status": 503,
+      "requestId": "a096ca72-ef99-4b04-9c30-1e43d3c07674"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "2234c348-ecae-4bca-a8ec-fd0bf8f84bfe"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ce474880-b219-4fc9-9743-6e23c0aea6ed"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "299a5f6a-2cec-46fd-886d-d944c78bb256"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "2ae34d8e-d847-4bfa-93aa-a5a3c856a9fa"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "2d691437-4cf7-4ceb-957a-4a4481613e02"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 503,
+      "requestId": "d2d2e377-6ee5-4380-8963-c3bc8e70af80"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 503,
+      "requestId": "422f3265-4173-488d-b347-3eb2f633fb8b"
+    }
+  ],
+  "errors": [],
+  "roleAccountsTested": [],
+  "sqlBusinessTests": 0,
+  "sqlConnectionVerified": false,
+  "api": [
+    {
+      "route": "/health",
+      "status": 200,
+      "code": null,
+      "requestId": "fc823739-08e5-42d2-aeaa-cd25c2907a5b",
+      "hasData": true
+    },
+    {
+      "route": "/ready",
+      "status": 503,
+      "code": null,
+      "requestId": "393df230-1f69-4f31-a370-e4dd03a8a0a7",
+      "hasData": false
+    },
+    {
+      "route": "/api/v1/connection/status",
+      "status": 200,
+      "code": null,
+      "requestId": "44772226-e482-4261-b435-a71b93144e86",
+      "connection": {
+        "mode": "disabled",
+        "configured": false,
+        "sqlConnected": false,
+        "identityVerified": false,
+        "authentication": false,
+        "modules": [],
+        "businessWritesEnabled": false
+      },
+      "hasData": true
+    },
+    {
+      "route": "/api/v1/auth/status",
+      "status": 200,
+      "code": null,
+      "requestId": "209cd316-cbd3-42d0-ac57-32e66bf35af0",
+      "loginEnabled": false,
+      "hasData": true
+    },
+    {
+      "route": "/api/v1/auth/me",
+      "status": 503,
+      "code": "AUTH_NOT_CONFIGURED",
+      "requestId": "445ee668-1179-4890-b6b1-67865d283730",
+      "hasData": false
+    },
+    {
+      "route": "/api/v1/auth/permissions",
+      "status": 503,
+      "code": "AUTH_NOT_CONFIGURED",
+      "requestId": "8161fd3b-85aa-42f4-94a1-6f014e94f4ee",
+      "hasData": false
+    },
+    {
+      "route": "/api/v1/room-types",
+      "status": 503,
+      "code": "AUTH_NOT_CONFIGURED",
+      "requestId": "5c169076-8869-4a33-b891-1fef03617a0c",
+      "hasData": false
+    },
+    {
+      "route": "/api/v1/rooms",
+      "status": 503,
+      "code": "AUTH_NOT_CONFIGURED",
+      "requestId": "80a3d917-9e3c-49d3-ace6-2cbc9f72b772",
+      "hasData": false
+    },
+    {
+      "route": "/api/v1/bookings/timeline?from=2026-12-01&to=2026-12-04",
+      "status": 503,
+      "code": "AUTH_NOT_CONFIGURED",
+      "requestId": "a096ca72-ef99-4b04-9c30-1e43d3c07674",
+      "hasData": false
+    }
+  ],
+  "unconfiguredLoginAttempt": {
+    "status": 503,
+    "code": "AUTH_NOT_CONFIGURED",
+    "requestId": "422f3265-4173-488d-b347-3eb2f633fb8b",
+    "returnedUser": false
+  },
+  "result": "HTTP_PREVIEW_CHECKED_SQL_BUSINESS_NOT_VERIFIED"
+}

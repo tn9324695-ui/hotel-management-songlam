@@ -1,0 +1,118 @@
+-- Exact foundation batch review artifact. Never automatically loaded.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovalReference nvarchar(200)=N'USER-FOUNDATION-011-BACKUP-DEPLOY-IMPORT';
+IF NULLIF(@ApprovalReference,N'') IS NULL THROW 54020,'Foundation RPC deployment not approved.',1;
+IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC') THROW 54021,'Unexpected deployment target.',1;
+IF @@TRANCOUNT<>0 OR OBJECT_ID(N'pms.usp_SeedFoundationBatch') IS NOT NULL THROW 54022,'No ambient transaction or existing object adoption.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test') OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a') THROW 54023,'Reviewed test markers required.',1;
+BEGIN TRY
+ BEGIN TRANSACTION;
+ EXEC sys.sp_executesql N'-- Maintenance-only initialization of the exact reviewed foundation payload.
+CREATE PROCEDURE pms.usp_SeedFoundationBatch @PayloadJson nvarchar(max)
+AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON;
+ DECLARE @DataWriteApprovalReference nvarchar(200)=N''USER-FOUNDATION-011-BACKUP-DEPLOY-IMPORT'';
+ IF NULLIF(@DataWriteApprovalReference,N'''') IS NULL THROW 54000,''Foundation batch writes not approved.'',1;
+ IF DB_NAME()<>N''SongLamPms_Design'' OR CONVERT(nvarchar(128),SERVERPROPERTY(''ServerName''))<>N''DESKTOP-9EPI86K\SQLEXPRESS''
+  OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid=''C4DD399E-5661-4741-A424-5ABFEEFBC1AC'')
+  THROW 54001,''Unexpected foundation target.'',1;
+ IF ISNULL(IS_SRVROLEMEMBER(N''sysadmin''),0)<>1 AND ISNULL(IS_MEMBER(N''db_owner''),0)<>1
+  THROW 54002,''Approved maintenance caller required; web caller forbidden.'',1;
+ IF @@TRANCOUNT<>0 THROW 54003,''Foundation batch owns its transaction.'',1;
+ IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N''SongLam.Environment'' AND CONVERT(nvarchar(128),value)=N''test'')
+  OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N''SongLam.TestIdentity'' AND CONVERT(nvarchar(128),value)=N''eb18c6f2-373d-4a83-a34f-d9809f1cbc7a'')
+  THROW 54004,''Verified test markers required.'',1;
+ DECLARE @ExpectedHash varchar(64)=''52CB39B0D301C1C64DF0DDF6F4A293040C22CE6F52B585B3E297A75DE37CBAEC'',@ActualHash varchar(64)=CONVERT(varchar(64),HASHBYTES(''SHA2_256'',@PayloadJson),2);
+ IF @PayloadJson IS NULL OR DATALENGTH(@PayloadJson)>1048576 OR ISJSON(@PayloadJson)<>1 OR @ActualHash<>@ExpectedHash
+  THROW 54005,''Only the exact reviewed canonical payload is allowed.'',1;
+ IF JSON_VALUE(@PayloadJson,''$.batchCode'')<>''FOUNDATION_2E1E523B_BASE420''
+  OR JSON_VALUE(@PayloadJson,''$.sourceSha256'')<>''2e1e523b3c0463e07a744a78b68fe9ec1c7d3dc05bacb7bb974b95f19daade5d''
+  OR JSON_VALUE(@PayloadJson,''$.hotel.workingDate'')<>''2026-10-11''
+  OR JSON_VALUE(@PayloadJson,''$.businessDay.status'')<>''OPEN''
+  OR JSON_VALUE(@PayloadJson,''$.businessDay.date'')<>''2026-10-11''
+  OR JSON_VALUE(@PayloadJson,''$.pricingImported'')<>''false'' OR JSON_VALUE(@PayloadJson,''$.policiesImported'')<>''false''
+  THROW 54006,''Reviewed batch scope mismatch.'',1;
+ IF EXISTS(SELECT 1 FROM sys.triggers WHERE is_disabled=0 AND parent_id IN(OBJECT_ID(N''pms.RoomType''),OBJECT_ID(N''pms.Room''),OBJECT_ID(N''pms.Service''),OBJECT_ID(N''pms.HotelSettings''),OBJECT_ID(N''pms.BusinessDay'')))
+  THROW 54007,''Existing identity/command triggers require review; never bypass them.'',1;
+ DECLARE @Types TABLE(SourceId nvarchar(60),Code varchar(30) PRIMARY KEY,Name nvarchar(120),AreaM2 decimal(8,2),StandardOccupancy smallint,MaxOccupancy smallint,BedConfiguration nvarchar(250),Description nvarchar(1000),IsActive bit);
+ INSERT @Types SELECT * FROM OPENJSON(@PayloadJson,''$.roomTypes'') WITH(SourceId nvarchar(60) ''$.sourceId'',Code varchar(30) ''$.code'',Name nvarchar(120) ''$.name'',AreaM2 decimal(8,2) ''$.areaM2'',StandardOccupancy smallint ''$.standardOccupancy'',MaxOccupancy smallint ''$.maxOccupancy'',BedConfiguration nvarchar(250) ''$.bedConfiguration'',Description nvarchar(1000) ''$.description'',IsActive bit ''$.active'');
+ DECLARE @Rooms TABLE(SourceId nvarchar(60),Number varchar(20) PRIMARY KEY,TypeCode varchar(30),FloorLabel nvarchar(30),CleanStatus varchar(12),IsActive bit,Notes nvarchar(500));
+ INSERT @Rooms SELECT * FROM OPENJSON(@PayloadJson,''$.rooms'') WITH(SourceId nvarchar(60) ''$.sourceId'',Number varchar(20) ''$.number'',TypeCode varchar(30) ''$.roomTypeCode'',FloorLabel nvarchar(30) ''$.floor'',CleanStatus varchar(12) ''$.cleanlinessStatus'',IsActive bit ''$.active'',Notes nvarchar(500) ''$.notes'');
+ DECLARE @Services TABLE(SourceId nvarchar(60),Code varchar(40) PRIMARY KEY,Name nvarchar(160),Category varchar(30),Unit nvarchar(30),PriceVnd decimal(19,0),IsActive bit);
+ INSERT @Services SELECT * FROM OPENJSON(@PayloadJson,''$.services'') WITH(SourceId nvarchar(60) ''$.sourceId'',Code varchar(40) ''$.code'',Name nvarchar(160) ''$.name'',Category varchar(30) ''$.category'',Unit nvarchar(30) ''$.unit'',PriceVnd decimal(19,0) ''$.priceVnd'',IsActive bit ''$.active'');
+ DECLARE @Hotel TABLE(Name nvarchar(200),Address nvarchar(500),Phone varchar(30),Email nvarchar(254),TaxCode varchar(30),TimeZoneId varchar(60),Currency char(3),WorkingDate date,CheckInTime time(0),CheckOutTime time(0));
+ INSERT @Hotel SELECT * FROM OPENJSON(@PayloadJson,''$.hotel'') WITH(Name nvarchar(200) ''$.name'',Address nvarchar(500) ''$.address'',Phone varchar(30) ''$.phone'',Email nvarchar(254) ''$.email'',TaxCode varchar(30) ''$.taxCode'',TimeZoneId varchar(60) ''$.timeZoneId'',Currency char(3) ''$.currency'',WorkingDate date ''$.workingDate'',CheckInTime time(0) ''$.checkInTime'',CheckOutTime time(0) ''$.checkOutTime'');
+ IF (SELECT COUNT(*) FROM @Types)<>11 OR (SELECT COUNT(*) FROM @Rooms)<>420 OR (SELECT COUNT(*) FROM @Services)<>15 OR (SELECT COUNT(*) FROM @Hotel)<>1
+  OR EXISTS(SELECT 1 FROM @Types WHERE IsActive IS NULL OR (Code=''DLX-TR'' AND IsActive<>0) OR (Code<>''DLX-TR'' AND IsActive<>1))
+  OR EXISTS(SELECT 1 FROM @Rooms WHERE Number IN(''501'',''902'',''1303'',''1704'',''2105'') OR IsActive IS NULL OR IsActive<>1 OR CleanStatus NOT IN(''CLEAN'',''DIRTY'',''CLEANING'',''INSPECTING''))
+  OR EXISTS(SELECT 1 FROM @Rooms r WHERE NOT EXISTS(SELECT 1 FROM @Types t WHERE t.Code=r.TypeCode AND t.IsActive=1))
+  OR EXISTS(SELECT 1 FROM @Services WHERE PriceVnd IS NULL OR PriceVnd<0 OR IsActive IS NULL OR IsActive<>1)
+  OR EXISTS(SELECT 1 FROM @Hotel WHERE TaxCode IS NOT NULL OR WorkingDate<>''20261011'' OR Currency<>''VND'' OR TimeZoneId<>''SE Asia Standard Time'')
+  THROW 54008,''Invalid reviewed foundation projection.'',1;
+ DECLARE @ReceiptName sysname=N''SongLam.FoundationBatch.FOUNDATION_2E1E523B_BASE420'',@Prior nvarchar(3500),@Receipt nvarchar(3500),@Lock int,@Created bit=0;
+ BEGIN TRY
+  BEGIN TRANSACTION;
+  EXEC @Lock=sys.sp_getapplock @Resource=N''SongLam:Foundation:Base420'',@LockMode=N''Exclusive'',@LockOwner=N''Transaction'',@LockTimeout=5000;
+  IF @Lock<0 THROW 54009,''Foundation batch busy; no automatic retry.'',1;
+  DECLARE @TypeCount bigint,@RoomCount bigint,@ServiceCount bigint,@HotelCount bigint,@DayCount bigint;
+  SELECT @TypeCount=COUNT_BIG(*) FROM pms.RoomType WITH(UPDLOCK,HOLDLOCK);
+  SELECT @RoomCount=COUNT_BIG(*) FROM pms.Room WITH(UPDLOCK,HOLDLOCK);
+  SELECT @ServiceCount=COUNT_BIG(*) FROM pms.Service WITH(UPDLOCK,HOLDLOCK);
+  SELECT @HotelCount=COUNT_BIG(*) FROM pms.HotelSettings WITH(UPDLOCK,HOLDLOCK);
+  SELECT @DayCount=COUNT_BIG(*) FROM pms.BusinessDay WITH(UPDLOCK,HOLDLOCK);
+  SELECT @Prior=CONVERT(nvarchar(3500),value) FROM sys.extended_properties WHERE class=0 AND name=@ReceiptName;
+  IF @Prior IS NULL
+  BEGIN
+   IF @TypeCount<>0 OR @RoomCount<>0 OR @ServiceCount<>0 OR @HotelCount<>0 OR @DayCount<>0
+    THROW 54010,''Target foundation is not empty; no adoption or overwrite.'',1;
+   INSERT pms.BusinessDay(BusinessDate,Status) VALUES(''20261011'',''OPEN'');
+   INSERT pms.HotelSettings(HotelId,Name,Address,Phone,Email,TaxCode,TimeZoneId,Currency,WorkingDate,CheckInTime,CheckOutTime)
+    SELECT 1,Name,Address,Phone,Email,TaxCode,TimeZoneId,Currency,WorkingDate,CheckInTime,CheckOutTime FROM @Hotel;
+   INSERT pms.RoomType(Code,Name,AreaM2,StandardOccupancy,MaxOccupancy,BedConfiguration,Description,IsActive)
+    SELECT Code,Name,AreaM2,StandardOccupancy,MaxOccupancy,BedConfiguration,Description,IsActive FROM @Types;
+   INSERT pms.Room(Number,RoomTypeId,FloorLabel,CleanStatus,IsActive,Notes)
+    SELECT r.Number,t.RoomTypeId,r.FloorLabel,r.CleanStatus,r.IsActive,r.Notes FROM @Rooms r JOIN pms.RoomType t ON t.Code=r.TypeCode;
+   INSERT pms.Service(Code,Name,Category,Unit,PriceVnd,IsActive) SELECT Code,Name,Category,Unit,PriceVnd,IsActive FROM @Services;
+   SELECT @Receipt=(SELECT N''FOUNDATION_2E1E523B_BASE420'' AS BatchCode,@ActualHash AS PayloadSha256,
+     N''2e1e523b3c0463e07a744a78b68fe9ec1c7d3dc05bacb7bb974b95f19daade5d'' AS SourceSha256,
+     ORIGINAL_LOGIN() AS MaintenanceLogin,SYSUTCDATETIME() AS CommittedAtUtc,420 AS Rooms,5 AS QuarantinedRooms,11 AS RoomTypes,15 AS Services FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+   EXEC sys.sp_addextendedproperty @name=@ReceiptName,@value=@Receipt;
+   SET @Created=1;
+  END
+  ELSE IF ISJSON(@Prior)<>1 OR JSON_VALUE(@Prior,''$.PayloadSha256'')<>@ActualHash OR @TypeCount<>11 OR @RoomCount<>420 OR @ServiceCount<>15 OR @HotelCount<>1 OR @DayCount<>1
+   THROW 54011,''Batch hash or target counts differ; stop instead of repair.'',1;
+  -- Hash the same typed projection, preserving nulls and case even on CI collation.
+  IF HASHBYTES(''SHA2_256'',(SELECT Code,Name,AreaM2,StandardOccupancy,MaxOccupancy,BedConfiguration,Description,IsActive FROM @Types ORDER BY Code FOR JSON PATH,INCLUDE_NULL_VALUES))
+     <>HASHBYTES(''SHA2_256'',(SELECT Code,Name,AreaM2,StandardOccupancy,MaxOccupancy,BedConfiguration,Description,IsActive FROM pms.RoomType ORDER BY Code FOR JSON PATH,INCLUDE_NULL_VALUES))
+   OR HASHBYTES(''SHA2_256'',(SELECT Number,TypeCode,FloorLabel,CleanStatus,IsActive,Notes FROM @Rooms ORDER BY Number FOR JSON PATH,INCLUDE_NULL_VALUES))
+     <>HASHBYTES(''SHA2_256'',(SELECT r.Number,t.Code AS TypeCode,r.FloorLabel,r.CleanStatus,r.IsActive,r.Notes FROM pms.Room r JOIN pms.RoomType t ON t.RoomTypeId=r.RoomTypeId ORDER BY r.Number FOR JSON PATH,INCLUDE_NULL_VALUES))
+   OR HASHBYTES(''SHA2_256'',(SELECT Code,Name,Category,Unit,PriceVnd,IsActive FROM @Services ORDER BY Code FOR JSON PATH,INCLUDE_NULL_VALUES))
+     <>HASHBYTES(''SHA2_256'',(SELECT Code,Name,Category,Unit,PriceVnd,IsActive FROM pms.Service ORDER BY Code FOR JSON PATH,INCLUDE_NULL_VALUES))
+   OR HASHBYTES(''SHA2_256'',(SELECT Name,Address,Phone,Email,TaxCode,TimeZoneId,Currency,WorkingDate,CheckInTime,CheckOutTime FROM @Hotel FOR JSON PATH,INCLUDE_NULL_VALUES))
+     <>HASHBYTES(''SHA2_256'',(SELECT Name,Address,Phone,Email,TaxCode,TimeZoneId,Currency,WorkingDate,CheckInTime,CheckOutTime FROM pms.HotelSettings FOR JSON PATH,INCLUDE_NULL_VALUES))
+   OR NOT EXISTS(SELECT 1 FROM pms.BusinessDay WHERE BusinessDate=''20261011'' AND Status=''OPEN'' AND ClosedAtUtc IS NULL AND ClosedBy IS NULL)
+   THROW 54012,''Foundation differs from payload; no overwrite permitted.'',1;
+  COMMIT;
+  SELECT N''FOUNDATION_BATCH_CONFIRMED'' AS Status,@Created AS Created,@ActualHash AS PayloadSha256,420 AS RoomCount,11 AS RoomTypeCount,15 AS ServiceCount;
+  SELECT s.SourceId,CONVERT(varchar(20),t.RoomTypeId) AS SqlId,s.Code FROM @Types s JOIN pms.RoomType t ON t.Code=s.Code ORDER BY s.Code;
+  SELECT s.SourceId,CONVERT(varchar(20),r.RoomId) AS SqlId,s.Number FROM @Rooms s JOIN pms.Room r ON r.Number=s.Number ORDER BY s.Number;
+  SELECT s.SourceId,CONVERT(varchar(20),v.ServiceId) AS SqlId,s.Code FROM @Services s JOIN pms.Service v ON v.Code=s.Code ORDER BY s.Code;
+ END TRY
+ BEGIN CATCH
+  IF XACT_STATE()<>0 ROLLBACK;
+  THROW;
+ END CATCH;
+END;
+';
+ COMMIT;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;
+-- No GRANT, no service role membership and no data inserted by deployment.

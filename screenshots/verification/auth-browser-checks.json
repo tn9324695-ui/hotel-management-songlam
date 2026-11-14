@@ -1,0 +1,15 @@
+{
+  "source": "BROWSER_HTTP_G2_FIXTURE_NO_SQL",
+  "checks": [
+    "login activates only for configured G2 contract fixture",
+    "browser login verifies actual server session and preserves exact bigint employee ID",
+    "session cookie is HttpOnly and credentials/token are not stored in browser storage",
+    "housekeeping fixture cannot read whole folio balances",
+    "browser write without CSRF is rejected by real G2 middleware",
+    "rights revoked server-side affect the same browser session immediately",
+    "locked employee loses the existing browser session",
+    "no browser JavaScript exceptions"
+  ],
+  "errors": [],
+  "passed": 8
+}

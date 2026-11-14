@@ -1,0 +1,98 @@
+-- PENDING APPROVAL. Own atomic transaction, no generic mutation gateway.
+CREATE PROCEDURE pms.usp_AppCheckInCommit
+ @AppUserId bigint,@Operation varchar(32),@InputJson nvarchar(max),@RequestId nvarchar(80),@IntentHash varchar(64),@IdempotencyKey varchar(120),
+ @PreparedJson nvarchar(max),@Changes nvarchar(max),@PriceProofJson nvarchar(max)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
+ IF @@TRANCOUNT<>0 THROW 52400,'Check-in owns its transaction.',1;
+ IF @Operation IS NULL OR @Operation<>'check-in' OR ISJSON(@InputJson)<>1 OR ISJSON(@PreparedJson)<>1 OR ISJSON(@Changes)<>1 OR ISJSON(@PriceProofJson)<>1
+ OR DATALENGTH(@InputJson)>1000000 OR DATALENGTH(@Changes)>4000000 OR LEFT(LTRIM(@Changes),1)<>'[' OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL
+ OR @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120 OR @IntentHash IS NULL OR LEN(@IntentHash)<>64 OR TRY_CONVERT(binary(32),@IntentHash,2) IS NULL
+ OR @IntentHash<>LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',CONVERT(varchar(max),@InputJson COLLATE Latin1_General_100_BIN2_UTF8)),2)) THROW 54100,'Invalid check-in payload.',1;
+ DECLARE @request uniqueidentifier=CONVERT(uniqueidentifier,@RequestId),@now datetime2(3),@day date,@booking bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingId')),
+  @lock int,@saved nvarchar(max),@savedHash binary(32),@fresh nvarchar(max),@response nvarchar(max),@before nvarchar(max),@policy nvarchar(max);
+ DECLARE @ctx TABLE(PayloadJson nvarchar(max));
+ DECLARE @units TABLE(n int PRIMARY KEY,raw nvarchar(max),bookingRoom bigint,room int,allocation bigint,stay bigint NULL);
+ BEGIN TRY
+  BEGIN TRANSACTION;
+  EXEC @lock=sys.sp_getapplock @Resource=N'SongLam:Inventory',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=10000;
+  IF @lock<0 THROW 51002,'Inventory lock unavailable.',1;
+  EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckIn';
+  IF NOT EXISTS(SELECT 1 FROM pms.AppUser WITH(HOLDLOCK) WHERE UserId=@AppUserId AND IsActive=1)
+   OR NOT EXISTS(SELECT 1 FROM pms.UserRole u WITH(HOLDLOCK) JOIN pms.AppRole r WITH(HOLDLOCK) ON r.RoleId=u.RoleId JOIN pms.RolePermission rp WITH(HOLDLOCK) ON rp.RoleId=r.RoleId JOIN pms.Permission p WITH(HOLDLOCK) ON p.PermissionId=rp.PermissionId WHERE u.UserId=@AppUserId AND r.IsActive=1 AND p.Code='manageCheckIn') THROW 52403,'Check-in right revoked.',1;
+  SELECT @saved=ResponseJson,@savedHash=RequestHash FROM pms.ApiRequest WITH(UPDLOCK,HOLDLOCK) WHERE ActorId=@AppUserId AND Operation='WEB_STAY_CHECK_IN' AND IdempotencyKey=@IdempotencyKey;
+  IF @savedHash IS NOT NULL
+  BEGIN
+   IF @savedHash<>CONVERT(binary(32),@IntentHash,2) THROW 52404,'Idempotency conflict.',1;
+   IF @saved IS NULL THROW 54109,'Prior check-in pending.',1;
+   COMMIT; SELECT JSON_MODIFY(@saved,'$.replayed',CAST(1 AS bit)) PayloadJson; RETURN;
+  END;
+  SELECT @policy=JSON_QUERY(CONVERT(nvarchar(max),value),'$.policy') FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.CheckIn016.Release';
+  IF @policy IS NULL OR ISNULL(JSON_VALUE(@PreparedJson,'$.policy.hash'),'')<>ISNULL(JSON_VALUE(@policy,'$.hash'),'')
+   OR ISNULL(JSON_VALUE(@PreparedJson,'$.intentHash'),'')<>@IntentHash OR ISNULL(JSON_VALUE(@PreparedJson,'$.actorId'),'')<>CONVERT(varchar(20),@AppUserId) THROW 52431,'Workflow preparation mismatch.',1;
+  INSERT @ctx EXEC pms.usp_WebCheckInContext @InputJson; SELECT @fresh=PayloadJson FROM @ctx;
+  IF (SELECT COUNT(*) FROM @ctx)<>1 THROW 54100,'Invalid fresh context.',1;
+  SET @now=CONVERT(datetime2(3),JSON_VALUE(@fresh,'$.checkedInAtUtc'));
+  SELECT @day=h.WorkingDate FROM pms.HotelSettings h WITH(HOLDLOCK) JOIN pms.BusinessDay d WITH(HOLDLOCK) ON d.BusinessDate=h.WorkingDate AND d.Status='OPEN' WHERE h.HotelId=1 AND h.TimeZoneId='SE Asia Standard Time' AND h.Currency='VND';
+  IF @day IS NULL OR @day<>CONVERT(date,DATEADD(hour,7,@now)) THROW 52406,'Open business date must equal actual hotel date; never backdate room charges.',1;
+  INSERT @units SELECT CONVERT(int,[key]),value,CONVERT(bigint,JSON_VALUE(value,'$.bookingRoomId')),CONVERT(int,JSON_VALUE(value,'$.roomId')),CONVERT(bigint,JSON_VALUE(value,'$.allocationId')),NULL FROM OPENJSON(@InputJson,'$.rooms');
+  IF EXISTS(SELECT 1 FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity') NOT IN('Folio','BookingRoom','Stay','StayRoomSegment','StayGuest','FolioEntry')
+    OR JSON_VALUE(value,'$.verb')<>CASE WHEN JSON_VALUE(value,'$.entity')='BookingRoom' THEN 'update' ELSE 'insert' END)
+    OR (SELECT COUNT(*) FROM OPENJSON(@Changes)) NOT BETWEEN 1 AND 500 THROW 54100,'Check-in batch layout invalid.',1;
+  IF EXISTS(SELECT 1 FROM pms.ApiRequest WHERE RequestId=@request) THROW 52404,'Request UUID already used.',1;
+  SET @before=pms.fn_WebBookingJson(@booking,1);
+  INSERT pms.ApiRequest(RequestId,ActorId,Operation,IdempotencyKey,RequestHash,Status) VALUES(@request,@AppUserId,'WEB_STAY_CHECK_IN',@IdempotencyKey,CONVERT(binary(32),@IntentHash,2),'PROCESSING');
+  INSERT pms.CommandExecution(SessionId,RequestId) VALUES(@@SPID,@request);
+  DECLARE @n int=0,@raw nvarchar(max),@br bigint,@room int,@allocation bigint,@stay bigint,@folio bigint,@payer bigint,@snapshot nvarchar(max),@base decimal(19,0),@early decimal(19,0),@expected int=0,@count int=(SELECT COUNT(*) FROM @units),@end datetime2(3),@prefix varchar(100);
+  WHILE @n<@count
+  BEGIN
+   SELECT @raw=raw,@br=bookingRoom,@room=room,@allocation=allocation FROM @units WHERE n=@n;
+   SELECT @snapshot=RateSnapshotJson,@base=QuotedTotalVnd,@end=EndsAtUtc FROM pms.BookingRoom WITH(UPDLOCK,HOLDLOCK) WHERE BookingRoomId=@br;
+   SELECT @early=COALESCE(SUM(TRY_CONVERT(decimal(19,0),JSON_VALUE(value,'$.amountPerRoomVnd'))),0) FROM OPENJSON(@snapshot,'$.breakdown') WHERE JSON_VALUE(value,'$.kind')='EARLY_ARRIVAL';
+   IF @early<0 OR @base<0 THROW 52431,'Invalid frozen charge.',1;
+   SET @expected+=4+(SELECT COUNT(*) FROM OPENJSON(@raw,'$.guestCustomerIds'))+CASE WHEN @base>0 THEN 1 ELSE 0 END+CASE WHEN @early>0 THEN 1 ELSE 0 END;
+   IF @expected>500 THROW 54100,'Selected rooms exceed atomic batch limit.',1;
+   DECLARE @stayRef varchar(80)='$stay_'+CONVERT(varchar(10),@n),@folioRef varchar(80)='$checkin_folio_'+CONVERT(varchar(10),@n);
+   IF (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='BookingRoom' AND JSON_VALUE(value,'$.key.BookingRoomId')=CONVERT(varchar(20),@br)
+      AND JSON_VALUE(value,'$.data.Status')='IN_HOUSE' AND JSON_VALUE(value,'$.version')=JSON_VALUE(@raw,'$.expectedVersion'))<>1
+    OR (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='Folio' AND JSON_VALUE(value,'$.ref')=SUBSTRING(@folioRef,2,80)
+      AND JSON_VALUE(value,'$.data.BookingRoomId')=CONVERT(varchar(20),@br) AND JSON_VALUE(value,'$.data.BookingId')=CONVERT(varchar(20),@booking) AND JSON_VALUE(value,'$.data.Kind')='ROOM' AND JSON_VALUE(value,'$.data.Status')='OPEN')<>1
+    OR (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='Stay' AND JSON_VALUE(value,'$.ref')=SUBSTRING(@stayRef,2,80) AND JSON_VALUE(value,'$.data.BookingRoomId')=CONVERT(varchar(20),@br) AND JSON_VALUE(value,'$.data.Status')='IN_HOUSE')<>1
+    OR (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='StayRoomSegment' AND JSON_VALUE(value,'$.data.StayId')=@stayRef AND JSON_VALUE(value,'$.data.AllocationId')=CONVERT(varchar(20),@allocation) AND JSON_VALUE(value,'$.data.RoomId')=CONVERT(varchar(20),@room))<>1
+    THROW 54100,'Compiled source identities differ from selected room.',1;
+   IF (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='StayGuest' AND JSON_VALUE(value,'$.data.StayId')=@stayRef)<>(SELECT COUNT(*) FROM OPENJSON(@raw,'$.guestCustomerIds'))
+    OR EXISTS(SELECT 1 FROM OPENJSON(@raw,'$.guestCustomerIds') g WHERE (SELECT COUNT(*) FROM OPENJSON(@Changes) c WHERE JSON_VALUE(c.value,'$.entity')='StayGuest' AND JSON_VALUE(c.value,'$.data.StayId')=@stayRef
+      AND JSON_VALUE(c.value,'$.data.CustomerId')=g.value AND JSON_VALUE(c.value,'$.data.IsLead')=CASE WHEN g.value=JSON_VALUE(@raw,'$.leadCustomerId') THEN 'true' ELSE 'false' END)<>1)
+    THROW 54100,'Compiled guests differ from declared roster.',1;
+   IF (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='FolioEntry' AND JSON_VALUE(value,'$.data.StayId')=@stayRef)<>CASE WHEN @base>0 THEN 1 ELSE 0 END+CASE WHEN @early>0 THEN 1 ELSE 0 END
+    OR (@base>0 AND (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='FolioEntry' AND JSON_VALUE(value,'$.data.StayId')=@stayRef AND JSON_VALUE(value,'$.data.FolioId')=@folioRef AND JSON_VALUE(value,'$.data.Kind')='CHARGE' AND JSON_VALUE(value,'$.data.Category')='ROOM' AND TRY_CONVERT(decimal(19,0),JSON_VALUE(value,'$.data.AmountVnd'))=@base)<>1)
+    OR (@early>0 AND (SELECT COUNT(*) FROM OPENJSON(@Changes) WHERE JSON_VALUE(value,'$.entity')='FolioEntry' AND JSON_VALUE(value,'$.data.StayId')=@stayRef AND JSON_VALUE(value,'$.data.FolioId')=@folioRef AND JSON_VALUE(value,'$.data.Kind')='CHARGE' AND JSON_VALUE(value,'$.data.Category')='SURCHARGE' AND TRY_CONVERT(decimal(19,0),JSON_VALUE(value,'$.data.AmountVnd'))=@early)<>1)
+    THROW 52431,'Compiled frozen charges differ from SQL source.',1;
+   SELECT @payer=CustomerId FROM pms.Booking WHERE BookingId=@booking;
+   INSERT pms.Folio(Code,BookingId,BookingRoomId,Kind,Status,PayerCustomerId,PayerOrganizationId) VALUES('FO-'+CONVERT(varchar(36),NEWID()),@booking,@br,'ROOM','OPEN',@payer,NULL); SET @folio=SCOPE_IDENTITY();
+   UPDATE pms.BookingRoom SET Status='IN_HOUSE' WHERE BookingRoomId=@br;
+   INSERT pms.Stay(Code,BookingRoomId,Status,CheckedInAtUtc,ExpectedOutAtUtc,CheckedInBy,PricingSnapshotJson) VALUES('ST-'+CONVERT(varchar(36),NEWID()),@br,'IN_HOUSE',@now,@end,@AppUserId,@snapshot); SET @stay=SCOPE_IDENTITY();
+   UPDATE @units SET stay=@stay WHERE n=@n;
+   INSERT pms.StayRoomSegment(StayId,AllocationId,RoomId,ArrivedAtUtc) VALUES(@stay,@allocation,@room,@now);
+   INSERT pms.StayGuest(StayId,CustomerId,ArrivedAtUtc,IsLead) SELECT @stay,CONVERT(bigint,value),@now,CASE WHEN value=JSON_VALUE(@raw,'$.leadCustomerId') THEN 1 ELSE 0 END FROM OPENJSON(@raw,'$.guestCustomerIds');
+   SET @prefix='s16:'+CONVERT(varchar(36),@request)+':'+CONVERT(varchar(20),@br);
+   IF @base>0 INSERT pms.FolioEntry(FolioId,StayId,Kind,Category,AmountVnd,Description,BusinessDate,CreatedBy,OperationKey) VALUES(@folio,@stay,'CHARGE','ROOM',@base,N'Giá phòng theo snapshot đã chốt',@day,@AppUserId,@prefix+':room');
+   IF @early>0 INSERT pms.FolioEntry(FolioId,StayId,Kind,Category,AmountVnd,Description,BusinessDate,CreatedBy,OperationKey) VALUES(@folio,@stay,'CHARGE','SURCHARGE',@early,N'Phụ thu nhận sớm đã thỏa thuận',@day,@AppUserId,@prefix+':early');
+   INSERT pms.AuditLog(ActorId,Action,EntityType,EntityKey,RequestId,AfterJson,Reason) VALUES(@AppUserId,'WEB_STAY_CHECK_IN','Stay',CONVERT(varchar(20),@stay),@request,pms.fn_WebStay016Json(@stay),N'CHECKIN016: frozen price; no cash');
+   SET @n+=1;
+  END;
+  IF @expected<>(SELECT COUNT(*) FROM OPENJSON(@Changes)) THROW 54100,'Compiler mutation count differs from independent SQL effects.',1;
+  UPDATE pms.Booking SET Status=CASE WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status IN('HELD','CONFIRMED')) THEN 'PARTIALLY_CHECKED_IN' ELSE 'CHECKED_IN' END WHERE BookingId=@booking;
+  EXEC pms.usp_AssertBusinessState;
+  INSERT pms.AuditLog(ActorId,Action,EntityType,EntityKey,RequestId,BeforeJson,AfterJson,Reason) VALUES(@AppUserId,'WEB_STAY_CHECK_IN','Booking',CONVERT(varchar(20),@booking),@request,@before,pms.fn_WebBookingJson(@booking,1),N'CHECKIN016');
+  SET @response=(SELECT CONVERT(varchar(20),@AppUserId) actorId,'check-in' operation,@IntentHash intentHash,'SUCCEEDED' status,CAST(1 AS bit) committed,CAST(1 AS bit) atomic,CAST(1 AS bit) readinessCheckedUnderLock,CAST(0 AS bit) replayed,
+   CONVERT(varchar(36),@request) operationId,CONVERT(varchar(36),@request) originalRequestId,'stays.checkIn' httpOperation,CONVERT(varchar(23),@now,126)+'Z' committedAtUtc,
+   CONVERT(varchar(20),@booking) bookingId,b.Status bookingStatus,CONVERT(varchar(18),CONVERT(binary(8),b.RowVer),1) bookingVersion,
+   JSON_QUERY((SELECT N'['+STRING_AGG(CONVERT(nvarchar(max),pms.fn_WebStay016Json(stay)),N',') WITHIN GROUP(ORDER BY n)+N']' FROM @units)) stays,
+   'NOT_PERFORMED' paymentActions,'NOT_PERFORMED' depositActions FROM pms.Booking b WHERE b.BookingId=@booking FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+  UPDATE pms.ApiRequest SET Status='SUCCEEDED',ResponseJson=@response WHERE RequestId=@request;
+  DELETE pms.CommandExecution WHERE SessionId=@@SPID AND RequestId=@request;
+  COMMIT; SELECT @response PayloadJson;
+ END TRY BEGIN CATCH IF XACT_STATE()<>0 ROLLBACK; THROW; END CATCH;
+END;

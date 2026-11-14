@@ -1,0 +1,19 @@
+-- Private DTO projection only; never grant SELECT or direct EXECUTE to browser.
+CREATE FUNCTION pms.fn_WebStay016Json(@StayId bigint) RETURNS nvarchar(max) AS
+BEGIN
+ RETURN (SELECT CONVERT(varchar(20),s.StayId) id,s.Code code,CONVERT(varchar(20),b.BookingId) bookingId,CONVERT(varchar(20),s.BookingRoomId) bookingRoomId,
+  s.Status status,CONVERT(varchar(23),s.CheckedInAtUtc,126)+'Z' checkedInAtUtc,CONVERT(varchar(23),s.ExpectedOutAtUtc,126)+'Z' expectedOutAtUtc,
+  CONVERT(varchar(23),s.CheckedOutAtUtc,126)+'Z' checkedOutAtUtc,CONVERT(varchar(18),CONVERT(binary(8),s.RowVer),1) version,
+  CONVERT(varchar(18),CONVERT(binary(8),b.RowVer),1) bookingRoomVersion,
+  (SELECT CONVERT(varchar(20),g.RoomId) FROM pms.StayRoomSegment g WHERE g.StayId=s.StayId AND g.DepartedAtUtc IS NULL) roomId,
+  JSON_QUERY(COALESCE((SELECT CONVERT(varchar(20),g.CustomerId) customerId,g.IsLead isLead,CONVERT(varchar(23),g.ArrivedAtUtc,126)+'Z' arrivedAtUtc,CONVERT(varchar(23),g.DepartedAtUtc,126)+'Z' departedAtUtc FROM pms.StayGuest g WHERE g.StayId=s.StayId ORDER BY g.CustomerId FOR JSON PATH,INCLUDE_NULL_VALUES),N'[]')) guests,
+  JSON_QUERY(COALESCE((SELECT CONVERT(varchar(20),g.SegmentId) id,CONVERT(varchar(20),g.RoomId) roomId,CONVERT(varchar(20),g.AllocationId) allocationId,
+   CONVERT(varchar(18),CONVERT(binary(8),a.RowVer),1) allocationVersion,CONVERT(varchar(23),g.ArrivedAtUtc,126)+'Z' arrivedAtUtc,CONVERT(varchar(23),g.DepartedAtUtc,126)+'Z' departedAtUtc
+   FROM pms.StayRoomSegment g JOIN pms.RoomAllocation a ON a.AllocationId=g.AllocationId WHERE g.StayId=s.StayId ORDER BY g.SegmentId FOR JSON PATH,INCLUDE_NULL_VALUES),N'[]')) segments,
+  JSON_QUERY((SELECT JSON_VALUE(s.PricingSnapshotJson,'$.roomBaseVnd') roomBaseVnd,
+   CONVERT(varchar(30),COALESCE((SELECT SUM(TRY_CONVERT(decimal(19,0),JSON_VALUE(value,'$.amountPerRoomVnd'))) FROM OPENJSON(s.PricingSnapshotJson,'$.breakdown') WHERE JSON_VALUE(value,'$.kind')='EARLY_ARRIVAL'),0)) earlyArrivalVnd,
+   CONVERT(varchar(30),COALESCE((SELECT SUM(TRY_CONVERT(decimal(19,0),JSON_VALUE(value,'$.amountPerRoomVnd'))) FROM OPENJSON(s.PricingSnapshotJson,'$.breakdown') WHERE JSON_VALUE(value,'$.kind')='LATE_DEPARTURE'),0)) lateDepartureEstimateVnd,
+   '0' earlyDeparturePenaltyVnd,JSON_VALUE(s.PricingSnapshotJson,'$.accommodationTotalVnd') accommodationEstimateVnd,
+   CONVERT(varchar(20),b.PolicyVersionId) policyVersionId,'LOCKED' priceState FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) pricing
+  FROM pms.Stay s JOIN pms.BookingRoom b ON b.BookingRoomId=s.BookingRoomId WHERE s.StayId=@StayId FOR JSON PATH,INCLUDE_NULL_VALUES,WITHOUT_ARRAY_WRAPPER);
+END;

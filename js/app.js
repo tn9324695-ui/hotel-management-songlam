@@ -2,11 +2,17 @@
  * HỆ THỐNG QUẢN LÝ KHÁCH SẠN SÔNG LAM - MAIN APPLICATION LOGIC
  * Phân tích và thiết kế hệ thống quản lý khách sạn - Mường Thanh Luxury Sông Lam
  * Giao diện tổng: Quản lý & Thu ngân / Kế toán & Quản trị hệ thống
- * Đồng bộ 100% qua window.SongLamStore (BroadcastChannel & localStorage).
+ * Demo dùng SongLamStore; chế độ API quản trị đọc backend và thoát trước controller demo.
  */
 
 (function () {
   'use strict';
+
+  if (document.documentElement.dataset.pmsMode === 'api') {
+    const mount = () => window.SongLamAdminPage.mount();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true }); else mount();
+    return;
+  }
 
   const store = window.SongLamStore;
 
@@ -16,7 +22,7 @@
     timelineDays: 14,
     timelineFilters: { floor: 'all', classCode: 'all', search: '' },
     currentPortal: 'general',
-    currentScreen: 'room_rack',
+    currentScreen: 'overview',
     currentRole: 'manager',
     currentUser: {
       id: 'NV-01',
@@ -150,6 +156,7 @@
       switch (status) {
         case 'active': return { text: 'Hoạt động', badgeClass: 'badge-active' };
         case 'maintenance': return { text: 'Bảo trì', badgeClass: 'badge-maintenance' };
+        case 'inactive': return { text: 'Tạm ngưng', badgeClass: 'badge-maintenance' };
         default: return { text: status, badgeClass: '' };
       }
     }
@@ -201,14 +208,23 @@
     }
     const nameEl = document.getElementById('topbarUserName');
     const roleEl = document.getElementById('topbarRoleText');
-    if (nameEl) nameEl.textContent = state.currentUser.fullName;
-    if (roleEl) roleEl.textContent = state.currentUser.roleName;
+    if (window._sqlCurrentUser) {
+      if (nameEl) nameEl.textContent = window._sqlCurrentUser.fullName || window._sqlCurrentUser.username;
+      if (roleEl) roleEl.textContent = 'Nhân viên SQL (' + (window._sqlCurrentUser.roleCode || 'Staff') + ')';
+    } else {
+      if (nameEl) nameEl.textContent = state.currentUser.fullName;
+      if (roleEl) roleEl.textContent = state.currentUser.roleName;
+    }
 
     const switcher = document.getElementById('roleSwitcher');
     if (switcher) switcher.value = state.currentRole;
   }
 
   function switchRole(newRoleCode) {
+    const account = store.getData().users.find(u => u.roleCode === newRoleCode && u.status === 'active');
+    if (!account) return;
+    closeModal();
+    closeRoomDrawer();
     state.currentRole = newRoleCode;
     if (newRoleCode === 'manager') {
       state.currentUser = {
@@ -235,8 +251,11 @@
         roleName: 'Quản trị viên hệ thống'
       };
     }
+    state.currentUser = { ...account };
+    if (!window.SongLamUI.canScreen(state.currentScreen)) state.currentScreen = 'overview';
     updateTopbarInfo();
     renderCurrentScreen();
+    window.SongLamUI.sync();
     showToast(`Đã chuyển vai trò sang: ${state.currentUser.roleName}`);
   }
 
@@ -252,251 +271,7 @@
   // =========================================================================
   // KIOTVIET REVENUE & CASHFLOW DASHBOARD WIDGETS
   // =========================================================================
-  function renderKiotVietRevenueDashboard() {
-    const data = store ? store.getData() : window.HOTEL_DATA;
-    const wDate = store ? store.getWorkingDate() : '2026-10-25';
-    const period = state.revenuePeriod || 'this_month';
-    const tab = state.revenueTab || 'weekday';
-    const viewMode = state.revenueViewMode || 'bar';
-
-    const analytics = store ? store.getAnalyticsReportData(wDate, period) : null;
-    const summary = analytics ? analytics.summary : {
-      netRevenue: 1886687000,
-      invoicesCount: 53,
-      avgPerDayText: '0/ngày',
-      avgPerRoomText: '0/phòng/ngày',
-      totalIncome: 1886687000,
-      totalExpense: 118242000,
-      netCashflow: 1768445000,
-      maxYRevenue: 800000000,
-      maxYCashflow: 2100000000,
-      yTicksRevenue: ['800tr', '600tr', '400tr', '200tr', '0'],
-      yTicksCashflow: ['2.1tỷ', '1.8tỷ', '1.5tỷ', '1.2tỷ', '900tr', '600tr', '300tr', '0']
-    };
-
-    let points = [];
-    if (tab === 'hourly') {
-      points = analytics ? analytics.hourly : [];
-    } else if (tab === 'daily') {
-      points = analytics ? analytics.daily : [];
-    } else {
-      points = analytics ? analytics.weekday : [
-        { label: 'Thứ 2', revenue: 160000000 },
-        { label: 'Thứ 3', revenue: 220000000 },
-        { label: 'Thứ 4', revenue: 40000000 },
-        { label: 'Thứ 5', revenue: 190000000 },
-        { label: 'Thứ 6', revenue: 48000000 },
-        { label: 'Thứ 7', revenue: 765000000 },
-        { label: 'Chủ nhật', revenue: 463687000 }
-      ];
-    }
-
-    const maxY = summary.maxYRevenue || 800000000;
-    const yTicks = summary.yTicksRevenue || ['800tr', '600tr', '400tr', '200tr', '0'];
-
-    const maxYCashflow = summary.maxYCashflow || 2100000000;
-    const yTicksCashflow = summary.yTicksCashflow || ['2.1tỷ', '1.8tỷ', '1.5tỷ', '1.2tỷ', '900tr', '600tr', '300tr', '0'];
-
-    const channels = analytics ? analytics.channelDistribution : [
-      { label: 'Vãng lai (Walk-in)', count: 22, revenue: 792400000, percent: 42, color: '#0066ff' },
-      { label: 'Đại lý OTA (Agoda/Booking)', count: 19, revenue: 660340000, percent: 35, color: '#10b981' },
-      { label: 'Khách đoàn / Doanh nghiệp', count: 12, revenue: 433940000, percent: 23, color: '#f59e0b' }
-    ];
-
-    return `
-      <div class="kiot-dashboard-grid">
-        <!-- CARD 1: DOANH THU THUẦN -->
-        <div class="kiot-card">
-          <div class="kiot-card-header">
-            <div class="kiot-card-title-wrap">
-              <span class="kiot-card-title">Doanh thu thuần</span>
-              <span class="kiot-info-circle" title="Tổng doanh thu thực tế từ lưu trú và dịch vụ sau khi trừ hoàn tiền">ⓘ</span>
-            </div>
-            <div class="kiot-controls-wrap">
-              <select class="kiot-period-select" onchange="window.app.switchRevenuePeriod(this.value)">
-                <option value="this_month" ${period === 'this_month' ? 'selected' : ''}>Tháng này</option>
-                <option value="this_week" ${period === 'this_week' ? 'selected' : ''}>Tuần này</option>
-                <option value="today" ${period === 'today' ? 'selected' : ''}>Hôm nay</option>
-              </select>
-              <button class="kiot-icon-btn" onclick="window.app.toggleRevenueViewMode()" title="Chuyển đổi dạng xem Biểu đồ tròn / Biểu đồ cột">
-                <i data-lucide="${viewMode === 'bar' ? 'pie-chart' : 'bar-chart-2'}" style="width: 15px; height: 15px;"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- Dòng Pills Thống Kê -->
-          <div class="kiot-pills-row">
-            <span class="kiot-pill kiot-pill-green">${fmt.currency(summary.netRevenue).replace(' VNĐ', '')}</span>
-            <span class="kiot-pill kiot-pill-blue">${summary.invoicesCount} hóa đơn</span>
-            <span class="kiot-pill kiot-pill-cyan">${summary.avgPerDayText || '0/ngày'}</span>
-            <span class="kiot-pill kiot-pill-cyan">${summary.avgPerRoomText || '0/phòng/ngày'}</span>
-          </div>
-
-          <!-- Thanh Tabs Theo ngày | Theo giờ | Theo thứ -->
-          <div class="kiot-tabs-nav">
-            <div class="kiot-tab-item ${tab === 'daily' ? 'active' : ''}" onclick="window.app.switchRevenueTab('daily')">Theo ngày</div>
-            <div class="kiot-tab-item ${tab === 'hourly' ? 'active' : ''}" onclick="window.app.switchRevenueTab('hourly')">Theo giờ</div>
-            <div class="kiot-tab-item ${tab === 'weekday' ? 'active' : ''}" onclick="window.app.switchRevenueTab('weekday')">Theo thứ</div>
-          </div>
-
-          <!-- Thân Biểu Đồ Cột Tròn KiotViet -->
-          ${viewMode === 'bar' ? `
-            <div class="kiot-chart-wrapper">
-              <div class="kiot-y-axis">
-                ${yTicks.map(tick => `<span>${tick}</span>`).join('')}
-              </div>
-
-              <div class="kiot-chart-body">
-                <div class="kiot-grid-lines">
-                  ${yTicks.map(() => `<div class="kiot-grid-line"></div>`).join('')}
-                </div>
-
-                <div class="kiot-bars-container">
-                  ${points.map(pt => {
-                    const rev = pt.revenue || 0;
-                    const hPct = Math.min(100, Math.max(0, Math.round((rev / maxY) * 100)));
-                    return `
-                      <div class="kiot-bar-group">
-                        <div class="kiot-bar-tooltip">${fmt.currency(rev)}</div>
-                        <div class="kiot-bar-track">
-                          <div class="kiot-bar-fill-blue" style="height: ${hPct}%;"></div>
-                        </div>
-                        <span class="kiot-x-label">${escapeHtml(pt.label)}</span>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            </div>
-
-            <div class="kiot-bottom-legend">
-              <span style="width: 9px; height: 9px; border-radius: 50%; background: #0066ff;"></span>
-              <span style="font-weight: 500; font-size: 12px; color: #334155;">Chi nhánh trung tâm</span>
-            </div>
-          ` : `
-            <div class="donut-chart-container" style="padding: 20px 10px;">
-              <svg viewBox="0 0 42 42" style="width: 140px; height: 140px; transform: rotate(-90deg);">
-                <circle cx="21" cy="21" r="15.91549430918954" fill="#fff" stroke="#e2e8f0" stroke-width="6"></circle>
-                ${(() => {
-                  let cumulative = 0;
-                  const colors = ['#0066ff', '#10b981', '#f59e0b'];
-                  return channels.map((ch, idx) => {
-                    const dash = `${ch.percent} ${100 - ch.percent}`;
-                    const offset = -cumulative;
-                    cumulative += ch.percent;
-                    return `<circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="${colors[idx % colors.length]}" stroke-width="6" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"></circle>`;
-                  }).join('');
-                })()}
-              </svg>
-              <div class="donut-legend-wrap">
-                ${(() => {
-                  const colors = ['#0066ff', '#10b981', '#f59e0b'];
-                  return channels.map((ch, idx) => `
-                    <div class="donut-legend-item">
-                      <span class="donut-legend-color" style="background: ${colors[idx % colors.length]};"></span>
-                      <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 12.5px;">${escapeHtml(ch.label)}</div>
-                        <div style="font-size: 11px; color: var(--text-secondary);">${fmt.currency(ch.revenue)} &bull; ${ch.count} đơn</div>
-                      </div>
-                      <span style="font-weight: 700; font-size: 13px; color: ${colors[idx % colors.length]};">${ch.percent}%</span>
-                    </div>
-                  `).join('');
-                })()}
-              </div>
-            </div>
-          `}
-        </div>
-
-        <!-- CARD 2: THU - CHI -->
-        <div class="kiot-card">
-          <div class="kiot-card-header">
-            <div class="kiot-card-title-wrap">
-              <span class="kiot-card-title">Thu - Chi</span>
-              <a href="javascript:void(0)" onclick="window.app.switchScreen('billing')" class="kiot-detail-link">Chi tiết</a>
-            </div>
-            <div class="kiot-controls-wrap">
-              <select class="kiot-period-select" onchange="window.app.switchRevenuePeriod(this.value)">
-                <option value="this_month" ${period === 'this_month' ? 'selected' : ''}>Tháng này</option>
-                <option value="this_week" ${period === 'this_week' ? 'selected' : ''}>Tuần này</option>
-                <option value="today" ${period === 'today' ? 'selected' : ''}>Hôm nay</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="kiot-big-number">${fmt.currency(summary.netCashflow).replace(' VNĐ', '')}</div>
-
-          <div class="kiot-legend-list">
-            <div class="kiot-legend-row">
-              <span class="kiot-legend-dot" style="background: #0066ff;"></span>
-              <span class="kiot-legend-label">Tổng thu</span>
-              <span class="kiot-legend-amount">${fmt.currency(summary.totalIncome).replace(' VNĐ', '')}</span>
-            </div>
-            <div class="kiot-legend-row">
-              <span class="kiot-legend-dot" style="background: #f87171;"></span>
-              <span class="kiot-legend-label">Tổng chi</span>
-              <span class="kiot-legend-amount">${fmt.currency(summary.totalExpense).replace(' VNĐ', '')}</span>
-            </div>
-          </div>
-
-          <div class="kiot-chart-wrapper" style="margin-top: 14px;">
-            <div class="kiot-y-axis">
-              ${yTicksCashflow.map(tick => `<span>${tick}</span>`).join('')}
-            </div>
-
-            <div class="kiot-chart-body">
-              <div class="kiot-grid-lines">
-                ${yTicksCashflow.map(() => `<div class="kiot-grid-line"></div>`).join('')}
-              </div>
-
-              <div class="kiot-bars-container" style="justify-content: flex-start; gap: 42px; padding-left: 20px;">
-                <!-- Nhóm 1: Tiền mặt -->
-                <div class="kiot-bar-group">
-                  <div class="kiot-bar-tooltip">Thu: ${fmt.currency(summary.totalIncome)} | Chi: ${fmt.currency(summary.totalExpense)}</div>
-                  <div class="kiot-dual-track-group">
-                    <div class="kiot-bar-track">
-                      <div class="kiot-bar-fill-blue" style="height: ${Math.min(100, Math.round((summary.totalIncome / maxYCashflow) * 100))}%;"></div>
-                    </div>
-                    <div class="kiot-bar-track">
-                      <div class="kiot-bar-fill-red" style="height: ${Math.min(100, Math.round((summary.totalExpense / maxYCashflow) * 100))}%;"></div>
-                    </div>
-                  </div>
-                  <span class="kiot-x-label">Tiền mặt</span>
-                </div>
-
-                <!-- Nhóm 2: Ví điện tử -->
-                <div class="kiot-bar-group">
-                  <div class="kiot-bar-tooltip">Ví điện tử: 0 VNĐ</div>
-                  <div class="kiot-dual-track-group">
-                    <div class="kiot-bar-track">
-                      <div class="kiot-bar-fill-blue" style="height: 0%;"></div>
-                    </div>
-                    <div class="kiot-bar-track">
-                      <div class="kiot-bar-fill-red" style="height: 0%;"></div>
-                    </div>
-                  </div>
-                  <span class="kiot-x-label">Ví điện tử</span>
-                </div>
-
-                <!-- Cột trống thoáng chuẩn KiotViet -->
-                <div class="kiot-bar-group" style="opacity: 0.35;">
-                  <div class="kiot-dual-track-group">
-                    <div class="kiot-bar-track"><div class="kiot-bar-fill-blue" style="height: 0%;"></div></div>
-                    <div class="kiot-bar-track"><div class="kiot-bar-fill-red" style="height: 0%;"></div></div>
-                  </div>
-                </div>
-                <div class="kiot-bar-group" style="opacity: 0.35;">
-                  <div class="kiot-dual-track-group">
-                    <div class="kiot-bar-track"><div class="kiot-bar-fill-blue" style="height: 0%;"></div></div>
-                    <div class="kiot-bar-track"><div class="kiot-bar-fill-red" style="height: 0%;"></div></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
+  function renderKiotVietRevenueDashboard() { return ''; }
 
   function switchRevenuePeriod(period) {
     state.revenuePeriod = period;
@@ -513,438 +288,8 @@
     renderCurrentScreen();
   }
 
-  function renderOverview() {
-    const data = store ? store.getData() : window.HOTEL_DATA;
-    const stats = store ? store.getDashboardStats() : {
-      readyRooms: 20, occupiedRooms: 18, arrivalsCount: 4, departuresCount: 3, netRevenueToday: 35000000, occupancyRate: 43, totalRooms: 42
-    };
-    const wDate = store ? store.getWorkingDate() : '2026-10-25';
+  function renderOverview() { window.SongLamUI.overview(); }
 
-    const canViewRev = hasPermission('viewDailyRevenue');
-
-    // Danh sách đến & đi
-    const arrivals = (data.bookings || []).filter(b => b.checkInDate === wDate && b.bookingStatus !== 'cancelled' && b.bookingStatus !== 'checked_in');
-    const departures = (data.stays || []).filter(s => s.status === 'in_house' && s.expectedCheckOutDate && s.expectedCheckOutDate.startsWith(wDate));
-    const dirtyRooms = (data.rooms || []).filter(r => r.cleanStatus === 'dirty');
-    const maintenanceRooms = (data.rooms || []).filter(r => r.exploitationStatus === 'maintenance' || r.exploitationStatus === 'inactive');
-    const pendingTrans = (data.transactions || []).filter(t => t.status === 'pending');
-    const pendingRefunds = (data.refundRequests || []).filter(r => r.status === 'pending');
-
-    // 1. Khách sắp đến nhưng chưa gán phòng
-    const unassignedArrivals = arrivals.filter(b => (!b.assignedRooms || b.assignedRooms.length === 0) && (!b.roomNumber));
-    
-    // 2. Khách đến nhưng phòng chưa sẵn sàng (phòng chưa dọn sạch hoặc đang bảo trì)
-    const arrivalsNotReady = arrivals.filter(b => {
-      const roomList = b.assignedRooms && b.assignedRooms.length > 0 ? b.assignedRooms : (b.roomNumber ? [b.roomNumber] : []);
-      if (roomList.length === 0) return false;
-      return roomList.some(rNum => {
-        const r = (data.rooms || []).find(rm => rm.number === rNum);
-        return r && (r.cleanStatus !== 'clean' || r.exploitationStatus !== 'active');
-      });
-    });
-
-    // 3. Tính công nợ đoàn còn phải thu
-    let totalGroupDebt = 0;
-    (data.bookings || []).forEach(b => {
-      if ((b.isGroup || (b.roomQuantity && b.roomQuantity > 1)) && b.bookingStatus !== 'cancelled') {
-        const total = b.totalAmount || (b.rooms ? b.rooms.reduce((s, r) => s + (r.roomPrice || 0), 0) : 0);
-        const paid = b.depositPaid || b.depositAmount || 0;
-        if (total > paid) totalGroupDebt += (total - paid);
-      }
-    });
-
-    const totalArrivalRooms = arrivals.reduce((acc, b) => acc + (b.roomQuantity || 1), 0);
-
-    let html = `
-      <div class="page-header d-print-none mb-3">
-        <div class="row g-2 align-items-center">
-          <div class="col">
-            <h2 class="page-title d-flex align-items-center gap-2">
-              <i data-lucide="layout-dashboard" class="text-primary"></i> Tổng quan vận hành khách sạn Sông Lam
-            </h2>
-            <div class="text-secondary mt-1" style="font-size: 13px;">
-              Theo dõi 8 chỉ số kinh doanh cốt lõi, công suất buồng phòng và danh sách 5 tác vụ vận hành ưu tiên trong ngày
-            </div>
-          </div>
-          <div class="col-auto ms-auto d-flex align-items-center gap-2">
-            <div class="badge bg-blue-lt px-3 py-2 fs-7 d-flex align-items-center gap-1" title="Ngày nghiệp vụ hiện tại của khách sạn">
-              <i data-lucide="calendar" style="width: 14px; height: 14px;"></i>
-              <span>Ngày làm việc: <b>${fmt.date(wDate)}</b></span>
-            </div>
-            <button class="btn btn-outline-primary btn-sm" onclick="window.app.switchScreen('shifts_audit')">
-              <i data-lucide="history"></i> Chốt ca / Night Audit
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Thẻ thống kê KPI Chuẩn Tabler (8 Chỉ số Vận hành & Tài chính) -->
-      <div class="row row-deck row-cards mb-3">
-        
-        <!-- 1. Phòng đang có khách -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('room_rack'); window.app.updateRoomFilter('stayStatus', 'occupied');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem các phòng đang có khách lưu trú">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #eff6ff; color: #1d4ed8;">
-                    <i data-lucide="users"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Phòng đang có khách</div>
-                  <div class="text-reset fw-bold fs-3 my-1">${stats.occupiedRooms} <span class="fs-6 fw-normal text-muted">phòng</span></div>
-                  <div class="text-secondary small">Công suất: <b class="text-primary">${stats.occupancyRate}%</b> (${stats.occupiedRooms}/${stats.totalRooms} phòng)</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 2. Phòng trống sạch sẵn sàng nhận -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('room_rack'); window.app.updateRoomFilter('cleanStatus', 'clean'); window.app.updateRoomFilter('stayStatus', 'vacant');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem danh sách phòng trống sạch sẵn sàng đón khách">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #ecfdf5; color: #059669;">
-                    <i data-lucide="check-circle"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Phòng sẵn sàng đón khách</div>
-                  <div class="text-reset fw-bold fs-3 my-1">${stats.readyRooms} <span class="fs-6 fw-normal text-muted">/ ${stats.totalRooms} phòng</span></div>
-                  <div class="text-secondary small">Đã dọn sạch và cho phép đón khách</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. Phòng chờ dọn vệ sinh -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('housekeeping');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem phân hệ buồng phòng">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #fffbeb; color: #d97706;">
-                    <i data-lucide="spray-can"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Phòng chờ dọn / kiểm tra</div>
-                  <div class="text-reset fw-bold fs-3 my-1">${dirtyRooms.length} <span class="fs-6 fw-normal text-muted">phòng</span></div>
-                  <div class="text-secondary small">Cần vệ sinh trước giờ nhận 14:00</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 4. Phòng bảo trì ngừng khai thác -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('room_rack'); window.app.updateRoomFilter('exploitationStatus', 'maintenance');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem danh sách phòng bảo trì">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #fff1f2; color: #e11d48;">
-                    <i data-lucide="wrench"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Phòng ngừng khai thác</div>
-                  <div class="text-reset fw-bold fs-3 my-1">${maintenanceRooms.length} <span class="fs-6 fw-normal text-muted">phòng</span></div>
-                  <div class="text-secondary small">Bảo trì kỹ thuật hoặc sửa chữa</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 5. Khách dự kiến đến hôm nay -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('bookings');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem danh sách đơn đặt phòng đến hôm nay">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #f0f9ff; color: #0284c7;">
-                    <i data-lucide="log-in"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Dự kiến đến hôm nay</div>
-                  <div class="text-reset fw-bold fs-3 my-1">${stats.arrivalsCount} <span class="fs-6 fw-normal text-muted">đơn (${totalArrivalRooms} phòng)</span></div>
-                  <div class="text-secondary small">Khách đặt trước đến nhận ca trực</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 6. Khách dự kiến đi hôm nay -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('stays');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem danh sách lượt ở trả hôm nay">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #fdf4ff; color: #a21caf;">
-                    <i data-lucide="log-out"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Dự kiến trả hôm nay</div>
-                  <div class="text-reset fw-bold fs-3 my-1">${stats.departuresCount} <span class="fs-6 fw-normal text-muted">phòng</span></div>
-                  <div class="text-secondary small">Cần quyết toán & kiểm tra minibar</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 7. Doanh thu thực thu trong ngày (RBAC Protected) -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('billing');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem chi tiết thanh toán & dòng tiền">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #f0fdf4; color: #16a34a;">
-                    <i data-lucide="dollar-sign"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Doanh thu thực thu ngày</div>
-                  ${canViewRev ? `
-                    <div class="text-reset fw-bold fs-3 my-1 font-amount text-success">${fmt.currency(stats.netRevenueToday)}</div>
-                    <div class="text-secondary small" title="Thực thu dòng tiền giao dịch thành công (đã trừ hoàn tiền). Không nhân đôi cọc phân bổ.">
-                      Thực thu giao dịch thành công
-                    </div>
-                  ` : `
-                    <div class="text-muted fw-bold fs-5 my-1 d-flex align-items-center gap-1">
-                      <i data-lucide="lock" style="width:14px;height:14px;"></i> Giới hạn quyền
-                    </div>
-                    <div class="text-secondary small">Cần quyền [viewDailyRevenue]</div>
-                  `}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 8. Công nợ đoàn / Khoản còn phải thu -->
-        <div class="col-sm-6 col-lg-3">
-          <div class="card card-sm card-link" onclick="window.app.switchScreen('billing');" style="cursor: pointer; transition: transform 0.15s ease;" title="Xem sổ công nợ đoàn & hóa đơn">
-            <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-auto">
-                  <span class="avatar rounded" style="background: #fff7ed; color: #ea580c;">
-                    <i data-lucide="file-text"></i>
-                  </span>
-                </div>
-                <div class="col">
-                  <div class="font-weight-medium text-secondary" style="font-size: 12px;">Công nợ đoàn phải thu</div>
-                  <div class="text-reset fw-bold fs-3 my-1 font-amount" style="color: #ea580c;">${fmt.currency(totalGroupDebt)}</div>
-                  <div class="text-secondary small">Còn thiếu từ các đoàn & công ty</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      ${canViewRev ? renderKiotVietRevenueDashboard() : ""}
-
-      <!-- Khối tác vụ cần xử lý & danh sách đến đi -->
-      <div class="row row-cards mt-2">
-        <div class="col-lg-8">
-          <!-- Bảng khách sắp nhận phòng -->
-          <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                <i data-lucide="log-in" style="color: #0284c7; width: 18px; height: 18px;"></i>
-                Khách dự kiến nhận phòng hôm nay (${arrivals.length})
-              </h3>
-              <button class="btn btn-outline-secondary btn-sm" onclick="window.app.switchScreen('bookings')">Xem tất cả</button>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-vcenter table-hover card-table">
-                <thead>
-                  <tr>
-                    <th>Mã đặt</th>
-                    <th>Khách hàng</th>
-                    <th>Hạng & SL</th>
-                    <th class="text-end">Đã cọc</th>
-                    <th class="text-end">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${arrivals.length === 0 ? '<tr><td colspan="5" class="text-center text-muted py-4">Không còn khách nào dự kiến nhận hôm nay.</td></tr>' : ''}
-                  ${arrivals.slice(0, 4).map(b => `
-                    <tr>
-                      <td><span class="badge bg-blue-lt fw-bold">${escapeHtml(b.id)}</span></td>
-                      <td>
-                        <div class="fw-bold">${escapeHtml(b.guestName)}</div>
-                        <div class="text-muted small">${escapeHtml(b.phone)}</div>
-                      </td>
-                      <td><span class="badge bg-secondary-lt">${escapeHtml(b.roomClassCode)}</span> x${b.roomQuantity || 1}</td>
-                      <td class="text-end font-amount text-success fw-bold">${fmt.currency(b.depositPaid || b.depositAmount || 0)}</td>
-                      <td class="text-end">
-                        <button class="btn btn-primary btn-sm" onclick="window.app.openCheckInForBooking('${b.id}')">
-                          <i data-lucide="check"></i> Nhận phòng
-                        </button>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Bảng khách sắp trả phòng -->
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                <i data-lucide="log-out" style="color: #b45309; width: 18px; height: 18px;"></i>
-                Khách trả phòng hôm nay (${departures.length})
-              </h3>
-              <button class="btn btn-outline-secondary btn-sm" onclick="window.app.switchScreen('stays')">Xem tất cả</button>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-vcenter table-hover card-table">
-                <thead>
-                  <tr>
-                    <th>Số phòng</th>
-                    <th>Khách lưu trú</th>
-                    <th>Giờ dự kiến</th>
-                    <th class="text-end">Tạm tính Folio</th>
-                    <th class="text-end">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${departures.length === 0 ? '<tr><td colspan="5" class="text-center text-muted py-4">Không có lượt trả phòng nào đến hạn trong ca.</td></tr>' : ''}
-                  ${departures.slice(0, 4).map(s => {
-                    const folio = store ? store.calculateStayFolio(s.id) : null;
-                    return `
-                      <tr>
-                        <td><span class="badge bg-primary text-white fw-bold fs-6">P.${escapeHtml(s.roomNumber)}</span></td>
-                        <td>
-                          <div class="fw-bold">${escapeHtml(s.guest.name)}</div>
-                          <div class="text-muted small">${escapeHtml(s.guest.phone)}</div>
-                        </td>
-                        <td><span class="text-secondary">${escapeHtml(s.expectedCheckOutDate.split(' ')[1] || '12:00')}</span></td>
-                        <td class="text-end font-amount fw-bold text-dark">${fmt.currency(folio ? folio.totalAmount : 0)}</td>
-                        <td class="text-end">
-                          <button class="btn btn-danger btn-sm" onclick="window.app.openCheckoutModal('${s.roomNumber}')">
-                            <i data-lucide="credit-card"></i> Trả phòng
-                          </button>
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- Cột công việc cần xử lý ngay (5 Tác vụ Vận hành Trực tiếp) -->
-        <div class="col-lg-4">
-          <div class="card" style="border-top: 3px solid var(--primary);">
-            <div class="card-header">
-              <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                <i data-lucide="alert-circle" class="text-primary" style="width: 18px; height: 18px;"></i>
-                5 Tác vụ cần xử lý ngay
-              </h3>
-            </div>
-            <div class="card-body p-3">
-              
-              <!-- 1. Khách sắp đến nhưng chưa gán phòng -->
-              <div class="p-2 mb-2 rounded" style="background: ${unassignedArrivals.length > 0 ? '#eff6ff' : '#f8fafc'}; border: 1px solid ${unassignedArrivals.length > 0 ? '#bfdbfe' : '#e2e8f0'};">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="fw-bold" style="color: #1e40af; font-size: 12.5px;">
-                    <i data-lucide="user-check" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-                    Chưa gán số phòng (${unassignedArrivals.length})
-                  </div>
-                  <span class="badge ${unassignedArrivals.length > 0 ? 'bg-blue text-white' : 'bg-secondary-lt'}">${unassignedArrivals.length} đơn</span>
-                </div>
-                <div class="text-secondary small mt-1">
-                  ${unassignedArrivals.length > 0 ? `Các đơn: ${unassignedArrivals.map(b => b.id).join(', ')}` : 'Tất cả đơn đến hôm nay đã được xếp phòng'}
-                </div>
-                <a href="javascript:void(0)" onclick="window.app.switchScreen('bookings')" class="small fw-bold text-primary mt-1 d-inline-block">Gán phòng ngay &rarr;</a>
-              </div>
-
-              <!-- 2. Khách đến nhưng phòng chưa dọn sạch -->
-              <div class="p-2 mb-2 rounded" style="background: ${arrivalsNotReady.length > 0 ? '#fff1f2' : '#f8fafc'}; border: 1px solid ${arrivalsNotReady.length > 0 ? '#fecdd3' : '#e2e8f0'};">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="fw-bold" style="color: #9f1239; font-size: 12.5px;">
-                    <i data-lucide="alert-triangle" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-                    Phòng đến chưa sạch (${arrivalsNotReady.length})
-                  </div>
-                  <span class="badge ${arrivalsNotReady.length > 0 ? 'bg-danger text-white' : 'bg-secondary-lt'}">${arrivalsNotReady.length} phòng</span>
-                </div>
-                <div class="text-secondary small mt-1">
-                  ${arrivalsNotReady.length > 0 ? 'Có khách sắp đến nhưng phòng còn bẩn/đang bảo trì' : 'Tất cả phòng đón khách đã sẵn sàng'}
-                </div>
-                <a href="javascript:void(0)" onclick="window.app.switchScreen('housekeeping')" class="small fw-bold text-danger mt-1 d-inline-block">Ưu tiên giục dọn buồng &rarr;</a>
-              </div>
-
-              <!-- 3. Phòng chờ dọn vệ sinh thông thường -->
-              <div class="p-2 mb-2 rounded" style="background: ${dirtyRooms.length > 0 ? '#fffbeb' : '#f8fafc'}; border: 1px solid ${dirtyRooms.length > 0 ? '#fde68a' : '#e2e8f0'};">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="fw-bold" style="color: #92400e; font-size: 12.5px;">
-                    <i data-lucide="spray-can" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-                    Phòng chờ dọn vệ sinh (${dirtyRooms.length})
-                  </div>
-                  <span class="badge ${dirtyRooms.length > 0 ? 'bg-warning text-dark' : 'bg-secondary-lt'}">${dirtyRooms.length} phòng</span>
-                </div>
-                <div class="text-secondary small mt-1">
-                  ${dirtyRooms.length > 0 ? `Các phòng: ${dirtyRooms.slice(0, 5).map(r => 'P.' + r.number).join(', ')}` : 'Hiện không có phòng tồn chờ dọn'}
-                </div>
-                <a href="javascript:void(0)" onclick="window.app.switchScreen('housekeeping')" class="small fw-bold text-warning mt-1 d-inline-block">Bảng việc buồng phòng &rarr;</a>
-              </div>
-
-              <!-- 4. Giao dịch trực tuyến chờ IPN xác nhận -->
-              <div class="p-2 mb-2 rounded" style="background: ${pendingTrans.length > 0 ? '#f0f9ff' : '#f8fafc'}; border: 1px solid ${pendingTrans.length > 0 ? '#bae6fd' : '#e2e8f0'};">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="fw-bold" style="color: #0369a1; font-size: 12.5px;">
-                    <i data-lucide="credit-card" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-                    Giao dịch chờ cổng IPN (${pendingTrans.length})
-                  </div>
-                  <span class="badge ${pendingTrans.length > 0 ? 'bg-info text-white' : 'bg-secondary-lt'}">${pendingTrans.length} GD</span>
-                </div>
-                <div class="text-secondary small mt-1">
-                  ${pendingTrans.length > 0 ? `Có ${pendingTrans.length} giao dịch đang chờ phản hồi cổng thanh toán` : 'Tất cả giao dịch đã đối soát thành công'}
-                </div>
-                <a href="javascript:void(0)" onclick="window.app.switchScreen('billing')" class="small fw-bold text-info mt-1 d-inline-block">Mở Sandbox mô phỏng &rarr;</a>
-              </div>
-
-              <!-- 5. Yêu cầu hoàn tiền chờ duyệt -->
-              <div class="p-2 rounded" style="background: ${pendingRefunds.length > 0 ? '#faf5ff' : '#f8fafc'}; border: 1px solid ${pendingRefunds.length > 0 ? '#e9d5ff' : '#e2e8f0'};">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="fw-bold" style="color: #6b21a8; font-size: 12.5px;">
-                    <i data-lucide="rotate-ccw" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-                    Hoàn tiền chờ phê duyệt (${pendingRefunds.length})
-                  </div>
-                  <span class="badge ${pendingRefunds.length > 0 ? 'bg-purple text-white' : 'bg-secondary-lt'}">${pendingRefunds.length} đơn</span>
-                </div>
-                <div class="text-secondary small mt-1">
-                  ${pendingRefunds.length > 0 ? `Có ${pendingRefunds.length} đề xuất hoàn tiền cần Quản lý phê duyệt` : 'Không có yêu cầu hoàn tiền tồn đọng'}
-                </div>
-                <a href="javascript:void(0)" onclick="window.app.switchScreen('billing')" class="small fw-bold text-purple mt-1 d-inline-block">Xử lý hoàn tiền &rarr;</a>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('mainContent').innerHTML = html;
-  }
-
-  // =========================================================================
-  // 2. MÀN HÌNH SƠ ĐỒ PHÒNG TỔNG THỂ (ROOM RACK)
-  // =========================================================================
   function renderRoomRack() {
     const data = store ? store.getData() : window.HOTEL_DATA;
     const rooms = data.rooms || [];
@@ -957,7 +302,7 @@
       if (f.roomClass !== 'all' && r.classCode !== f.roomClass) return false;
       if (f.stayStatus !== 'all' && r.stayStatus !== f.stayStatus) return false;
       if (f.cleanStatus !== 'all' && r.cleanStatus !== f.cleanStatus) return false;
-      if (f.exploitationStatus !== 'all' && r.exploitationStatus !== f.exploitationStatus) return false;
+      if (f.exploitationStatus === 'unavailable' ? r.exploitationStatus === 'active' : f.exploitationStatus !== 'all' && r.exploitationStatus !== f.exploitationStatus) return false;
       if (f.search.trim()) {
         const q = f.search.trim().toLowerCase();
         const stay = stays.find(s => s.id === r.currentStayId);
@@ -971,7 +316,7 @@
     let html = `
       <div class="page-header">
         <div class="page-title-box">
-          <h1 class="page-title"><i data-lucide="grid"></i> Sơ đồ phòng tổng thể (Room Rack - 42 phòng)</h1>
+          <h1 class="page-title"><i data-lucide="grid"></i> Sơ đồ phòng · ${rooms.length} phòng</h1>
           <div class="page-breadcrumb">Theo dõi trạng thái Lưu trú, Tình trạng Vệ sinh và Trạng thái Khai thác theo từng phòng</div>
         </div>
         <div class="page-actions">
@@ -1026,7 +371,7 @@
           <div class="filter-item">
             <span class="filter-label">Hạng phòng:</span>
             <select class="form-select" onchange="window.app.updateRoomFilter('roomClass', this.value)">
-              <option value="all">Tất cả 10 hạng</option>
+              <option value="all">Tất cả hạng phòng</option>
               ${roomClasses.map(rc => `<option value="${rc.code}" ${f.roomClass === rc.code ? 'selected' : ''}>${rc.name}</option>`).join('')}
             </select>
           </div>
@@ -1038,6 +383,7 @@
               <option value="occupied" ${f.stayStatus === 'occupied' ? 'selected' : ''}>Đang có khách</option>
             </select>
           </div>
+          <div class="filter-item"><span class="filter-label">Khai thác:</span><select class="form-select" onchange="window.app.updateRoomFilter('exploitationStatus',this.value)">${[['all','Tất cả'],['unavailable','Ngừng khai thác'],['active','Hoạt động'],['maintenance','Bảo trì'],['inactive','Tạm ngưng']].map(([v,t]) => `<option value="${v}" ${f.exploitationStatus === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
           <div class="filter-item">
             <span class="filter-label">Vệ sinh:</span>
             <select class="form-select" onchange="window.app.updateRoomFilter('cleanStatus', this.value)">
@@ -1062,7 +408,7 @@
           const rClass = roomClasses.find(c => c.code === room.classCode) || {};
           const isOccupied = room.stayStatus === 'occupied';
           const isClean = room.cleanStatus === 'clean';
-          const isMaintenance = room.exploitationStatus === 'maintenance';
+          const isMaintenance = room.exploitationStatus !== 'active';
           const canCheckIn = !isOccupied && isClean && !isMaintenance;
 
           const cleanBadge = fmt.cleanStatusText(room.cleanStatus);
@@ -1100,6 +446,7 @@
                 `}
               </div>
 
+              <div class="pms-room-statuses"><span>Lưu trú: <b>${stayBadge.text}</b></span><span>· Khai thác: <b>${fmt.exploitationStatusText(room.exploitationStatus).text}</b></span></div>
               <div class="room-card-bottom" style="gap: 4px;" onclick="event.stopPropagation()">
                 ${isOccupied ? `
                   <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="window.app.openRoomDrawer('${room.id}')">
@@ -1134,7 +481,8 @@
   // =========================================================================
   function renderBookings() {
     const data = store ? store.getData() : window.HOTEL_DATA;
-    const bookings = data.bookings || [];
+    const bookingFilter = state.filters.bookings;
+    const bookings = (data.bookings || []).filter(b => (bookingFilter.status === 'all' || b.bookingStatus === bookingFilter.status) && [b.id,b.guestName,b.guest?.name,b.phone,...(b.assignedRooms || [])].join(' ').toLocaleLowerCase('vi').includes(bookingFilter.search.toLocaleLowerCase('vi')));
 
     let html = `
       <div class="page-header">
@@ -1149,6 +497,7 @@
         </div>
       </div>
 
+      <div class="filter-toolbar"><div class="filter-left-group"><input class="form-input" aria-label="Tìm đặt phòng" placeholder="Tìm mã đơn, khách, điện thoại, phòng…" value="${escapeHtml(bookingFilter.search)}" oninput="app.setBookingFilter('search',this.value)"><select class="form-select" aria-label="Trạng thái đặt phòng" onchange="app.setBookingFilter('status',this.value)">${[['all','Tất cả trạng thái'],['confirmed','Đã xác nhận'],['partially_checked_in','Nhận một phần'],['checked_in','Đã nhận phòng'],['pending','Chờ xác nhận'],['cancelled','Đã hủy'],['no_show','Không đến']].map(([v,t]) => `<option value="${v}" ${bookingFilter.status===v?'selected':''}>${t}</option>`).join('')}</select></div><span class="text-secondary">${bookings.length} đơn</span></div>
       <div class="table-container">
         <table class="data-table">
           <thead>
@@ -1167,6 +516,7 @@
             </tr>
           </thead>
           <tbody>
+            ${bookings.length ? '' : '<tr><td colspan="11" class="pms-empty">Không có đặt phòng phù hợp bộ lọc.</td></tr>'}
             ${bookings.map(b => {
               const nights = b.nights || (store ? store.calculateNights(b.checkInDate, b.checkOutDate) : 1);
               let statusBadge = '<span class="badge badge-clean">Đã xác nhận</span>';
@@ -1180,6 +530,8 @@
                 statusBadge = '<span class="badge badge-dirty">Chờ xác nhận</span>';
               }
 
+              if (b.bookingStatus === 'no_show') statusBadge = '<span class="badge badge-dirty">Không đến</span>';
+              if (b.bookingStatus === 'partially_checked_in') statusBadge = '<span class="badge badge-occupied">Nhận một phần</span>';
               const depositPaid = b.depositPaid || b.depositAmount || 0;
               const checkedCount = (b.checkedInRooms || []).length;
               const totalRooms = b.roomQuantity || 1;
@@ -1206,7 +558,7 @@
                   <td class="text-center">${statusBadge}</td>
                   <td class="text-right">
                     <div style="display: inline-flex; gap: 4px;">
-                      ${(b.bookingStatus !== 'checked_in' && b.bookingStatus !== 'cancelled') ? `
+                      ${(['confirmed','partially_checked_in'].includes(b.bookingStatus)) ? `
                         <button class="btn btn-primary btn-sm" onclick="window.app.openCheckInForBooking('${b.id}')">
                           <i data-lucide="check"></i> Nhận phòng
                         </button>
@@ -1470,7 +822,7 @@
 
       <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; color: #1e40af;">
         <i data-lucide="info" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-        <b>Thông số diện tích xác thực:</b> Khách sạn cấu hình 10 hạng phòng tiêu chuẩn (Superior King 24m², Deluxe Twin 34m², Premium Deluxe 43m², Suite 48m²-102m², Presidential Suite 325m²). Cho phép Quản lý thêm mới, chỉnh sửa thông số hoặc xóa hạng phòng khi không có phòng phụ thuộc.
+        <b>Danh mục đang áp dụng:</b> Có ${roomClasses.length} hạng phòng trong dữ liệu hiện tại. Có thể cập nhật giá, sức chứa và tiện nghi; chỉ xóa hạng phòng khi không có phòng phụ thuộc.
       </div>
 
       <div class="table-container">
@@ -1500,8 +852,8 @@
                     <div style="font-size: 11px; color: var(--text-secondary);">${escapeHtml(rc.description || '')}</div>
                   </td>
                   <td class="text-right font-amount" style="font-weight: 700; color: #0f4c81;">${rc.area} m²</td>
-                  <td class="text-center">${rc.standardCapacity} NL</td>
-                  <td class="text-center">${rc.maxCapacity} NL</td>
+                  <td class="text-center">${rc.standardOccupancy ?? rc.standardCapacity ?? '—'} người</td>
+                  <td class="text-center">${rc.maxOccupancy ?? rc.maxCapacity ?? '—'} người</td>
                   <td>${escapeHtml(rc.bedConfig)}</td>
                   <td class="text-center font-amount"><span class="badge badge-vacant">${actualCount} phòng</span></td>
                   <td class="text-right font-amount" style="font-weight: 700; color: var(--success);">${fmt.currency(rc.basePrice)}</td>
@@ -1632,11 +984,11 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label required">Sức chứa tiêu chuẩn (NL)</label>
-                  <input type="number" class="form-control" name="standardCapacity" value="${rc.standardCapacity}" min="1" max="10" required />
+                  <input type="number" class="form-control" name="standardCapacity" value="${rc.standardOccupancy ?? rc.standardCapacity ?? 2}" min="1" max="10" required />
                 </div>
                 <div class="form-group">
                   <label class="form-label required">Sức chứa tối đa (NL)</label>
-                  <input type="number" class="form-control" name="maxCapacity" value="${rc.maxCapacity}" min="1" max="15" required />
+                  <input type="number" class="form-control" name="maxCapacity" value="${rc.maxOccupancy ?? rc.maxCapacity ?? 3}" min="1" max="15" required />
                 </div>
               </div>
               <div class="form-row">
@@ -1673,8 +1025,8 @@
         name: form.name.value.trim(),
         area: parseFloat(form.area.value) || 30,
         bedConfig: form.bedConfig.value.trim(),
-        standardCapacity: parseInt(form.standardCapacity.value, 10) || 2,
-        maxCapacity: parseInt(form.maxCapacity.value, 10) || 3,
+        standardOccupancy: parseInt(form.standardCapacity.value, 10) || 2,
+        maxOccupancy: parseInt(form.maxCapacity.value, 10) || 3,
         basePrice: parseInt(form.basePrice.value, 10) || 1200000,
         weekendPrice: parseInt(form.weekendPrice.value, 10) || Math.round((parseInt(form.basePrice.value, 10) || 1200000) * 1.15),
         description: form.description ? form.description.value.trim() : ''
@@ -2454,11 +1806,13 @@
     // Tính toán Bảng kê Hóa đơn VAT từ các lượt ở đã check-out
     const checkedOutStays = stays.filter(s => s.status === 'checked_out');
 
-    // Tính toán Công nợ đoàn từ các đơn đặt đoàn/công ty
-    const groupDebts = bookings.filter(b => (b.isGroup || (b.roomQuantity && b.roomQuantity > 1)) && b.bookingStatus !== 'cancelled').map(b => {
-      const total = b.totalAmount || (b.rooms ? b.rooms.reduce((s, r) => s + (r.roomPrice || 0), 0) : 0);
-      const paid = b.depositPaid || b.depositAmount || 0;
-      const remaining = Math.max(0, total - paid);
+    // Công nợ đã phát sinh lấy từ folio, không dùng giá ước tính của đơn đặt.
+    const groupDebts = bookings.filter(b => (b.isGroup || b.groupBookingId || b.roomQuantity > 1) && b.bookingStatus !== 'cancelled').map(b => {
+      const linked = stays.filter(s => s.bookingId === b.id);
+      const folios = linked.map(stay => ({ stay, folio: store.calculateStayFolio(stay.id) })).filter(x => x.folio);
+      const total = folios.reduce((sum,x) => sum + x.folio.totalAmount, 0);
+      const remaining = folios.reduce((sum,x) => sum + window.SongLamViewData.outstanding(x.stay,x.folio), 0);
+      const paid = Math.max(0, total - remaining);
       return {
         bookingId: b.id,
         groupName: b.groupName || b.guestName,
@@ -2471,7 +1825,7 @@
         totalAmount: total,
         paidAmount: paid,
         remainingDebt: remaining,
-        status: remaining === 0 ? 'Đã quyết toán' : 'Còn nợ'
+        status: !linked.length ? 'Chưa lưu trú' : remaining === 0 ? 'Đã đối trừ' : 'Còn phải thu'
       };
     });
 
@@ -2483,7 +1837,7 @@
               <i data-lucide="receipt" class="text-primary"></i> E. Quản lý Tài chính, Hóa đơn & Công nợ (Billing)
             </h2>
             <div class="text-secondary mt-1" style="font-size: 13px;">
-              Nhật ký giao dịch thực thu, bảng kê hóa đơn VAT, công nợ khách đoàn và quy trình hoàn tiền 3 bước
+              Nhật ký giao dịch thực thu, phiếu thanh toán mô phỏng, công nợ khách đoàn và quy trình hoàn tiền 3 bước
             </div>
           </div>
           <div class="col-auto ms-auto d-flex gap-2">
@@ -2502,7 +1856,7 @@
               <i data-lucide="credit-card"></i> Giao dịch thanh toán (${transactions.length})
             </button>
             <button class="btn btn-sm ${activeTab === 'invoices' ? 'btn-primary' : 'btn-outline-secondary'}" onclick="window.app.switchBillingTab('invoices')">
-              <i data-lucide="file-text"></i> Bảng kê / Hóa đơn VAT (${checkedOutStays.length})
+              <i data-lucide="file-text"></i> Phiếu thanh toán (mô phỏng) (${checkedOutStays.length})
             </button>
             <button class="btn btn-sm ${activeTab === 'debts' ? 'btn-primary' : 'btn-outline-secondary'}" onclick="window.app.switchBillingTab('debts')">
               <i data-lucide="users"></i> Công nợ đoàn / công ty (${groupDebts.length})
@@ -2660,7 +2014,7 @@
                 <i data-lucide="users" style="color: #ea580c; width: 18px; height: 18px;"></i>
                 Sổ theo dõi công nợ khách đoàn & doanh nghiệp (${groupDebts.length} hợp đồng đoàn)
               </h3>
-              <div class="small text-muted mt-1">Tổng công nợ còn phải thu toàn hệ thống: <b class="text-danger font-amount fs-6">${fmt.currency(totalRemainingDebt)}</b></div>
+              <div class="small text-muted mt-1">Công nợ folio đoàn đã phát sinh: <b class="text-danger font-amount fs-6">${fmt.currency(totalRemainingDebt)}</b></div>
             </div>
             <button class="btn btn-outline-primary btn-sm" onclick="window.app.switchScreen('bookings')">
               <i data-lucide="plus"></i> Đặt phòng đoàn mới
@@ -2674,8 +2028,8 @@
                   <th>Đoàn / Đơn vị tổ chức</th>
                   <th>Hạng & Số phòng</th>
                   <th>Thời gian lưu trú</th>
-                  <th class="text-end">Tổng giá trị HĐ</th>
-                  <th class="text-end">Đã thanh toán/Cọc</th>
+                  <th class="text-end">Chi phí folio</th>
+                  <th class="text-end">Đã thu / Đối trừ</th>
                   <th class="text-end">Còn phải thu (Nợ)</th>
                   <th class="text-center">Trạng thái công nợ</th>
                   <th class="text-end">Thao tác</th>
@@ -2699,7 +2053,7 @@
                     </td>
                     <td class="text-center">
                       <span class="badge ${d.remainingDebt === 0 ? 'bg-green text-white' : 'bg-warning text-dark'}">
-                        ${d.remainingDebt === 0 ? 'Đã tất toán' : 'Còn thiếu'}
+                        ${d.status}
                       </span>
                     </td>
                     <td class="text-end">
@@ -2830,172 +2184,13 @@
     renderReports();
   }
 
-  function renderReports() {
-    const data = store ? store.getData() : window.HOTEL_DATA;
-    const stats = store ? store.getDashboardStats() : { netRevenueToday: 35000000, collectedToday: 35000000, refundsToday: 0, occupancyRate: 43, totalRooms: 42 };
-    const wDate = store ? store.getWorkingDate() : '2026-10-25';
-    const filterKey = state.reportTimeFilter || 'daily';
-    const analytics = store ? store.getAnalyticsReportData(wDate) : null;
-
-    let points = [];
-    if (analytics) {
-      if (filterKey === 'hourly') points = analytics.hourly;
-      else if (filterKey === 'weekday') points = analytics.weekday;
-      else points = analytics.daily;
-    } else {
-      points = [
-        { label: 'T2', revenue: 18000000 },
-        { label: 'T3', revenue: 22000000 },
-        { label: 'T4', revenue: 25000000 },
-        { label: 'T5', revenue: 28000000 },
-        { label: 'T6', revenue: 38000000 },
-        { label: 'T7', revenue: 42000000 },
-        { label: 'CN', revenue: 35000000 }
-      ];
-    }
-
-    const maxVal = Math.max(...points.map(p => p.revenue || 0), 1);
-    const incExp = analytics ? analytics.incomeExpense : {
-      income: stats.netRevenueToday || 35000000,
-      depositCollected: 5000000,
-      roomSettled: 20000000,
-      servicesIncome: 10000000,
-      guaranteeHeld: 3500000,
-      refundsPaid: stats.refundsToday || 0,
-      totalInflow: stats.netRevenueToday || 35000000,
-      totalOutflow: stats.refundsToday || 0,
-      netCashflow: stats.netRevenueToday || 35000000
-    };
-
-    const channels = analytics ? analytics.channelDistribution : [
-      { key: 'walkin', label: 'Vãng lai (Walk-in)', count: 8, revenue: 14700000, percent: 42 },
-      { key: 'ota', label: 'Đại lý OTA (Agoda/Booking)', count: 7, revenue: 12250000, percent: 35 },
-      { key: 'corporate', label: 'Khách đoàn / Doanh nghiệp', count: 4, revenue: 8050000, percent: 23 }
-    ];
-
-    let html = `
-      <div class="page-header">
-        <div class="page-title-box">
-          <h1 class="page-title"><i data-lucide="bar-chart-2"></i> Báo cáo thống kê & Phân tích Kinh doanh (BI Analytics)</h1>
-          <div class="page-breadcrumb">Phân tích thực thu từ các giao dịch thành công, đối soát dòng tiền và tỷ trọng nguồn khách</div>
-        </div>
-      </div>
-
-      <!-- Thẻ thống kê KPI -->
-      <div class="stats-grid">
-        <div class="stat-card revenue">
-          <div class="stat-card-header">
-            <span class="stat-title">Doanh thu thuần trong ngày</span>
-            <div class="stat-icon-wrapper"><i data-lucide="dollar-sign"></i></div>
-          </div>
-          <div class="stat-value font-amount">${fmt.currency(stats.netRevenueToday)}</div>
-          <div class="stat-subtitle">Ngày làm việc: ${fmt.date(wDate)}</div>
-        </div>
-        <div class="stat-card ready">
-          <div class="stat-card-header">
-            <span class="stat-title">Tổng tiền thực thu (Inflow)</span>
-            <div class="stat-icon-wrapper"><i data-lucide="trending-up"></i></div>
-          </div>
-          <div class="stat-value font-amount">${fmt.currency(incExp.totalInflow)}</div>
-          <div class="stat-subtitle">Bao gồm cọc phòng, dịch vụ & tiền phòng</div>
-        </div>
-        <div class="stat-card departure">
-          <div class="stat-card-header">
-            <span class="stat-title">Tổng tiền thực chi (Outflow)</span>
-            <div class="stat-icon-wrapper"><i data-lucide="rotate-ccw"></i></div>
-          </div>
-          <div class="stat-value font-amount" style="color: var(--danger);">${fmt.currency(incExp.totalOutflow)}</div>
-          <div class="stat-subtitle">Các phiếu hoàn tiền cọc đã duyệt chi</div>
-        </div>
-        <div class="stat-card occupied">
-          <div class="stat-card-header">
-            <span class="stat-title">Công suất phòng bình quân</span>
-            <div class="stat-icon-wrapper"><i data-lucide="pie-chart"></i></div>
-          </div>
-          <div class="stat-value">${stats.occupancyRate}%</div>
-          <div class="stat-subtitle">Dựa trên ${stats.totalRooms} phòng thực tế</div>
-        </div>
-      </div>
-
-      ${renderKiotVietRevenueDashboard()}
-
-      <!-- Hai khối phân tích sâu: Thu-Chi và Donut Chart Tỷ trọng Kênh bán -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-        <!-- Khối Thu - Chi & Dòng tiền -->
-        <div class="income-expense-card">
-          <div style="font-weight: 700; color: #0f4c81; font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="scale"></i> Phân tích Dòng tiền Thu - Chi trong ngày
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="inc-exp-box" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
-              <div style="font-size: 12px; color: #166534; font-weight: 600;">Tổng tiền thực thu (Inflow)</div>
-              <div style="font-size: 18px; font-weight: 800; color: #15803d; margin: 4px 0;">+${fmt.currency(incExp.totalInflow)}</div>
-              <div style="font-size: 11px; color: #166534; line-height: 1.6;">
-                &bull; Tiền phòng quyết toán: <b>${fmt.currency(incExp.roomSettled)}</b><br>
-                &bull; Dịch vụ & F&B: <b>${fmt.currency(incExp.servicesIncome)}</b><br>
-                &bull; Cọc đơn mới: <b>${fmt.currency(incExp.depositCollected)}</b>
-              </div>
-            </div>
-            <div class="inc-exp-box" style="background: #fef2f2; border: 1px solid #fecaca;">
-              <div style="font-size: 12px; color: #991b1b; font-weight: 600;">Tổng tiền thực chi (Outflow)</div>
-              <div style="font-size: 18px; font-weight: 800; color: #b91c1c; margin: 4px 0;">-${fmt.currency(incExp.totalOutflow)}</div>
-              <div style="font-size: 11px; color: #991b1b; line-height: 1.6;">
-                &bull; Hoàn tiền hủy đơn: <b>${fmt.currency(incExp.refundsPaid)}</b><br>
-                &bull; Hoàn cọc đảm bảo: <b>Theo biên bản</b>
-              </div>
-            </div>
-          </div>
-          <div style="margin-top: 12px; padding: 10px 14px; background: #eff6ff; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; font-weight: 700; color: #1e40af;">DÒNG TIỀN THUẦN (NET CASHFLOW):</span>
-            <span style="font-size: 16px; font-weight: 800; color: ${incExp.netCashflow >= 0 ? '#15803d' : '#b91c1c'};">${fmt.currency(incExp.netCashflow)}</span>
-          </div>
-        </div>
-
-        <!-- Khối Donut Chart: Phân rã Tỷ trọng Nguồn khách / Kênh bán -->
-        <div class="card" style="padding: 16px;">
-          <div style="font-weight: 700; color: #0f4c81; font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="pie-chart"></i> Tỷ trọng Kênh bán & Nguồn khách
-          </div>
-          <div class="donut-chart-container">
-            <svg viewBox="0 0 42 42" style="width: 130px; height: 130px; transform: rotate(-90deg);">
-              <circle cx="21" cy="21" r="15.91549430918954" fill="#fff" stroke="#e2e8f0" stroke-width="6"></circle>
-              ${(() => {
-                let cumulative = 0;
-                const colors = ['#0284c7', '#10b981', '#f59e0b'];
-                return channels.map((ch, idx) => {
-                  const dash = `${ch.percent} ${100 - ch.percent}`;
-                  const offset = -cumulative;
-                  cumulative += ch.percent;
-                  return `<circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="${colors[idx % colors.length]}" stroke-width="6" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"></circle>`;
-                }).join('');
-              })()}
-            </svg>
-            <div class="donut-legend-wrap">
-              ${(() => {
-                const colors = ['#0284c7', '#10b981', '#f59e0b'];
-                return channels.map((ch, idx) => `
-                  <div class="donut-legend-item">
-                    <span class="donut-legend-color" style="background: ${colors[idx % colors.length]};"></span>
-                    <div style="flex: 1;">
-                      <div style="font-weight: 600; font-size: 12px;">${escapeHtml(ch.label)}</div>
-                      <div style="font-size: 11px; color: var(--text-secondary);">${fmt.currency(ch.revenue)} &bull; ${ch.count} đơn</div>
-                    </div>
-                    <span style="font-weight: 700; font-size: 13px; color: ${colors[idx % colors.length]};">${ch.percent}%</span>
-                  </div>
-                `).join('');
-              })()}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('mainContent').innerHTML = html;
-  }
-
+  function renderReports() { window.SongLamUI.reports(); }
 
   function renderSystemAdmin(subTab = null) {
     if (subTab) state.adminSubTab = subTab;
+    if (state.adminSubTab === 'audit' ? !hasPermission('viewAuditLog') : !hasPermission('systemConfig')) {
+      state.adminSubTab = hasPermission('systemConfig') ? 'roles' : 'audit';
+    }
     const activeTab = state.adminSubTab;
 
     const data = store ? store.getData() : window.HOTEL_DATA;
@@ -3209,6 +2404,7 @@
   }
 
   function switchAdminTab(tabKey) {
+    if (!hasPermission(tabKey === 'audit' ? 'viewAuditLog' : 'systemConfig')) return;
     state.adminSubTab = tabKey;
     renderSystemAdmin(tabKey);
     if (window.lucide) lucide.createIcons();
@@ -5578,6 +4774,7 @@
   // BỘ ĐIỀU PHỐI MÀN HÌNH CHÍNH (SCREEN CONTROLLER)
   // =========================================================================
   function renderCurrentScreen() {
+    if (!window.SongLamUI.canScreen(state.currentScreen)) { window.SongLamUI.denied(); window.SongLamUI.sync(); return; }
     updateTopbarInfo();
 
     switch (state.currentScreen) {
@@ -5624,7 +4821,8 @@
 
   function updateRoomFilter(key, value) {
     state.filters.roomRack[key] = value;
-    renderRoomRack();
+    state.currentScreen = 'room_rack';
+    renderCurrentScreen();
     if (window.lucide) lucide.createIcons();
   }
 
@@ -5677,183 +4875,7 @@
     renderTimeline();
   }
 
-  function renderTimeline() {
-    const wDate = store ? store.getWorkingDate() : '2026-10-25';
-    if (!state.timelineStart) {
-      state.timelineStart = store.addDays(wDate, -2);
-    }
-
-    const tData = store.getTimelineData(state.timelineStart, state.timelineDays, state.timelineFilters);
-    const dates = tData.dates;
-    const rooms = tData.rooms;
-    const unassigned = tData.unassignedBookings;
-    const roomClasses = (store.getData().roomClasses || []);
-
-    let html = `
-      <div class="page-header" style="margin-bottom: 12px;">
-        <div class="page-title-box">
-          <h1 class="page-title"><i data-lucide="calendar-range" style="color: #0284c7;"></i> Lịch phòng ma trận tổng thể (Tape Chart)</h1>
-          <div class="page-breadcrumb">Bản đồ khai thác 42 phòng vật lý theo trục thời gian thực &bull; Ngày làm việc: ${store.formatDate(wDate)}</div>
-        </div>
-        <div class="page-actions" style="display: flex; gap: 8px;">
-          <button class="btn btn-primary btn-sm" onclick="window.app.openCreateGroupBookingModal()">
-            <i data-lucide="users"></i> Đặt phòng Khách đoàn
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="window.app.openCreateBookingModal()">
-            <i data-lucide="calendar-plus"></i> Đặt phòng Lẻ
-          </button>
-        </div>
-      </div>
-
-      <div class="tape-chart-controls">
-        <div class="tape-chart-nav">
-          <button class="btn btn-secondary btn-xs" onclick="window.app.shiftTimeline(-7)">
-            <i data-lucide="chevron-left"></i> 7 ngày trước
-          </button>
-          <button class="btn btn-secondary btn-xs" onclick="window.app.shiftTimeline(-1)">
-            <i data-lucide="chevron-left"></i> 1 ngày
-          </button>
-          <button class="btn btn-primary btn-xs" onclick="state.timelineStart = null; window.app.renderTimeline();">
-            Hôm nay (${store.formatDate(wDate)})
-          </button>
-          <button class="btn btn-secondary btn-xs" onclick="window.app.shiftTimeline(1)">
-            1 ngày <i data-lucide="chevron-right"></i>
-          </button>
-          <button class="btn btn-secondary btn-xs" onclick="window.app.shiftTimeline(7)">
-            7 ngày sau <i data-lucide="chevron-right"></i>
-          </button>
-        </div>
-
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <select class="form-select" style="font-size: 12px; padding: 3px 8px; height: 30px;" onchange="window.app.setTimelineFilter('floor', this.value)">
-            <option value="all">Tất cả các tầng</option>
-            ${[4,5,6,7,8,9,10,11,12,14,15].map(fl => `<option value="${fl}" ${String(state.timelineFilters.floor) === String(fl) ? 'selected' : ''}>Tầng ${fl}</option>`).join('')}
-          </select>
-
-          <select class="form-select" style="font-size: 12px; padding: 3px 8px; height: 30px;" onchange="window.app.setTimelineFilter('classCode', this.value)">
-            <option value="all">Tất cả hạng phòng</option>
-            ${roomClasses.map(rc => `<option value="${rc.code}" ${state.timelineFilters.classCode === rc.code ? 'selected' : ''}>${rc.name} (${rc.code})</option>`).join('')}
-          </select>
-        </div>
-      </div>
-
-      ${unassigned.length > 0 ? `
-        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 12px;">
-          <span style="font-weight: 700; color: #b45309; font-size: 13px;">
-            <i data-lucide="alert-circle" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-            Có ${unassigned.length} đơn đặt phòng chưa gán số phòng:
-          </span>
-          <div style="display: flex; gap: 10px; overflow-x: auto; padding-top: 6px;">
-            ${unassigned.map(b => `
-              <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 10px; font-size: 11.5px; white-space: nowrap;">
-                <b>${escapeHtml(b.id)}</b> &bull; ${escapeHtml(b.guest.name)} (${b.roomQuantity} phòng ${b.roomClassCode})
-                <button class="btn btn-primary btn-xs" style="margin-left: 6px; padding: 1px 6px;" onclick="window.app.openBulkAssignRoomsModal('${b.id}')">Gán phòng</button>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      <div class="tape-chart-wrapper">
-        <div class="tape-scroll-container">
-          <table class="tape-chart-table">
-            <thead>
-              <tr>
-                <th class="tape-col-room" style="background: #f8fafc;">Số phòng</th>
-                ${dates.map(d => {
-                  const isToday = d === wDate;
-                  const parts = d.split('-');
-                  const dayName = new Date(d).toLocaleDateString('vi-VN', { weekday: 'short' });
-                  return `
-                    <th class="tape-header-cell ${isToday ? 'is-today' : ''}">
-                      <div>${dayName}</div>
-                      <div style="font-size: 12px; font-weight: 800;">${parts[2]}/${parts[1]}</div>
-                    </th>
-                  `;
-                }).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${rooms.map(room => {
-                const totalDays = dates.length;
-                return `
-                  <tr>
-                    <td class="tape-col-room">
-                      <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 13px; font-weight: 800; color: #1e293b;">P.${room.number}</span>
-                        <span style="font-size: 10px; color: var(--text-secondary);">${room.classCode}</span>
-                      </div>
-                    </td>
-                    ${dates.map(d => `
-                      <td class="tape-cell ${d === wDate ? 'is-today' : ''}" 
-                          title="Phòng ${room.number} - Ngày ${store.formatDate(d)}"
-                          onclick="window.app.openRoomDrawer('P-${room.number}')">
-                      </td>
-                    `).join('')}
-
-                    ${room.events.map(ev => {
-                      const dStart = ev.startDate;
-                      const dEnd = ev.endDate;
-                      const startIdx = dates.indexOf(dStart);
-                      const endIdx = dates.indexOf(dEnd);
-
-                      let visibleStart = startIdx >= 0 ? startIdx : (dStart < dates[0] ? 0 : -1);
-                      let visibleEnd = endIdx >= 0 ? endIdx : (dEnd > dates[dates.length - 1] ? totalDays : -1);
-
-                      if (visibleStart === -1 && visibleEnd === -1) return '';
-                      if (visibleStart < 0) visibleStart = 0;
-                      if (visibleEnd < 0) visibleEnd = totalDays;
-                      if (visibleEnd <= visibleStart) visibleEnd = visibleStart + 1;
-
-                      const leftPct = (visibleStart / totalDays) * 100;
-                      const widthPct = ((visibleEnd - visibleStart) / totalDays) * 100;
-
-                      let barClass = 'tape-bar-stay';
-                      if (ev.isOverstay) barClass = 'tape-bar-stay is-overstay';
-                      else if (ev.type === 'booking') barClass = 'tape-bar-booking';
-                      else if (ev.type === 'maintenance') barClass = 'tape-bar-maintenance';
-
-                      return `
-                        <div class="tape-bar ${barClass}" 
-                             style="left: calc(125px + (100% - 125px) * ${leftPct / 100} + 2px); width: calc((100% - 125px) * ${widthPct / 100} - 4px);"
-                             title="${escapeHtml(ev.title)} (${store.formatDate(dStart)} - ${store.formatDate(dEnd)})"
-                             onclick="event.stopPropagation(); window.app.onTimelineEventClick('${ev.type}', '${ev.id}')">
-                          <span>${escapeHtml(ev.title)}</span>
-                        </div>
-                      `;
-                    }).join('')}
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="tape-legend">
-          <span style="font-weight: 700; color: #1e293b;">Chú thích trạng thái:</span>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #0284c7;"></span>
-            <span>Khách đang ở (In-house)</span>
-          </div>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #d97706;"></span>
-            <span>Đơn đặt phòng (Booking)</span>
-          </div>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #dc2626;"></span>
-            <span>Khách quá hạn (Overstay)</span>
-          </div>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #64748b;"></span>
-            <span>Khóa bảo trì kỹ thuật</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('mainContent').innerHTML = html;
-    if (window.lucide) lucide.createIcons();
-  }
+  function renderTimeline() { window.SongLamUI.timeline(state, 'app'); }
 
   function onTimelineEventClick(type, id) {
     if (type === 'stay') {
@@ -6664,6 +5686,31 @@
 
 
   window.app = {
+    openCreateExceptionModal,
+    submitCreateException,
+    openResolveExceptionModal,
+    submitResolveException,
+    openStartShiftModal,
+    submitStartShift,
+    openCloseShiftModal,
+    submitCloseShift,
+    openNightAuditModal,
+    submitNightAudit,
+    shiftTimeline,
+    setTimelineFilter,
+    renderTimeline,
+    getUIContext: () => ({ user: state.currentUser, screen: state.currentScreen }),
+    resetTimeline: () => { state.timelineStart = null; renderTimeline(); },
+    setBookingFilter: (key,value) => { state.filters.bookings[key]=value; renderBookings(); },
+    filterRooms: filter => {
+      state.filters.roomRack = { floor:'all',roomClass:'all',stayStatus:'all',cleanStatus:'all',exploitationStatus:'all',search:'' };
+      const f=state.filters.roomRack;
+      if(filter==='occupied') f.stayStatus='occupied';
+      if(filter==='ready') Object.assign(f,{stayStatus:'vacant',cleanStatus:'clean',exploitationStatus:'active'});
+      if(filter==='dirty') f.cleanStatus='dirty';
+      if(filter==='unavailable') f.exploitationStatus='unavailable';
+      switchScreen('room_rack');
+    },
     state,
     switchScreen,
     switchRole,

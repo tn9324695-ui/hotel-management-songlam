@@ -1,0 +1,39 @@
+{
+  "kind": "SOURCE_DATA_DECISIONS_NOT_SQL_EXECUTION_APPROVAL",
+  "sourceSha256": "76ad26790afe131e9fcb15ecb12c075d85bd6cdc79a6075261212e1db6d75964",
+  "approvalReference": "USER-ROOM-TYPE-SUGGESTED-CODES-CONFIRMED",
+  "roomTypeCodesApproved": true,
+  "roomTypeCodes": {
+    "XLSX_HANG_4": "SUP-K",
+    "XLSX_HANG_5": "DLX-T",
+    "XLSX_HANG_6": "DLX-TR",
+    "XLSX_HANG_7": "PRE-K",
+    "XLSX_HANG_8": "PRE-T",
+    "XLSX_HANG_9": "JRS",
+    "XLSX_HANG_10": "CLS",
+    "XLSX_HANG_11": "EXS",
+    "XLSX_HANG_12": "GRS",
+    "XLSX_HANG_13": "RYS",
+    "XLSX_HANG_14": "PRS"
+  },
+  "workingDateInput": "11/10/2026",
+  "workingDate": "2026-10-11",
+  "workingDateStatus": "CONFIRMED",
+  "guestRoomSource": "3_Phong",
+  "guestRoomRegisterStatus": "NO_INDIVIDUAL_GUEST_ROOMS_IN_CURRENT_WORKBOOK",
+  "sqlExecutionApproved": false,
+  "completedWorkbook": {
+    "sourceSha256": "2e1e523b3c0463e07a744a78b68fe9ec1c7d3dc05bacb7bb974b95f19daade5d",
+    "useAsProjectDataApproved": true,
+    "sourceDeclaredClassification": "Giả định đồ án",
+    "userDesignatedProjectAuthoritativeData": true,
+    "independentlyVerifiedHotelData": false,
+    "sqlChangesApproved": true,
+    "sqlApprovalReference": "USER-FOUNDATION-011-BACKUP-DEPLOY-IMPORT",
+    "sqlScope": ["011-foundation-backup.sql.pending", "011-foundation-base420.sql.pending", "exact-foundation-base420-payload"],
+    "importStatus": "COMMITTED_REPLAY_AND_HTTP_BROWSER_RECONCILIATION_VERIFIED",
+    "dateOverride": "2026-10-11",
+    "roomImportCountApproved": 420,
+    "quarantineMaintenanceRoomsApproved": ["501", "902", "1303", "1704", "2105"]
+  }
+}

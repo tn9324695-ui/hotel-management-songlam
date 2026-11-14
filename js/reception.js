@@ -152,7 +152,7 @@
       </div>
 
       <!-- Thống kê nhanh ca trực -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
+      <div class="pms-stat-strip" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
         <div style="background: #ffffff; border: 1px solid #b7ebcf; border-radius: var(--radius-sm); padding: 10px 14px;">
           <div style="font-size: 11px; font-weight: 700; color: var(--success); text-transform: uppercase;">Phòng sạch sẵn sàng đón</div>
           <div style="font-size: 20px; font-weight: 800; color: var(--success);">${readyCount} <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">phòng</span></div>
@@ -2623,6 +2623,7 @@
   }
 
   function renderCurrentScreen() {
+    if (!window.SongLamUI.canScreen(state.currentScreen)) { window.SongLamUI.denied(); window.SongLamUI.sync(); return; }
     updateTopbarDate();
 
     switch (state.currentScreen) {
@@ -2656,7 +2657,8 @@
 
   function updateRoomFilter(key, value) {
     state.filters.roomRack[key] = value;
-    renderRecRoomRack();
+    state.currentScreen = 'rec_room_rack';
+    renderCurrentScreen();
     if (window.lucide) lucide.createIcons();
   }
 
@@ -2703,191 +2705,7 @@
     renderRecTimeline();
   }
 
-  function renderRecTimeline() {
-    const wDate = store ? store.getWorkingDate() : '2026-10-25';
-    if (!state.timelineStart) {
-      state.timelineStart = store.addDays(wDate, -2);
-    }
-
-    const tData = store.getTimelineData(state.timelineStart, state.timelineDays, state.timelineFilters);
-    const dates = tData.dates;
-    const rooms = tData.rooms;
-    const unassigned = tData.unassignedBookings;
-    const roomClasses = (store.getData().roomClasses || []);
-
-    let html = `
-      <div class="page-header" style="margin-bottom: 12px;">
-        <div class="page-title-box">
-          <h1 class="page-title"><i data-lucide="calendar-range" style="color: #0284c7;"></i> Lịch phòng ma trận (Tape Chart Timeline)</h1>
-          <div class="page-breadcrumb">Theo dõi toàn bộ 42 phòng, đặt trước, khách đang ở và phòng bảo trì theo trục thời gian</div>
-        </div>
-        <div class="page-actions" style="display: flex; gap: 8px;">
-          <button class="btn btn-primary btn-sm" onclick="window.receptionApp.openCreateGroupBookingModal()">
-            <i data-lucide="users"></i> Đặt phòng Đoàn mới
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="window.receptionApp.openCreateBookingModal()">
-            <i data-lucide="calendar-plus"></i> Đặt phòng Lẻ
-          </button>
-        </div>
-      </div>
-
-      <!-- Thanh công cụ điều hướng ngày & bộ lọc -->
-      <div class="tape-chart-controls">
-        <div class="tape-chart-nav">
-          <button class="btn btn-secondary btn-xs" onclick="window.receptionApp.shiftTimeline(-7)">
-            <i data-lucide="chevron-left"></i> 7 ngày trước
-          </button>
-          <button class="btn btn-secondary btn-xs" onclick="window.receptionApp.shiftTimeline(-1)">
-            <i data-lucide="chevron-left"></i> 1 ngày
-          </button>
-          <button class="btn btn-primary btn-xs" onclick="state.timelineStart = null; window.receptionApp.renderRecTimeline();">
-            Hôm nay (${store.formatDate(wDate)})
-          </button>
-          <button class="btn btn-secondary btn-xs" onclick="window.receptionApp.shiftTimeline(1)">
-            1 ngày <i data-lucide="chevron-right"></i>
-          </button>
-          <button class="btn btn-secondary btn-xs" onclick="window.receptionApp.shiftTimeline(7)">
-            7 ngày sau <i data-lucide="chevron-right"></i>
-          </button>
-        </div>
-
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <select class="form-select" style="font-size: 12px; padding: 3px 8px; height: 30px;" onchange="window.receptionApp.setTimelineFilter('floor', this.value)">
-            <option value="all">Tất cả các tầng</option>
-            ${[4,5,6,7,8,9,10,11,12,14,15].map(fl => `<option value="${fl}" ${String(state.timelineFilters.floor) === String(fl) ? 'selected' : ''}>Tầng ${fl}</option>`).join('')}
-          </select>
-
-          <select class="form-select" style="font-size: 12px; padding: 3px 8px; height: 30px;" onchange="window.receptionApp.setTimelineFilter('classCode', this.value)">
-            <option value="all">Tất cả hạng phòng</option>
-            ${roomClasses.map(rc => `<option value="${rc.code}" ${state.timelineFilters.classCode === rc.code ? 'selected' : ''}>${rc.name} (${rc.code})</option>`).join('')}
-          </select>
-        </div>
-      </div>
-
-      <!-- Khu vực Đơn chưa xếp phòng (Holding Area) nếu có -->
-      ${unassigned.length > 0 ? `
-        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-weight: 700; color: #b45309; font-size: 13px;">
-              <i data-lucide="alert-circle" style="width: 14px; height: 14px; vertical-align: middle;"></i>
-              Có ${unassigned.length} đơn đặt phòng chưa gán số phòng vật lý:
-            </span>
-          </div>
-          <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;">
-            ${unassigned.map(b => `
-              <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 10px; font-size: 11.5px; white-space: nowrap;">
-                <b>${escapeHtml(b.id)}</b> &bull; ${escapeHtml(b.guest.name)} (${b.roomQuantity} phòng ${b.roomClassCode})<br>
-                <span style="color: var(--text-secondary);">${store.formatDate(b.checkInDate)} &rarr; ${store.formatDate(b.checkOutDate)}</span>
-                <button class="btn btn-primary btn-xs" style="margin-left: 6px; padding: 1px 6px;" onclick="window.receptionApp.openBulkAssignRoomsModal('${b.id}')">Gán phòng</button>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- Bảng Tape Chart Ma Trận -->
-      <div class="tape-chart-wrapper">
-        <div class="tape-scroll-container">
-          <table class="tape-chart-table">
-            <thead>
-              <tr>
-                <th class="tape-col-room" style="background: #f8fafc;">Số phòng</th>
-                ${dates.map(d => {
-                  const isToday = d === wDate;
-                  const parts = d.split('-');
-                  const dayName = new Date(d).toLocaleDateString('vi-VN', { weekday: 'short' });
-                  return `
-                    <th class="tape-header-cell ${isToday ? 'is-today' : ''}">
-                      <div>${dayName}</div>
-                      <div style="font-size: 12px; font-weight: 800;">${parts[2]}/${parts[1]}</div>
-                    </th>
-                  `;
-                }).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${rooms.map(room => {
-                const totalDays = dates.length;
-                return `
-                  <tr>
-                    <td class="tape-col-room">
-                      <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 13px; font-weight: 800; color: #1e293b;">P.${room.number}</span>
-                        <span style="font-size: 10px; color: var(--text-secondary);">${room.classCode}</span>
-                      </div>
-                    </td>
-                    ${dates.map((d, colIdx) => `
-                      <td class="tape-cell ${d === wDate ? 'is-today' : ''}" 
-                          title="Phòng ${room.number} - Ngày ${store.formatDate(d)}"
-                          onclick="window.receptionApp.onTimelineCellClick('${room.number}', '${d}')">
-                      </td>
-                    `).join('')}
-
-                    <!-- Render các thanh sự kiện (Events Overlay) -->
-                    ${room.events.map(ev => {
-                      const dStart = ev.startDate;
-                      const dEnd = ev.endDate;
-                      const startIdx = dates.indexOf(dStart);
-                      const endIdx = dates.indexOf(dEnd);
-
-                      let visibleStart = startIdx >= 0 ? startIdx : (dStart < dates[0] ? 0 : -1);
-                      let visibleEnd = endIdx >= 0 ? endIdx : (dEnd > dates[dates.length - 1] ? totalDays : -1);
-
-                      if (visibleStart === -1 && visibleEnd === -1) return '';
-                      if (visibleStart < 0) visibleStart = 0;
-                      if (visibleEnd < 0) visibleEnd = totalDays;
-                      if (visibleEnd <= visibleStart) visibleEnd = visibleStart + 1;
-
-                      const leftPct = ((visibleStart) / totalDays) * 100;
-                      const widthPct = ((visibleEnd - visibleStart) / totalDays) * 100;
-
-                      let barClass = 'tape-bar-stay';
-                      if (ev.isOverstay) barClass = 'tape-bar-stay is-overstay';
-                      else if (ev.type === 'booking') barClass = 'tape-bar-booking';
-                      else if (ev.type === 'maintenance') barClass = 'tape-bar-maintenance';
-
-                      return `
-                        <div class="tape-bar ${barClass}" 
-                             style="left: calc(125px + (100% - 125px) * ${leftPct / 100} + 2px); width: calc((100% - 125px) * ${widthPct / 100} - 4px);"
-                             title="${escapeHtml(ev.title)} (${store.formatDate(dStart)} - ${store.formatDate(dEnd)})"
-                             onclick="event.stopPropagation(); window.receptionApp.onTimelineEventClick('${ev.type}', '${ev.id}')">
-                          <span>${escapeHtml(ev.title)}</span>
-                        </div>
-                      `;
-                    }).join('')}
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Chú thích Tape Chart -->
-        <div class="tape-legend">
-          <span style="font-weight: 700; color: #1e293b;">Chú thích màu:</span>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #0284c7;"></span>
-            <span>Khách đang ở (In-house)</span>
-          </div>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #d97706;"></span>
-            <span>Đơn đặt phòng (Booking)</span>
-          </div>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #dc2626;"></span>
-            <span>Khách quá hạn (Overstay)</span>
-          </div>
-          <div class="tape-legend-item">
-            <span class="tape-legend-color" style="background: #64748b;"></span>
-            <span>Khóa bảo trì kỹ thuật</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('mainContent').innerHTML = html;
-    if (window.lucide) lucide.createIcons();
-  }
+  function renderRecTimeline() { window.SongLamUI.timeline(state, 'receptionApp'); }
 
   function onTimelineCellClick(roomNumber, dateStr) {
     const wDate = store ? store.getWorkingDate() : '2026-10-25';
@@ -3614,6 +3432,11 @@
 
 
   window.receptionApp = {
+    shiftTimeline,
+    setTimelineFilter,
+    renderRecTimeline,
+    resetTimeline: () => { state.timelineStart = null; renderRecTimeline(); },
+    getUIContext: () => ({ user: state.currentUser, screen: state.currentScreen }),
     state,
     switchScreen,
     updateRoomFilter,

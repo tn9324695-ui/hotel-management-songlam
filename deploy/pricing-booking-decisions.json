@@ -1,0 +1,15 @@
+{
+  "kind": "SOURCE_PRICING_DATE_DECISION_NOT_SQL_EXECUTION_APPROVAL",
+  "recordedOn": "2026-11-12",
+  "sourceSha256": "2e1e523b3c0463e07a744a78b68fe9ec1c7d3dc05bacb7bb974b95f19daade5d",
+  "businessDate": "2026-10-11",
+  "priceValidFrom": "2026-11-01",
+  "priceValidThroughInclusive": "2027-12-31",
+  "priceValidToExclusive": "2028-01-01",
+  "keepWorkbookPriceDatesConfirmed": true,
+  "testBookingsFrom": "2026-11-01",
+  "backdatePrices": false,
+  "missingPriceBehavior": "RATE_MISSING",
+  "sqlExecutionApproved": false,
+  "activateBusinessWrites": false
+}

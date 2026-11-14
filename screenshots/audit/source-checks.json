@@ -1,0 +1,1191 @@
+{
+  "generatedAt": "2026-11-14T02:06:01.985Z",
+  "scope": "SOURCE_SYNTAX_AND_REFERENCES_NOT_SQL_INTEGRATION",
+  "syntax": [
+    {
+      "file": "backend/src/adapters/sql/approved-contracts.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/auth-bootstrap.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/booking-mutation-extension.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/booking-test-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/bookings-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/catalog-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/consumption-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/finance-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/management-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/operations-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/pricing-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/runtime.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/session-store.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/stay-pricing-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/stays-gateway.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/test-pool.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/test-profile.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/adapters/sql/windows-provider.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/app.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/config/environment.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/middleware/error-handler.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/middleware/request-context.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/middleware/validate.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/audit/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/audit/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/auth/password-verifier.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/auth/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/auth/runtime.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/auth/security.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/auth/sessions.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/bookings/batch.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/bookings/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/bookings/intent.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/bookings/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/bookings/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/bookings/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/business-days/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/business-days/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/cashier/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/cashier/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/catalog/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/catalog/resources.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/catalog/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/catalog/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/catalog/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/checkout/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/checkout/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/customers/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/customers/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/cutover/booking-test-runtime.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/cutover/operations.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/cutover/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/cutover/runtime.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/exceptions/observations.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/exceptions/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/exceptions/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/model.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/money.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/receipt.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/finance/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/folios/deposit-routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/folios/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/folios/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/housekeeping/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/housekeeping/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/invoices/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/invoices/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/lost-found/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/lost-found/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/maintenance/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/maintenance/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/management/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/management/model.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/management/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/management/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/management/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/minibar/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/minibar/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/minibar/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/operations/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/operations/model.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/operations/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/operations/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/operations/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/payments/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/payments/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/engine.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/money.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/policy.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/stay-change.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/pricing/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/refunds/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/refunds/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/reports/definitions.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/reports/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/reports/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/reports/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/roles/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/roles/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/services/amounts.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/services/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/services/permissions.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/services/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/services/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/services/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/status/readiness.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/stays/commands.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/stays/dto.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/stays/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/stays/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/stays/validation.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/users/routes.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/modules/users/service.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/server.js",
+      "passed": true
+    },
+    {
+      "file": "backend/src/shared/errors.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/api.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/auth.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/booking-quote.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/browser/auth.browser.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/browser/cdp.mjs",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/browser/login.browser.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/catalog-status-scope.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/checkin-016.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/completed-workbook.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/config.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/cutover-boundaries.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/d1-review.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/domain.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/first-two-evidence.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/fixtures/auth-fixture.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/foundation-batch.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/foundation-plan.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/foundation-workbook.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/helpers.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/http-client.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/lifecycle-consent.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/lifecycle-runtime.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/login.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/migration.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/readiness-snapshot.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/sql-auth-bootstrap.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/sql-contracts.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/sql-runtime.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/sql-session-store.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/sql-test-setup.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/test-staff-cli.test.js",
+      "passed": true
+    },
+    {
+      "file": "backend/tests/write-coordinator.test.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/administration-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/bookings-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/catalog-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/customers-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/finance-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/http-client.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/minibar-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/operations-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/pricing-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/reports-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/services-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/stays-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/api/write-coordinator.js",
+      "passed": true
+    },
+    {
+      "file": "js/app.js",
+      "passed": true
+    },
+    {
+      "file": "js/components/modal.js",
+      "passed": true
+    },
+    {
+      "file": "js/components/notification.js",
+      "passed": true
+    },
+    {
+      "file": "js/components/pagination.js",
+      "passed": true
+    },
+    {
+      "file": "js/components/table.js",
+      "passed": true
+    },
+    {
+      "file": "js/components/workspace.js",
+      "passed": true
+    },
+    {
+      "file": "js/data.js",
+      "passed": true
+    },
+    {
+      "file": "js/deployment-config.js",
+      "passed": true
+    },
+    {
+      "file": "js/deployment.js",
+      "passed": true
+    },
+    {
+      "file": "js/housekeeping.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/admin-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/catalog-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/finance-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/housekeeping-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/login.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/operations-status.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/reception-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/pages/services-api.js",
+      "passed": true
+    },
+    {
+      "file": "js/pms-data.js",
+      "passed": true
+    },
+    {
+      "file": "js/pms-ui.js",
+      "passed": true
+    },
+    {
+      "file": "js/reception.js",
+      "passed": true
+    },
+    {
+      "file": "js/services/permission-service.js",
+      "passed": true
+    },
+    {
+      "file": "js/services/session-service.js",
+      "passed": true
+    },
+    {
+      "file": "js/services/ui-service.js",
+      "passed": true
+    },
+    {
+      "file": "js/store.js",
+      "passed": true
+    },
+    {
+      "file": "tools/capture-live-ui.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/cutover/cli.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/apply-foundation-decisions.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/browser-export.js",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/cli.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/foundation-plan.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/lib/analyze.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/lib/core.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/lib/import-engine.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/lib/reconcile.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/map-foundation-workbook.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/prepare-pricing-proposal.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/review-completed-workbook.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/migration/sql-adapter.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/audit-live-readonly.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/booking-service-entry.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/check-profile.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/check-runtime.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/d1-review.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/deploy-booking.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/deploy-checkin-016.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/deploy-lifecycle-015.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/diagnose-015.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/diagnose-staff-payload.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/diagnose-test-auth.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/foundation-batch.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/inspect-lifecycle.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/prepare-booking-runtime.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/prepare-checkin-review.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/prepare-checkin-runtime.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/prepare-lifecycle-review.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/prepare-lifecycle-runtime.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/pricing-booking-preflight.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/probe-booking-service.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/reconcile-015-race.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/reconcile-015.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/reconcile-booking.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/render-login-contracts.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/service-entry.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/service-sql-probe.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/staff-catalog-http-check.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/test-staff.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/upgrade-booking-empty-rates.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/upgrade-booking-integrity.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/verify-checkin-016.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/verify-first-two.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/verify-foundation-http.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/verify-foundation-service-denial.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/sql/verify-service-http.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/booking-sql-browser.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/booking-sql-final-checks.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/booking-sql-integrity.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/booking-sql-timeout-browser.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/booking-sql-ui-readback.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/checkin-016-read.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/frontend-live.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/legacy-suite.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/lifecycle-015-concurrency.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/lifecycle-015-real.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/lifecycle-015-timeout.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/lifecycle-blockers-http.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/login-five-real.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/repository-audit.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/review-probes.mjs",
+      "passed": true
+    },
+    {
+      "file": "tools/verify/staff-sql-browser.mjs",
+      "passed": true
+    },
+    {
+      "file": "database/sqlserver/generate_reference_seed.js",
+      "passed": true
+    }
+  ],
+  "html": [
+    {
+      "file": "admin-api.html",
+      "assetReferences": 24,
+      "missing": [],
+      "passed": true,
+      "demoScripts": true
+    },
+    {
+      "file": "catalog-api.html",
+      "assetReferences": 20,
+      "missing": [],
+      "passed": true,
+      "demoScripts": false
+    },
+    {
+      "file": "finance-api.html",
+      "assetReferences": 21,
+      "missing": [],
+      "passed": true,
+      "demoScripts": false
+    },
+    {
+      "file": "housekeeping-api.html",
+      "assetReferences": 21,
+      "missing": [],
+      "passed": true,
+      "demoScripts": true
+    },
+    {
+      "file": "housekeeping.html",
+      "assetReferences": 15,
+      "missing": [],
+      "passed": true,
+      "demoScripts": true
+    },
+    {
+      "file": "index.html",
+      "assetReferences": 15,
+      "missing": [],
+      "passed": true,
+      "demoScripts": true
+    },
+    {
+      "file": "login.html",
+      "assetReferences": 12,
+      "missing": [],
+      "passed": true,
+      "demoScripts": false
+    },
+    {
+      "file": "operations-status.html",
+      "assetReferences": 9,
+      "missing": [],
+      "passed": true,
+      "demoScripts": false
+    },
+    {
+      "file": "reception-api.html",
+      "assetReferences": 24,
+      "missing": [],
+      "passed": true,
+      "demoScripts": false
+    },
+    {
+      "file": "reception.html",
+      "assetReferences": 15,
+      "missing": [],
+      "passed": true,
+      "demoScripts": true
+    },
+    {
+      "file": "services-api.html",
+      "assetReferences": 22,
+      "missing": [],
+      "passed": true,
+      "demoScripts": false
+    },
+    {
+      "file": "test_runner.html",
+      "assetReferences": 5,
+      "missing": [],
+      "passed": true,
+      "demoScripts": true
+    }
+  ],
+  "json": [
+    {
+      "file": "tools/migration/rehearsal.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/booking-pricing-decision.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/catalog-read.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/cutover/release.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/d1-review.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/foundation-data.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/foundation-decisions.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/lifecycle-policy-decisions.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/login-sql-decisions.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/pricing-booking-decisions.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/sql-runtime.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/sql-session-manifest.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/sql-target.observed.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/sql-test-profile.example.json",
+      "passed": true
+    },
+    {
+      "file": "deploy/test-staff-seed.example.json",
+      "passed": true
+    }
+  ],
+  "excludedVendor": [
+    "js/lucide.min.js",
+    "js/tabler.min.js"
+  ],
+  "sqlExecuted": false,
+  "summary": {
+    "jsChecked": 256,
+    "jsFailed": 0,
+    "htmlChecked": 12,
+    "htmlFailed": 0,
+    "jsonChecked": 15,
+    "jsonFailed": 0
+  }
+}

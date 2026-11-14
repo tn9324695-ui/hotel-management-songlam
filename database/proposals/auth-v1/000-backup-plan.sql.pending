@@ -1,0 +1,43 @@
+-- D1-BACKUP approved separately by the user's "hay lam" response on 2026-11-12.
+-- Approval covers this backup/VERIFYONLY only; no other pending SQL is approved.
+-- Only the approval reference may be filled after review; target/path/media are fixed.
+SET NOCOUNT ON;
+DECLARE @BackupApprovalReference nvarchar(200)=N'USER-20261112-D1-000-BACKUP-VERIFYONLY';
+DECLARE @ApprovedDatabase sysname=N'SongLamPms_Design';
+DECLARE @ServerIdentity nvarchar(128)=N'DESKTOP-9EPI86K\SQLEXPRESS';
+DECLARE @DatabaseGuid uniqueidentifier='C4DD399E-5661-4741-A424-5ABFEEFBC1AC';
+DECLARE @BackupDirectory nvarchar(4000)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup';
+DECLARE @MediaName nvarchar(128)=N'SongLamPms_Design_D1_20261111_284d423e-e6ee-428b-b4cf-67531facd064';
+DECLARE @BackupPath nvarchar(4000)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\SongLamPms_Design_D1_20261111_284d423e-e6ee-428b-b4cf-67531facd064.bak';
+IF NULLIF(@BackupApprovalReference,N'') IS NULL THROW 53300,'File 000 execution is not approved.',1;
+IF DB_NAME()<>@ApprovedDatabase OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>@ServerIdentity
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid=@DatabaseGuid)
+ THROW 53301,'Target identity changed; stop and review.',1;
+IF @@TRANCOUNT<>0 THROW 53302,'Backup requires no application transaction.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.dm_os_file_exists(@BackupDirectory) WHERE file_is_a_directory=1)
+ THROW 53303,'SQL Server cannot see the approved directory.',1;
+IF EXISTS(SELECT 1 FROM sys.dm_os_file_exists(@BackupPath) WHERE file_exists=1 OR file_is_a_directory=1)
+ THROW 53304,'Backup target exists; never append, overwrite or delete it.',1;
+BEGIN TRY
+ BACKUP DATABASE @ApprovedDatabase TO DISK=@BackupPath
+  WITH COPY_ONLY,CHECKSUM,NOFORMAT,NOINIT,NOSKIP,MEDIANAME=@MediaName,NAME=@MediaName;
+ RESTORE VERIFYONLY FROM DISK=@BackupPath WITH FILE=1,CHECKSUM;
+ DECLARE @BackupSetUuid uniqueidentifier;
+ IF (SELECT COUNT_BIG(*) FROM msdb.dbo.backupset bs JOIN msdb.dbo.backupmediafamily mf ON mf.media_set_id=bs.media_set_id
+   WHERE bs.database_name=@ApprovedDatabase AND bs.name=@MediaName AND mf.physical_device_name=@BackupPath
+    AND bs.type='D' AND bs.position=1 AND bs.is_copy_only=1 AND bs.has_backup_checksums=1
+    AND bs.database_guid=@DatabaseGuid AND bs.backup_finish_date IS NOT NULL)<>1
+  THROW 53305,'Backup history does not match the exact approved backup.',1;
+ SELECT @BackupSetUuid=bs.backup_set_uuid FROM msdb.dbo.backupset bs
+ JOIN msdb.dbo.backupmediafamily mf ON mf.media_set_id=bs.media_set_id
+ WHERE bs.database_name=@ApprovedDatabase AND bs.name=@MediaName AND mf.physical_device_name=@BackupPath
+  AND bs.type='D' AND bs.position=1 AND bs.is_copy_only=1 AND bs.has_backup_checksums=1
+  AND bs.database_guid=@DatabaseGuid AND bs.backup_finish_date IS NOT NULL;
+ SELECT 'BACKUP_VERIFYONLY_SUCCEEDED_NOT_RESTORE_TESTED' AS Status,@BackupSetUuid AS BackupSetUuid,
+  @MediaName AS MediaName,@BackupPath AS BackupPath;
+ -- No call to marker 004, D2, seed, restore, or any other pending file.
+END TRY
+BEGIN CATCH
+ -- A partial file/history may exist. Preserve it; do not delete or claim success.
+ THROW;
+END CATCH;

@@ -1,0 +1,3068 @@
+{
+  "source": "REAL_BROWSER_HTTP_SQL",
+  "checks": [
+    "UI_LOGIN_admin",
+    "SQL_POPULATED_ROOMS_admin",
+    "NO_BUSINESS_WRITE_admin",
+    "VIEWPORT_admin_1366",
+    "VIEWPORT_admin_1920",
+    "SQL_ELEVEN_ROOM_TYPES_admin",
+    "UNAVAILABLE_RECEPTION_TABS_LOCKED_admin",
+    "QUOTE_EXPLAINS_MISSING_SQL_admin",
+    "INACTIVE_TYPE_NOT_QUOTABLE_admin",
+    "QUOTE_SEND_BLOCKED_WITHOUT_RATES_admin",
+    "CATALOG_SQL_SOURCE_admin",
+    "CATALOG_POPULATED_admin_Hạng phòng",
+    "CATALOG_POPULATED_admin_Phòng",
+    "UI_DIRTY_FILTER_NINE_admin",
+    "UI_ROOM_DETAIL_admin",
+    "CATALOG_POPULATED_admin_Cấu hình khách sạn",
+    "CATALOG_VIEWPORT_admin_1366",
+    "CATALOG_VIEWPORT_admin_1920",
+    "CATALOG_VIEWPORT_admin_390",
+    "MOBILE_MENU_OPENS_admin",
+    "UNAVAILABLE_MODULE_MARKED_admin_housekeeping-api.html",
+    "UNAVAILABLE_MODULE_MARKED_admin_services-api.html",
+    "UNAVAILABLE_MODULE_MARKED_admin_finance-api.html",
+    "UNAVAILABLE_MODULE_MARKED_admin_admin-api.html",
+    "UI_LOGOUT_admin",
+    "UI_LOGIN_manager",
+    "SQL_POPULATED_ROOMS_manager",
+    "NO_BUSINESS_WRITE_manager",
+    "VIEWPORT_manager_1366",
+    "VIEWPORT_manager_1920",
+    "SQL_ELEVEN_ROOM_TYPES_manager",
+    "UNAVAILABLE_RECEPTION_TABS_LOCKED_manager",
+    "QUOTE_EXPLAINS_MISSING_SQL_manager",
+    "INACTIVE_TYPE_NOT_QUOTABLE_manager",
+    "QUOTE_SEND_BLOCKED_WITHOUT_RATES_manager",
+    "CATALOG_SQL_SOURCE_manager",
+    "CATALOG_POPULATED_manager_Hạng phòng",
+    "CATALOG_POPULATED_manager_Phòng",
+    "UI_DIRTY_FILTER_NINE_manager",
+    "UI_ROOM_DETAIL_manager",
+    "CATALOG_POPULATED_manager_Danh mục dịch vụ",
+    "UI_EXPLICIT_FREE_ZERO_manager",
+    "CATALOG_POPULATED_manager_Cấu hình khách sạn",
+    "CATALOG_POPULATED_manager_Ngày nghiệp vụ",
+    "CATALOG_VIEWPORT_manager_1366",
+    "CATALOG_VIEWPORT_manager_1920",
+    "CATALOG_VIEWPORT_manager_390",
+    "MOBILE_MENU_OPENS_manager",
+    "UNAVAILABLE_MODULE_MARKED_manager_housekeeping-api.html",
+    "UNAVAILABLE_MODULE_MARKED_manager_services-api.html",
+    "UNAVAILABLE_MODULE_MARKED_manager_finance-api.html",
+    "UNAVAILABLE_MODULE_MARKED_manager_admin-api.html",
+    "UI_LOGOUT_manager",
+    "UI_LOGIN_receptionist",
+    "SQL_POPULATED_ROOMS_receptionist",
+    "NO_BUSINESS_WRITE_receptionist",
+    "VIEWPORT_receptionist_1366",
+    "VIEWPORT_receptionist_1920",
+    "SQL_ELEVEN_ROOM_TYPES_receptionist",
+    "UNAVAILABLE_RECEPTION_TABS_LOCKED_receptionist",
+    "QUOTE_EXPLAINS_MISSING_SQL_receptionist",
+    "INACTIVE_TYPE_NOT_QUOTABLE_receptionist",
+    "QUOTE_SEND_BLOCKED_WITHOUT_RATES_receptionist",
+    "QUOTE_MODAL_VIEWPORT_1366",
+    "QUOTE_MODAL_CENTERED_1366",
+    "QUOTE_MODAL_VIEWPORT_1920",
+    "QUOTE_MODAL_CENTERED_1920",
+    "QUOTE_MODAL_VIEWPORT_390",
+    "QUOTE_MODAL_CENTERED_390",
+    "CATALOG_SQL_SOURCE_receptionist",
+    "CATALOG_POPULATED_receptionist_Hạng phòng",
+    "CATALOG_POPULATED_receptionist_Phòng",
+    "UI_DIRTY_FILTER_NINE_receptionist",
+    "UI_ROOM_DETAIL_receptionist",
+    "CATALOG_POPULATED_receptionist_Danh mục dịch vụ",
+    "UI_EXPLICIT_FREE_ZERO_receptionist",
+    "CATALOG_POPULATED_receptionist_Cấu hình khách sạn",
+    "CATALOG_VIEWPORT_receptionist_1366",
+    "CATALOG_VIEWPORT_receptionist_1920",
+    "CATALOG_VIEWPORT_receptionist_390",
+    "MOBILE_MENU_OPENS_receptionist",
+    "UNAVAILABLE_MODULE_MARKED_receptionist_housekeeping-api.html",
+    "UNAVAILABLE_MODULE_MARKED_receptionist_services-api.html",
+    "UNAVAILABLE_MODULE_MARKED_receptionist_finance-api.html",
+    "UNAVAILABLE_MODULE_MARKED_receptionist_admin-api.html",
+    "UI_LOGOUT_receptionist",
+    "UI_LOGIN_cashier",
+    "SQL_POPULATED_ROOMS_cashier",
+    "NO_BUSINESS_WRITE_cashier",
+    "VIEWPORT_cashier_1366",
+    "VIEWPORT_cashier_1920",
+    "SQL_ELEVEN_ROOM_TYPES_cashier",
+    "UNAVAILABLE_RECEPTION_TABS_LOCKED_cashier",
+    "QUOTE_EXPLAINS_MISSING_SQL_cashier",
+    "INACTIVE_TYPE_NOT_QUOTABLE_cashier",
+    "QUOTE_SEND_BLOCKED_WITHOUT_RATES_cashier",
+    "CATALOG_SQL_SOURCE_cashier",
+    "CATALOG_POPULATED_cashier_Hạng phòng",
+    "CATALOG_POPULATED_cashier_Phòng",
+    "UI_DIRTY_FILTER_NINE_cashier",
+    "UI_ROOM_DETAIL_cashier",
+    "CATALOG_POPULATED_cashier_Cấu hình khách sạn",
+    "CATALOG_POPULATED_cashier_Ngày nghiệp vụ",
+    "CATALOG_VIEWPORT_cashier_1366",
+    "CATALOG_VIEWPORT_cashier_1920",
+    "CATALOG_VIEWPORT_cashier_390",
+    "MOBILE_MENU_OPENS_cashier",
+    "UNAVAILABLE_MODULE_MARKED_cashier_housekeeping-api.html",
+    "UNAVAILABLE_MODULE_MARKED_cashier_services-api.html",
+    "UNAVAILABLE_MODULE_MARKED_cashier_finance-api.html",
+    "UNAVAILABLE_MODULE_MARKED_cashier_admin-api.html",
+    "UI_LOGOUT_cashier",
+    "UI_LOGIN_housekeeping",
+    "SQL_POPULATED_ROOMS_housekeeping",
+    "NO_BUSINESS_WRITE_housekeeping",
+    "VIEWPORT_housekeeping_1366",
+    "VIEWPORT_housekeeping_1920",
+    "SQL_ELEVEN_ROOM_TYPES_housekeeping",
+    "UNAVAILABLE_RECEPTION_TABS_LOCKED_housekeeping",
+    "QUOTE_EXPLAINS_MISSING_SQL_housekeeping",
+    "INACTIVE_TYPE_NOT_QUOTABLE_housekeeping",
+    "QUOTE_SEND_BLOCKED_WITHOUT_RATES_housekeeping",
+    "CATALOG_SQL_SOURCE_housekeeping",
+    "CATALOG_POPULATED_housekeeping_Hạng phòng",
+    "CATALOG_POPULATED_housekeeping_Phòng",
+    "UI_DIRTY_FILTER_NINE_housekeeping",
+    "UI_ROOM_DETAIL_housekeeping",
+    "CATALOG_POPULATED_housekeeping_Danh mục dịch vụ",
+    "UI_EXPLICIT_FREE_ZERO_housekeeping",
+    "CATALOG_POPULATED_housekeeping_Cấu hình khách sạn",
+    "CATALOG_VIEWPORT_housekeeping_1366",
+    "CATALOG_VIEWPORT_housekeeping_1920",
+    "CATALOG_VIEWPORT_housekeeping_390",
+    "MOBILE_MENU_OPENS_housekeeping",
+    "UNAVAILABLE_MODULE_MARKED_housekeeping_housekeeping-api.html",
+    "UNAVAILABLE_MODULE_MARKED_housekeeping_services-api.html",
+    "UNAVAILABLE_MODULE_MARKED_housekeeping_finance-api.html",
+    "UNAVAILABLE_MODULE_MARKED_housekeeping_admin-api.html",
+    "UI_LOGOUT_housekeeping",
+    "NO_JAVASCRIPT_OR_ASSET_ERRORS",
+    "REAL_CATALOG_RESPONSES"
+  ],
+  "requests": [
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "05a9d36d-31da-4124-8392-b6c8965e0c7d"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "dfad54cc-7d87-4819-aad0-3bdaed557ca2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "2bcec479-5cf9-4d82-8819-438bdbedbee7"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 200,
+      "requestId": "cc3665ef-acf2-4088-a9f2-ffc3cffb4f42"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "075702be-46ca-46e3-8df2-44cb3313fd05"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "ec27f521-7920-495f-91b5-3ef8adc996ae"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "4dc93f16-72d0-4b81-b49f-d848f64119f2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "76621fe6-1a84-4f44-ae9f-69b01c873fb0"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "b914746f-c9de-4c9d-ac59-138a160a05c2"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "0b29d400-807f-4df3-86d9-de26aedb6801"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "e2621698-1cd9-444f-8065-7020a0c7a06d"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f81bec72-9eb2-4154-912e-4dc4132ca9df"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "5fb3d2d0-77ac-47c1-a035-040540f10336"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "1eecd876-90ce-4939-bb5e-50620c113252"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "9831cd11-cd69-4fea-9a19-b0eabd1fc718"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "fc6ebba1-b62d-4eb6-a009-a85b4e53f702"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "199e7712-518f-4ee4-8d4b-3e9bbf9e07cb"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "dad8739a-8add-4b4e-9509-df7b3afc546a"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "a5cb59f4-6f72-4bcc-a593-bd8baaf6fa09"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "56ed2c99-f9a0-4daa-a87c-25010df2300a"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "bd9f269e-3815-4071-a7c1-541e05d03890"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "d2dec63f-67ed-426e-8eae-83fabb597bed"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "6daf5795-c1bd-433a-8b4a-67c24bb08fe9"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "d8b7a57f-18fb-4efe-988e-b5ca731b4e8c"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "8e6fe3df-3614-4e46-b5ff-84719cda6793"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "6b011b5a-e48c-4883-a3c5-9d9dd5c0c183"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "b9abec52-57b4-4b23-95e4-e09b23485144"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "d7e6ae62-a6da-40f1-b765-98a0c2de7748"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "45c65114-7ccb-4187-9d10-0b82d29290a6"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "3caa1655-4ae8-4c80-9163-b5af1fe85a74"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "09d668d1-8c8f-409e-abe7-7a3dff1f4fd0"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "2b7fcf98-4dd0-4d6a-ba55-d2aaf1622a95"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "202ca9c4-25d8-4402-b0e1-1dd707c36b8c"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "7480a08c-1577-4cf2-9a5d-b5fd37b57ddf"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "998fbf7e-5ff6-4878-82d4-084ef8d08ba2"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "38db43bd-8487-4a44-9604-a8cd992f9b12"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "8d04bf77-eb6c-4d7b-8395-c7c3bf2ce874"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2db253dd-3d96-4544-86df-1cc1af3573d8"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "800a8046-6a70-43ed-a685-e0ebf492407a"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "d16e6ea9-1ea6-4ccd-bec2-f1f0df185df0"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "be356bf0-1430-43f0-8b89-8cff8104ba85"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "ecb7db3d-8c34-46c9-9034-9f21e5bf2a13"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "9757a7ad-5d63-406a-8bc9-e87325ab61dd"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "34d471ed-a368-456a-9189-b1964b8c5b6a"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "f810ec5b-af9f-45c5-94de-17a42e6f6ec6"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "9f713158-725d-479f-8a6e-5cba68eeda1a"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "e7047cf3-ab98-488e-a0f5-4c96c1fd0d2a"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4dab3c05-0ba9-4edc-b6b9-7023f255345b"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "deb394f2-03ef-4d7f-9207-2ba617d5cc1e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "edecb28c-13b3-4058-9483-5b63181e8418"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "e7590713-1e97-4e3d-8ed7-5bf23f2145d8"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "d1d4330e-484f-4c9a-9706-b8993e4bb891"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "901377af-6ade-45ff-8b69-1a2da646fa9b"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d7f4241e-db85-4548-88bd-84998d230997"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "636636be-a62a-4853-891a-c26a53cf375b"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "076e1b3b-fffb-4033-b012-8b8fd3e13161"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8f3efc18-cf1f-4732-807e-1f45805bba04"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "74ee1ea2-277a-43e6-86a0-248c818f2916"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "34c904e1-a38f-4a4c-b7d5-ed25f0d82b41"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "debf750d-d30f-47c1-b4bb-29006c28c6aa"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f41fd8e5-6428-4e0f-a2b1-ed46bb6590e2"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "69d5e5da-6b8c-4507-8a47-f5ebc6707181"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f4a8a52c-ea20-40ca-ab88-8cc0ea7f134a"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "8129b0ef-7cba-496e-88ac-674890bc53e2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3d5b91bc-b446-441c-887b-c527139d298b"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "973302cf-b15c-48e5-b765-56c01f325e11"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1efa4c66-01cd-4f29-a128-c24ce7d01fa6"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "49177a92-613d-4bef-98ca-ec7250d50f89"
+    },
+    {
+      "path": "/api/v1/rooms/32",
+      "status": 200,
+      "requestId": "9c943baa-5547-4bce-98d3-9e42c945177d"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "5478e886-9537-4f85-9d4b-df19505e00e6"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d3cafb8b-2750-49e1-9942-bbb7a011fff5"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3236dcc5-20e2-43cf-b3ca-d31ef936a78f"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "e242dc5b-3bcc-41f8-ad87-d7c792bbbbd5"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "9428067e-334b-4639-8690-59341edf487f"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "9f8b2163-e9c8-4c80-ab55-e6af834b10a1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "15814843-21c2-43e5-855b-ed7872d07b5f"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d22c99ee-2cb2-4b64-b89e-c8eacb9047ff"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "246bf609-63a9-4667-8379-d7e4f9696638"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "15bd5850-f50e-44cd-89e0-a9d51ebf8e75"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f6bbb4ae-a27f-4da2-9470-04119fe19eb3"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "ec3cd5ae-b6bc-474d-b546-ac2236d6e99b"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "0b992b38-e8e9-4b27-9160-f2738673a3f5"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "d34cd18e-8c3c-47c1-9d06-979ca78dad7a"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "812664e2-2c77-4cc1-8c20-a7528f4f9338"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "0ad66bbb-e77e-468b-8e67-714cea7a23e0"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "253822e5-0c37-415c-b3dc-487f46662303"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "d1057af4-7828-4b3e-85fd-08cb23e2e9fc"
+    },
+    {
+      "path": "/api/v1/folios/capabilities",
+      "status": 200,
+      "requestId": "5787fa58-2a14-4b4d-b55d-73efc5f76c2e"
+    },
+    {
+      "path": "/api/v1/deposit-accounts/capabilities",
+      "status": 200,
+      "requestId": "bcb4c273-81ec-44a5-b82a-18911b9a5e73"
+    },
+    {
+      "path": "/api/v1/payments/capabilities",
+      "status": 200,
+      "requestId": "d7b1ff2e-a59c-4e7e-9de2-ddf38d260d28"
+    },
+    {
+      "path": "/api/v1/refunds/capabilities",
+      "status": 200,
+      "requestId": "eebfa107-dc95-4560-b13b-1c58e5539adb"
+    },
+    {
+      "path": "/api/v1/checkouts/capabilities",
+      "status": 200,
+      "requestId": "3a1be779-9737-475f-a05a-3b2c35c92d13"
+    },
+    {
+      "path": "/api/v1/invoices/capabilities",
+      "status": 200,
+      "requestId": "a09bb897-68b5-4ab5-a1f4-553c0c758593"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "70116c73-25bc-4db7-809f-4442c0ab14fa"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "6f29fc0f-0eac-4260-8aa3-64bf794ff36d"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "c457d9f7-e6f6-45c7-9719-0c3532f5c550"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8bee097b-3c08-4025-bfcb-980faa85144f"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "dded18a6-2cb8-46d4-be01-82c5bc92fdf0"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "41ab3660-515b-4bbe-8541-2ad9d0cb33b3"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "10f471e3-e050-499a-8540-f474497d9fe8"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "18ae9fbf-f28d-401d-a4dd-5e58cab8ffc5"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "77f1ca5b-a3b1-4fd7-86c1-94f6aa529696"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "dd7dda2c-95f8-4531-8ef8-14574dba6396"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "3a697eae-8ef5-4f2d-b782-29e78fa57610"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "86181df0-e22a-44f5-889f-56494ec94547"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "a13ab785-c60e-4161-a92c-bdf86a136c6e"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "20d9c7df-49be-466f-8bcf-30b566c1933a"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "fbcc3b85-80e0-4d4f-af0a-3ef750404acb"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "28086b07-f2d3-449a-923f-5ad2c1b471fb"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "a4993cdb-ace7-4c45-b4de-99c0ab9915c6"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "a1b3f53e-1bc0-495e-be2d-e9ea5991c965"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "a64460c1-f54e-45a5-ae0b-3090ddc4e1c7"
+    },
+    {
+      "path": "/api/v1/auth/logout",
+      "status": 200,
+      "requestId": "66527749-f807-4f39-bdf0-f81a8138dedf"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "7ac80673-f7ba-44c4-b24f-73e8c9b89936"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "5ab38eb4-4c5b-4de5-b557-9505451ba785"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "ea8d948d-d4f7-4c36-8f10-b818c98ab9c8"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "0a60cb6c-8be6-4893-9d19-f22b56fa5f81"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "2fab819e-fcf8-4895-a3ca-961727fb7e76"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "2aedec31-f163-4557-802b-742485f2ad9e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "75420bef-d605-4b84-bfb9-2fd84ee7187b"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 200,
+      "requestId": "f0be0a15-2420-44d6-bbfc-151cf9b1a256"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1b9daf40-7d80-4372-9ca9-91226d1e0778"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6ae84d36-02bc-4f32-afe5-f53822fe23f7"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "018e4b34-d8a0-4d96-a797-4c133bcbd768"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "5959d507-f614-470e-95da-0fc79fe7489c"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ffd6d353-0313-41ea-a308-77bc3c0fc318"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "a198971a-9e8d-48ab-9e23-e6a82f19e46e"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "3618de5f-6e9f-40c2-92d4-b46c96925240"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c4824347-9c6a-48b9-a42c-fc0bd8375c08"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "56c1e5a5-3afd-4dd4-b237-8cde119006ea"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "3cb2e5ea-6e7c-44e3-9e7a-cac6591f19c5"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "1c6668e7-77ed-431f-8b7c-c9d7b43d9746"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "e8346d9e-5c09-456a-b5a0-1454e3dc35c2"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "aadeb02c-47f6-4e28-8ab7-c795e944332d"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "3a9dd89c-d23f-4e0f-b4f5-94c2a2a9416e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "b3c95a6a-0d8d-48a1-9a3c-add575597aae"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "e09ed45c-710e-47ca-9fc2-1d36762095c4"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "dce0638e-34c1-4b2e-af9d-b31822758f3c"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "61b19ddc-00ca-484e-b0fd-7de3602d353e"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "a6a646e2-ab36-4c45-9027-cd6b3caffda1"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "a58a6df4-295f-44b5-a200-489bbac32ea2"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "e440aa7d-b9dd-4032-9d7c-f7ee6b098b71"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "623f62ed-b1df-4b95-961d-84323c269d49"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "907132c4-5a4c-42f2-8692-00803e7b2b8e"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "6abc66b0-14c4-4b8b-a2a3-9fb46a916a8a"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ddb7ebf5-7727-418c-af61-2fbd2d1ff0f7"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "35110131-e803-4127-bd04-a788ee6f5748"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "a23daa8f-6c5d-48ce-b9ff-4a8def19d9e5"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "db17da0c-5f7b-4319-bcfd-2cf6a41a7037"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "720d6f1d-c21f-4504-9fa7-6682afe3aa30"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "30e8c995-37c2-4cbc-bfb6-f3a8e957a525"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "3258bfea-2e88-410e-9bd1-a5f163c1a469"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "e53e0fca-d66e-4cf5-8cab-4f64ecfa657c"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "791f980c-fac0-4ce8-88e8-eb5fa3b73377"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "59e774be-1e59-4ca3-994b-27e6015ffede"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "80f0c804-d412-48c1-af04-f5d573bc29b0"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "4420f5f5-3a81-4cc8-a564-0497bebec514"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "b53c2767-c421-4c3c-b80a-82e3da2c0ca3"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "775553f5-0e39-47a1-bf8f-6896883e4d27"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8b90b843-0e96-4b2d-b904-c1e7dcc6a8b6"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "e17c54ed-464a-40d6-97d2-323fe3e82a3e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "38132fcf-91ce-4417-aa82-4c2f5dcdef11"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "eed737ee-c59c-4f12-aada-6821148c6efd"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "c6ad2455-bd3f-4128-b623-d642e8f2b9d5"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "41db8d73-9f46-4f52-aea5-5ae511dec591"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "63429eda-ceb3-438a-8b8c-6041a7e1d26e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "a5f77436-d231-426e-adbe-05f5d3c85e7c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "57dcbb17-eacc-462c-94da-3cd03ed6062d"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "17c6c339-a656-477c-9b91-6966eb9c177f"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "8163b459-fc30-4c4d-a306-9d3495b38de6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1dedc7d0-29ef-4ab1-a0c6-7047a28a716e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "490e9bc4-119d-40bc-b8a2-2bf71454566c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "5013b0c5-0bb1-48ae-9f93-b2c7810dea17"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "606d6ec4-fe78-4870-9647-f4cd7e900fc6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "e64185e5-ca33-4559-9848-84693ad550a8"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "3e14619b-53a4-4027-a3de-855792b305c0"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3ddb4f3d-f971-4dda-acc9-df52a1964f6d"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "79ea61d9-46f9-4eca-8828-08d5fe61b861"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f34fda41-1106-4643-87ea-230441a6e33a"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "42978351-4f8d-49e4-9c1e-93ea110fc503"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "e1f48552-35f3-4510-bd80-272f0b1bb3c8"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "f9c4c442-a714-4c68-871d-c087bcf39b86"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "36a70110-7b7e-462c-aaa9-fafb83d8b74d"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "705b57c1-968e-47a3-aa6d-796afcfaf9c7"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "d8d7d611-5287-47c7-881f-7282f7ff15d6"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "6db953e6-230c-4a37-9d3a-725df12525eb"
+    },
+    {
+      "path": "/api/v1/rooms/32",
+      "status": 200,
+      "requestId": "0df1b53a-347e-42d2-becd-0ea15b4756f8"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f4e21228-6e0c-48dc-895b-b2706622d04f"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "3f0bcd1c-d2c4-416c-9f4b-12760913fd71"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4565060a-673a-4107-a231-16f065dcf3b0"
+    },
+    {
+      "path": "/api/v1/services",
+      "status": 200,
+      "requestId": "a732d85e-2b9f-4195-a300-e42001a733f7"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "e73a2588-de66-420f-9717-71975e668838"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d2c76a37-bbe2-496a-9cc9-265a5c7182cf"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c7b6b635-d587-4006-8f94-0d44132482e4"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "bd48ffee-5956-4f88-b196-5579f823d1a5"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "fbcf4ae3-c13f-468b-8fda-4774d199c57d"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "e362c7e9-24d7-49d8-b804-f92315eac88b"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "fed347bf-d320-46fc-ab35-f5cb4c6bb705"
+    },
+    {
+      "path": "/api/v1/business-days",
+      "status": 200,
+      "requestId": "be4751d6-3db7-49a0-b881-6d8cdd9dfb19"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "532a4000-50e8-44fa-898d-84ea727018bf"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "03e1572d-a2d1-4226-a46d-450ebd13135c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f52cc41b-18a4-4007-b341-e2f0542f8a6e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "1bd430a9-8c5c-4bec-bc23-9dfa921e80d1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f25f0ad3-d7e8-44cb-afb1-06171383dd37"
+    },
+    {
+      "path": "/api/v1/operations/capabilities",
+      "status": 200,
+      "requestId": "a3c2fce0-5b5c-4dc9-8dee-3165a08a7167"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "12891466-344a-4e71-8c49-0b2437db025c"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "303c4acf-56a6-4d08-a19b-0ec246dd09e2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "0e4c1997-a06b-4196-915a-0eab16efacf4"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "36645c16-6ae1-43ce-8460-efda385d8107"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "749745fd-b8df-478c-b2dc-983de104ab81"
+    },
+    {
+      "path": "/api/v1/minibar-audits/capabilities",
+      "status": 200,
+      "requestId": "0be5d468-020f-4666-af2b-afd29585e1da"
+    },
+    {
+      "path": "/api/v1/service-orders/capabilities",
+      "status": 200,
+      "requestId": "f8108612-36cf-4e08-81f0-962ad4a2d8d3"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "fc1907b9-73b3-48d1-a1c5-eebcd4c281a7"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "24fbe617-5749-495c-9bb4-f8b0e2f8cdec"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2e4101ac-e811-4ee5-940f-c369a0351310"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "ad8c8fa2-8df5-4450-bf2b-156aa2e7f331"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6122983f-445f-4390-9da0-a247a7c60d82"
+    },
+    {
+      "path": "/api/v1/refunds/capabilities",
+      "status": 200,
+      "requestId": "e3b0e0e0-2cfd-43e9-bbc0-cb20de912719"
+    },
+    {
+      "path": "/api/v1/folios/capabilities",
+      "status": 200,
+      "requestId": "7dd4b4c0-0dcd-44f2-a40c-49865a8ada61"
+    },
+    {
+      "path": "/api/v1/deposit-accounts/capabilities",
+      "status": 200,
+      "requestId": "dff3eefe-3dde-4066-8f06-a3bcb42ebb24"
+    },
+    {
+      "path": "/api/v1/payments/capabilities",
+      "status": 200,
+      "requestId": "418ad8c0-dd35-46bb-9ff9-59ff05694be8"
+    },
+    {
+      "path": "/api/v1/invoices/capabilities",
+      "status": 200,
+      "requestId": "10d12a5f-edb1-410a-9f7e-8df6ae9e5f3b"
+    },
+    {
+      "path": "/api/v1/checkouts/capabilities",
+      "status": 200,
+      "requestId": "b8b924fa-45f6-4be5-a63d-258335cd0103"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "3e5e1224-3bf3-4f0b-bed3-074edfe8ccf3"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "b3943a27-6029-4cc2-a8b7-adaf90882742"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "5debccbd-2d42-4897-a1d5-d222cf9b6596"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1ee50250-204b-49e7-ac93-aa5e283af8a8"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "185f6be4-7552-45dd-85cb-836fabdd6d97"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "35f61846-373f-4fa8-8af8-2f26595524c2"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "45056c7c-17ad-478e-b834-3853b23adb37"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "e9cc3566-c1c0-4967-b2cb-a969f7f45d44"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "e3e5a0b6-5441-425c-8473-73b998679cc9"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "1d0b7dc9-90ae-4f84-b529-fd0dd31f8320"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "b1809227-f48f-49cb-ac9a-a0f2069a3f65"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "3ff5a5c4-b1bd-419a-970a-de4e04bdabe9"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "5a33ed7b-116e-4c4e-aee9-e9d3fb245b0a"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "d392f71d-6f81-4026-aba6-754923eaef47"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "025bce23-4194-47cb-b607-02c9bf9ff35d"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "21d978ee-6256-4a1d-80da-9bde140f0a15"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "a1a4caa5-11b0-42fb-b910-ea399459d0df"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "9c202b9b-d3cd-4bad-9e0a-f939dc03b9eb"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "96c40c51-0e3a-4b82-a89d-fea4d3ffb32d"
+    },
+    {
+      "path": "/api/v1/auth/logout",
+      "status": 200,
+      "requestId": "bf3f3bbc-bfe4-4f91-a6fa-f091afbdc5bb"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 401,
+      "requestId": "b756e1fa-b524-41aa-a98f-94116862f36a"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "18473992-e0ad-4665-9f8c-f77c5feb5e21"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "13739f80-e1db-4aee-8014-96c3875e9a85"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "802e3e21-b740-4287-978a-67105225599e"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "9317b6a6-097f-4b86-8919-73fb1951c2ca"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "288c0a6a-c6fd-4c17-ac69-02abfba93f4d"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "645a5b8e-1e9d-4220-8a5e-121781fd288b"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 200,
+      "requestId": "091bee88-16f2-4f38-82f6-a61775bc1df6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c3df33f5-1b65-4f6f-883d-e820ef246157"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "b2fe1e1a-e5cf-4bda-b744-063e203a4a90"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "9afb701e-f3f4-47d4-940b-e4f7d2996eb1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "b460ca93-bb69-4dd9-811b-e0501e340f95"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "a22e628d-e503-4121-81a1-fcc88616a376"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "282cea41-17dc-4b79-9ad3-1c473abfa387"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "46117e50-aca2-40ad-afd1-61e70c17ead9"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "f2da040e-1e8a-440c-9644-e3342c301998"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "214a922b-869e-47e1-85cb-9f1b7dc6c705"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "8d89ce68-6463-494a-9889-28dd5bd8302d"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "4fba75f3-6a07-4cfd-86ed-2d1f46b2506b"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "76671e49-78ae-4ab9-968d-bbc861203639"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "3ab61d90-89f7-4c04-9c6a-bb95073e50b1"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "3abf92d9-3a71-4361-93be-cfc3f208ed51"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "cd356977-8521-4a8c-bd4f-1e1b39b889a9"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "841eb06a-9aba-4cc7-a709-828b46cb9c0c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "e7e37a78-e978-46e2-aabc-23f4718cf480"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "52cb6f0c-3323-4583-b54c-982907d31144"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "27c54e42-8de0-4632-8cc0-da18414bebf3"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "07281e9b-4619-41fc-9a0a-1e6af722aee2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4fe2d6c3-a2f4-43cd-8569-945fbb2a3bf0"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "dfbbc41f-cb2c-4d8b-96c3-efb86466b491"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "11727f0a-2de2-4ee2-b605-c3109ca9e724"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "4ee868f9-6187-4718-ad07-834131dced82"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "a4badf67-db01-4147-8d99-33dee55be797"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "0e37801e-a6f8-4c0b-9477-0f0076c48ded"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "31fec571-79a8-436e-a12c-390442a2334d"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "bfd77fde-c41a-4878-bb72-54690363c9da"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "9836b186-7a00-44b8-9e77-61223e16648e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8d7c9f75-996f-4d8d-acf9-40dd3d87fb03"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "eb0fd562-8096-4b97-b09d-bec3bc48c6d0"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8afb482a-a3ad-422f-85b8-05701b5b29ed"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "8ff1304d-f7b2-42ad-9845-dfb08dfb768d"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "5d90dd54-1e88-40fc-bd1d-7b4b937fa68c"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "453b50a3-24fa-46ff-9fd1-7f33715899e1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "99cf11db-6941-46b5-a8c1-83d339147001"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "71ae1077-d9cc-47dc-9eb9-328b4ebc0180"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3b09e210-1462-4e29-aa36-16e930cf8e28"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d4f98d7c-22ff-4d04-8281-ceeae3bbb4cd"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "b81dd24a-8040-4046-a704-ec655b618b7f"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "b1361907-43af-4060-a024-8f4ec309a742"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "17d7d2c6-5188-4dfa-ae0a-c3146c328de1"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "9bd755dd-fbf1-4b1e-a57d-f41db5b5faea"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "23ab8b83-1226-4ae8-9605-ecae4441a46e"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "13534db5-1c8d-45fe-85d4-eb7e95265a2a"
+    },
+    {
+      "path": "/api/v1/rooms/32",
+      "status": 200,
+      "requestId": "cae0c66c-379b-43d0-bb67-da5a49414fcd"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "a075cbcb-79c9-417b-a5fa-393de938caf8"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "db23924c-ad51-4ceb-8d17-80f8514977da"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8e699a46-2911-4874-aac9-395d3c2a2b46"
+    },
+    {
+      "path": "/api/v1/services",
+      "status": 200,
+      "requestId": "8e8cd872-dedb-42aa-a482-4cca992f46eb"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "ab1e96f8-0d91-4a62-b9bb-728c57a56752"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "fef31c57-d762-4f44-9cc8-5144f8fd8ece"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "fa39edc1-5bac-498b-b9d3-d3846a6736f3"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "e47cc437-5128-4945-8679-cf17ecb14655"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "881a24ca-436f-4f3a-b69f-b334cdd3c484"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "6928a595-cced-40d1-9642-ccbed643e8d2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "d5f94e31-a95f-43c7-8df2-bfba5bc72e5a"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "5a5576e6-5a48-43c2-9ebe-a6cc2eea1718"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "a565f00f-05fd-4a59-b29d-fb9a0d14660b"
+    },
+    {
+      "path": "/api/v1/operations/capabilities",
+      "status": 200,
+      "requestId": "e845e2cc-a878-4001-9729-081a130d60f4"
+    },
+    {
+      "path": "/api/v1/operations/capabilities",
+      "status": 200,
+      "requestId": "db162f0e-f09f-4e77-b5d4-a580e13b240c"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "1d9ac72b-b2a0-48fe-a0e3-6a900415c4da"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "187f5ff8-a4ec-4157-b07c-b2e2be94f095"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "cbd8809b-1cdd-4788-b9ea-f993e7bb82ad"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "4e9ad019-ec75-47c9-85b8-cd85d0876958"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "63d9f4a0-8346-4406-a73b-23bedcffa613"
+    },
+    {
+      "path": "/api/v1/minibar-audits/capabilities",
+      "status": 200,
+      "requestId": "158bd7b2-de44-4a88-89e1-78b63f83e664"
+    },
+    {
+      "path": "/api/v1/service-orders/capabilities",
+      "status": 200,
+      "requestId": "7049c958-8153-42c3-b3dd-fb901e262d29"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ed9651b4-c219-48d1-95c9-5ba5e07eb34d"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "c839f0c3-4914-444a-b319-c56e7f89e960"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6549d279-71b4-4877-a18e-bd3648e4a780"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "3032976b-2e58-452b-928a-a5dee5f704ae"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "7b873032-b776-427f-8e93-9a15c472474f"
+    },
+    {
+      "path": "/api/v1/deposit-accounts/capabilities",
+      "status": 200,
+      "requestId": "0b9b7475-7dc8-4488-ad04-47b729d5ec1f"
+    },
+    {
+      "path": "/api/v1/payments/capabilities",
+      "status": 200,
+      "requestId": "c519efef-8423-46a5-b086-0706f4e61902"
+    },
+    {
+      "path": "/api/v1/refunds/capabilities",
+      "status": 200,
+      "requestId": "1615645a-9539-46d6-aad4-b63b18dc24cc"
+    },
+    {
+      "path": "/api/v1/invoices/capabilities",
+      "status": 200,
+      "requestId": "6769977c-c554-417f-86f7-3d3031175867"
+    },
+    {
+      "path": "/api/v1/folios/capabilities",
+      "status": 200,
+      "requestId": "6e52de7c-b412-42d0-93c3-0e1332d88c8e"
+    },
+    {
+      "path": "/api/v1/checkouts/capabilities",
+      "status": 200,
+      "requestId": "e165e300-c4d5-451f-b4d3-932754621029"
+    },
+    {
+      "path": "/api/v1/finance/business-days/capabilities",
+      "status": 200,
+      "requestId": "bc8b3646-77f9-4145-9725-78eb85fc6ce5"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "121a1388-54d3-470d-a5eb-acaf66732fa8"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "7b6cfaef-5745-45f6-8df5-953a2d9e8cda"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "65f58bc2-a791-4517-85f9-f8f8b779ad28"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "d6c8b05b-0d89-4d90-9130-3232742c4738"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "df9f9533-3fba-48ce-99c7-91fd9a995643"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "18ab3af1-4ac1-409e-a7b3-bf095e8ef867"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "f2471d33-419f-4dbd-aaec-aab802f6c31a"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "d40df865-dd1b-407a-9c82-41e01d180a5c"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "f70fc467-b8cd-4321-847f-dc17fba1f90d"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "31033959-ce41-45ff-a6ad-ec45f25ea2ea"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "96cd15ca-89c8-4402-a916-bc9357a2b2db"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "7eb7682f-3d81-4a6c-8f1b-5f94dd677e93"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "757a335d-b649-4ba2-b703-fbe55588e3b7"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "93853313-4001-409b-ac73-4f6988a66389"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "3ba7fd59-ac24-4c0c-8a70-ca5a73e6706d"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "0e8650de-2ba6-436f-bd8f-7767beb12997"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "243fb3e7-0068-4bdd-b3eb-0455d3081132"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "5581c7c7-fc46-47ab-a1bd-420a598fe9f8"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "85259a82-c5a5-4e88-a5de-2b68b7fb3c4e"
+    },
+    {
+      "path": "/api/v1/auth/logout",
+      "status": 200,
+      "requestId": "ba3720ee-b94b-418f-b04b-7b3b737a2616"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 401,
+      "requestId": "b8634bd4-3c68-4b5d-b7b5-27ac054187cd"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "f0d48e84-9d72-4ad5-9950-561d4ad5e0e3"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "9bc1ac86-0182-4498-8ac0-93ae4da4c16c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "e2ab3a3f-a1df-4d58-8359-d4d993165704"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "173f27d9-43bd-4f69-8a0e-3460fc67ae37"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "effc8e8a-6057-4cdc-8e9f-82cdb8d9f67e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "8aefdbff-3c17-4e22-981e-3b1d27fedb90"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 200,
+      "requestId": "e24b3f64-8974-471d-b8da-38eab4abc050"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "111ad9d4-da7c-4d5d-92f9-aba3b5e851a8"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "21913125-8960-43f3-8d51-a0cae2504850"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "9e9cf65b-7358-491f-93e9-c38821e9a2f6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f97c421b-0bb5-41c9-94ac-917878295279"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "9e7a59e2-733c-4ff4-aff2-5905ee9ca262"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "98715b01-0320-440e-a27d-796b7daa71d1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3360da63-d12b-4c0e-a993-88902a9f52ae"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "147ae86f-8492-456b-8c74-39ba718d40e9"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "fac27b83-5a1c-427e-905c-26f820e9943b"
+    },
+    {
+      "path": "/api/v1/folios/capabilities",
+      "status": 200,
+      "requestId": "d18131b2-982d-431b-a8b2-454ee5b81f7c"
+    },
+    {
+      "path": "/api/v1/deposit-accounts/capabilities",
+      "status": 200,
+      "requestId": "92151d98-fd75-41c8-9165-bfc5b161f4b4"
+    },
+    {
+      "path": "/api/v1/refunds/capabilities",
+      "status": 200,
+      "requestId": "7305797d-451c-411f-951a-f6af278a6cf7"
+    },
+    {
+      "path": "/api/v1/checkouts/capabilities",
+      "status": 200,
+      "requestId": "3218dce3-e59a-442b-be4f-35c005f87084"
+    },
+    {
+      "path": "/api/v1/invoices/capabilities",
+      "status": 200,
+      "requestId": "f2ac9015-5101-49df-979f-15b0fdf06f58"
+    },
+    {
+      "path": "/api/v1/payments/capabilities",
+      "status": 200,
+      "requestId": "be6e7239-995e-4870-9249-cfa54d92a2ab"
+    },
+    {
+      "path": "/api/v1/cashier/shifts/capabilities",
+      "status": 200,
+      "requestId": "974fc8d8-6572-4a09-a038-6548d2cbf66d"
+    },
+    {
+      "path": "/api/v1/finance/business-days/capabilities",
+      "status": 200,
+      "requestId": "018c69d7-606e-479d-a128-000f729b6721"
+    },
+    {
+      "path": "/api/v1/folios/capabilities",
+      "status": 200,
+      "requestId": "94fa2092-5289-44b9-97c6-19bc5acf6dc9"
+    },
+    {
+      "path": "/api/v1/payments/capabilities",
+      "status": 200,
+      "requestId": "a64626de-ac4c-4a9a-9e4d-aa0e60b9f28c"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "c4e3d1cd-58be-45fe-9d26-be351de11753"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "67248b1b-70a0-4990-99e0-7cfa380a9527"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "0973c42e-5c50-4954-aad1-657fd1eedefd"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "ab596b33-8e9b-4104-b52f-055665768fb1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "76f342bd-7fe1-4250-a31d-d2114118d31f"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "d4674eb4-77fc-4b57-a953-dde9cd7cb5d6"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "a53b6203-8d00-4f3d-8a89-3535780d59cf"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "91400203-ed6b-4663-966e-50a6f6661549"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "cee5ff95-4a10-4197-8a9a-b09646578a82"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6f67e97e-8534-4a23-981c-f18121285589"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "af73c720-1025-460c-bbe4-93f3a9dcb411"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "64ab33bb-352a-44e5-83da-0e354e87864f"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "85d20eb7-ac23-49ce-b358-3171fd1212af"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "59983ef0-c668-4b8b-9123-57eecc0e909f"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "32cee2b7-df07-4312-8f65-c51aef96e8c1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6ab2804c-59a6-4e5d-8134-3bb7e31520bb"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "74148515-8883-4074-805f-7a4fd5c2e0bf"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "4314dd65-e28a-4d55-8607-ac0637bc0495"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "348a145a-843f-4527-b4e4-9acddb9a19fb"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4c7aa72f-e80b-4be5-8196-03f2f22ffb3e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "983bc62a-460c-4bb8-8e6e-cf6b785e3f42"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6ffa9ecd-2c5a-4fc3-bcd3-dd378f8b6e44"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "a9dedb3f-8af2-45da-8985-a81933663bc5"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "88e9a45d-6f31-40c4-982d-d6cc97f623c0"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1dcdc87e-3a87-460f-880c-c70760478e22"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "27ffafaa-ef42-4410-96b7-5dd0e0bf1f9b"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "bd168b20-db87-419a-a3ff-fb7fcb272a16"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "12feae40-1a20-49c1-a95e-73a8d4d34e22"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3604a2d6-78e1-4734-9729-03846ace3c55"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "413c7f37-b7c5-4835-8a98-158137abbd9f"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1bbf7651-1443-4066-8a53-6ff155169e6f"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "e99f275b-531b-4c59-bf2a-8436a60d8468"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "eb95e096-7d42-437b-bd7c-ae79675aa7ab"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "e77986d4-4f95-4d7a-b20f-56b2fc2246f0"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "902047ef-86a7-4414-8f03-eef522629972"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "f8bdcfe2-f5d0-4854-93a2-dc785eeba747"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8860fae5-8515-4417-8f1b-b55066a15e0e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "ae301a0d-9a5c-43f9-952f-ec4b99635382"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c76e36bf-13e5-4b69-b52a-9276478894da"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "4a854868-601c-4821-9088-5410c9a99236"
+    },
+    {
+      "path": "/api/v1/rooms/32",
+      "status": 200,
+      "requestId": "32af9bc2-140c-41d6-834c-c4f808594c09"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2de67261-987b-4281-a4b5-92919bce632f"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "dbebc828-687f-4358-8b02-f30a819317ea"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "01cc6c7d-0bc2-4ff0-be8d-4cb4e7603b7b"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "0c24eba5-4afd-4d49-9ab1-1c219e7bbf7c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "e6741e19-79f4-4093-b0c9-e8ed85b6cf52"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "b8c1a7e8-b010-443d-8110-cac8f334b65c"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "9204b410-46a6-4b4f-8158-2c4742c6ef6b"
+    },
+    {
+      "path": "/api/v1/business-days",
+      "status": 200,
+      "requestId": "c3a8a28f-ccbb-4f4a-a340-0c7e273ab328"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "6e97497c-fe5e-4556-97b2-362cffa65408"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "a1fc41e8-10d8-4d99-a4b8-a524d1e9e4dd"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "356fe2e7-794b-4f36-a3a5-93bfc5494b3d"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "2be74256-84ca-4b95-b2a4-6c584f920ddb"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "702b1ec3-682e-4a23-a36a-119a5c5489b1"
+    },
+    {
+      "path": "/api/v1/operations/capabilities",
+      "status": 200,
+      "requestId": "a4118571-a2e9-48f0-beb2-dc7d035c1229"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "eb523f58-de9a-4237-8464-a13be1b8907e"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "4a6296b2-5951-4ae9-95c4-6f1a8604d9c7"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "7e3dfad4-5c97-4305-b375-816b184977c4"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "fa14652b-92d8-4962-b9a3-fb17bebd9afd"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "845acee9-8ee7-4d15-b385-74b4c6388da7"
+    },
+    {
+      "path": "/api/v1/service-orders/capabilities",
+      "status": 200,
+      "requestId": "1f200793-94c3-4829-8281-82241d701de9"
+    },
+    {
+      "path": "/api/v1/minibar-audits/capabilities",
+      "status": 200,
+      "requestId": "3642c54e-24c1-468f-9572-b3ab65666b1c"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "89dbc3e9-2b88-4bc1-bed2-d937debeb99a"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "4968bc97-6eab-4099-9477-035bdadf5dad"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2d4ff2aa-571d-418f-b896-147ca85c8b50"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "4d8ee3f0-1e79-4153-b486-533102b3b8e1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8e0a4730-a02c-4598-93dc-25b4b1bfbaba"
+    },
+    {
+      "path": "/api/v1/folios/capabilities",
+      "status": 200,
+      "requestId": "2d6b48f3-0c9d-4a8c-b42f-d41faf1e1dcc"
+    },
+    {
+      "path": "/api/v1/refunds/capabilities",
+      "status": 200,
+      "requestId": "195e9df8-0a82-474d-a31c-18aa59bbe0d5"
+    },
+    {
+      "path": "/api/v1/payments/capabilities",
+      "status": 200,
+      "requestId": "ee4998d0-60b4-42d2-9066-e162b8c33418"
+    },
+    {
+      "path": "/api/v1/deposit-accounts/capabilities",
+      "status": 200,
+      "requestId": "c60475b3-0c6d-4917-93ce-ffec9d57d3c5"
+    },
+    {
+      "path": "/api/v1/checkouts/capabilities",
+      "status": 200,
+      "requestId": "2c30e46c-90bf-4b33-ab28-37ec29e63558"
+    },
+    {
+      "path": "/api/v1/invoices/capabilities",
+      "status": 200,
+      "requestId": "d11bb41a-a6c6-484a-be40-0dd6bb32c349"
+    },
+    {
+      "path": "/api/v1/cashier/shifts/capabilities",
+      "status": 200,
+      "requestId": "581594ae-da1b-4de9-9e62-8640329a8a9f"
+    },
+    {
+      "path": "/api/v1/finance/business-days/capabilities",
+      "status": 200,
+      "requestId": "d9531844-c63e-42f1-9678-2171de8fc7f9"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "941f0a26-d082-4adf-aebf-7f1852cd68ba"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "0f0f38a3-7585-4ce2-b4a3-6f43cedc90f4"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "565ff1ab-1090-45a6-9a6f-0fc8d9d5d863"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "be9b3678-bab2-42f9-ae71-36c501ff3b0a"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "bcdfb05e-0855-4d95-b1fc-637bb2cf4029"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "5dda19d9-f3ed-416b-abc2-f638728f0d67"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "5c5b932b-76a3-4c63-b202-9e83af5242a2"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "2c073ae8-6fac-4979-b2ef-fe6b2593b4e7"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "97d5d8ef-4e70-42dc-a2f5-ee76c9e0bf79"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "5daaa51d-0907-43ae-b981-3d509376bda5"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "e610f3d3-5a41-4769-853b-70690e07d592"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "4c3ad023-047f-4961-80c6-b9cfe30a9d32"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "69accebd-da7c-4bf5-8a71-ae3080a7ac92"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "349cbb95-5bb4-4c05-8e17-b25c0c8de3aa"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "3b454501-d56a-455e-9e00-25a1d62000c2"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "897f96b4-705d-49dd-b815-acb4d0454edb"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "feeccb75-0bcf-47f4-ac1e-708e78ff51d8"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "ef897c06-4da1-49f6-ae4d-74fba9f1a2fd"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "dd33164d-2f23-4b2c-b2a3-66ad30467e52"
+    },
+    {
+      "path": "/api/v1/auth/logout",
+      "status": 200,
+      "requestId": "12a7d5f5-c24e-44f2-b40c-2dfe3c709ee6"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 401,
+      "requestId": "c6b05b97-f542-43a8-886b-ffac06b5aae0"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ec14d244-923b-4200-9c15-5c1fb53cc017"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "4c0b2b7e-5e0f-4b9b-a2de-9e1fc6b876fe"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "4760a186-1376-4a3e-b58a-7affb4c14314"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "c34ff9d4-2e41-4c1e-8f0f-fa2b3a1890f4"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "2cdf1595-09a7-4c58-9727-ff9081d915b6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "60f5c5ae-2dce-4a63-ac1e-051639f9ea05"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 200,
+      "requestId": "4dbe38ad-7c01-49fb-b8ef-98d1f35ec4a2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "e31f8169-d1c0-4010-b6c2-68961089dc68"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "685ffbce-da0e-4d4b-ab94-1502722784c9"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "76312d84-57ae-4c1a-ac16-58d6a1841878"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2570d886-2616-4022-96eb-2dff94141717"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "9756410e-16ec-489e-8806-ddaa17a7fccf"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "4363270c-c712-4c0b-bb13-6100adb72a3a"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "8a4ba78b-d246-482b-805f-adb36f176294"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "578daa6f-648e-494a-8147-591cd69e2982"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1d098692-73a2-4878-9dbf-afb7a7b5671d"
+    },
+    {
+      "path": "/api/v1/operations/capabilities",
+      "status": 200,
+      "requestId": "96644d46-8e1f-4cbc-a06b-e9e3d41b3986"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "4a51fd41-dad1-43ac-a817-c76016d05cdc"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "fdbb59f4-d99c-41ae-acdd-e4a5dfd376b1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "854da104-6d13-411b-ac1e-6bf585283ba7"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "847c9a75-ef3d-448a-bc73-00babe4e04cf"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4464855b-6996-47ec-a923-0155bb13bd4e"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "6d8796f8-46ee-4586-b9a8-8707173decea"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "35b50767-ad62-47cb-ab88-edd42078ddd1"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "ca381152-25df-4813-850d-6f377b32724e"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "57bec44c-1588-4f3a-8dcc-c45b98518781"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1cdd5d92-cfc8-4c84-aec7-4d416e2a60b0"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "00b51e13-6709-46fc-8fd8-d9995b79761b"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "66ada38d-c93d-40d2-981a-d7bafe8f587a"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "28a86ce4-0b54-47cc-ba21-a20cc2db4d24"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "f92b8fad-2f22-44bd-870f-a8f514e97a93"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "c30dbddc-36f4-4da1-acb2-53fc4707994f"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "b05545ac-ba7c-4161-ae08-bccb7a166dbc"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "ccf628c4-0794-4fef-aaab-ad4e69b2d244"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "269ad8c6-e6c1-4c1e-8443-12441b581c01"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "deac9f26-d5c3-437c-8eca-a07babc1b5b7"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "38068d22-0e31-442e-87c7-9318d5679c6e"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "4bc1cc92-a918-49ce-a5fc-f92edd0fce91"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c784e2ad-631a-45a3-a6f0-ba8d5b09fff0"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "9358da61-b915-4f44-98b8-a6a1916f9123"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "dbb52bad-97ed-4f0d-8452-432a82dbe657"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "5f12d4c3-36d0-4fd0-ae0c-6c2669367329"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "a46e7857-10cf-4cb5-bb27-a6f23f490d5a"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "a236b0fb-1902-476c-a71f-ca781e8615bd"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "34cd6584-8798-4995-b8e4-939b04d3166e"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "13237e17-f859-47cb-b628-7995f693c0ec"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d3ad1e19-a414-48ca-8ea6-a74bab3d202f"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "fee036ff-b234-436e-a441-827225514116"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "a0b0b3f4-561e-445a-992a-24719e4455dc"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "da2f7e06-7c22-429a-8906-272ab3637116"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "c79232a6-ed79-424a-8255-e2b148431b67"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "89ac957b-9bc5-4301-ba7c-1719e305cd61"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "2d4debfa-e2c8-40d6-9874-eb345f735767"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2fdcee59-bf8c-467e-9743-0f10d5b60e8c"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "e1f53d36-4e78-4f8f-90d8-bee569192afc"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c81dc074-2898-4cee-8f85-5d56457ae1dc"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "acfcb1f6-c250-4015-84c9-bea7eff46e6d"
+    },
+    {
+      "path": "/api/v1/rooms/32",
+      "status": 200,
+      "requestId": "af00c7c2-4b3e-40ad-9538-404b720df134"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2286f396-5e15-496a-b403-9685bfcfbd87"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "bf83a33b-909f-4a7c-aca0-7be39fd1e54f"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "1f3878e1-9a1a-47d6-b9b0-f0116d5ac988"
+    },
+    {
+      "path": "/api/v1/services",
+      "status": 200,
+      "requestId": "163e49e8-ed00-44af-8956-401431db8bdd"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "fe1b989a-2f35-44fb-b098-110c4e178b6a"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "072aa89a-d42b-4d69-ac5f-cbcdbfcab55b"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "9eab0ac6-9d5a-4de2-9e6a-1ca91827b73e"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "807c2a66-f082-4108-aa9f-c38e1763dad9"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "2c7901f8-8689-49fb-b735-3e1bdf1455bb"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "9975d195-897a-40bb-bc18-f95ef1662705"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3ab6e3a1-75be-40a7-8f8f-a48279de3c33"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "d9eb5406-dfef-4718-bd73-3f315289f817"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "597939d4-c5d7-4b51-a19e-e087c2ceffd6"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "01afcbed-2e8e-437f-9abc-7c7e36423ca2"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "b3cf1f12-ba52-4c7e-9afe-0d9af5523511"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "8aee113b-e7ff-4482-90fa-16676c5ee097"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ed99274e-d16b-4bbd-a7c3-3650fa80b940"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "cdc96239-4932-4172-9cdb-3ea42becd583"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "797d1e19-7da2-419c-bfb5-ff4b38cfb5a4"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "6478d85c-8597-4d75-bfa1-82c481a1bd6c"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "320a6834-ec80-4240-807a-5165617b6c2c"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "ce116e64-9a71-4cc4-8f24-be7d760c5dff"
+    },
+    {
+      "path": "/api/v1/admin/profile",
+      "status": 200,
+      "requestId": "ab3d2e97-385f-47f3-b621-6817b12e6b0b"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2121ba24-3165-49d0-b790-474ae6d1443d"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "bea02a69-76ac-4f7f-a742-c4d3d20e0b33"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "410df5b6-145e-400b-93bb-87647f74ca43"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "ac0c075f-967d-4ae2-a43c-099b900ff3bf"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "ef29a331-0951-4fea-afe6-6ddd0df18e0d"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "ef36503a-3174-4c28-9afa-6955eb2e4036"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "e494c90a-8fb9-4598-933e-61627f5db9c4"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "b86d8b7b-fa58-4a56-94b9-de0eeca42f26"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "ec6d369a-ca74-4cad-806f-cede04a75578"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4cafdfe6-c3f7-4b50-a58e-74e9404c6bda"
+    },
+    {
+      "path": "/api/v1/reports/capabilities",
+      "status": 200,
+      "requestId": "30829530-3839-484e-9186-09bdd9f91726"
+    },
+    {
+      "path": "/api/v1/roles/capabilities",
+      "status": 200,
+      "requestId": "055e6f4f-a3f6-47a3-9e03-36ec83e04f47"
+    },
+    {
+      "path": "/api/v1/permissions/capabilities",
+      "status": 200,
+      "requestId": "e1a7a09d-dd40-4082-8d95-404cb20a75c4"
+    },
+    {
+      "path": "/api/v1/users/capabilities",
+      "status": 200,
+      "requestId": "1bd15df1-95fc-4733-8ed9-2869b01c376e"
+    },
+    {
+      "path": "/api/v1/exceptions/capabilities",
+      "status": 200,
+      "requestId": "be73ae12-3e8c-460a-8f2b-82a467c67f55"
+    },
+    {
+      "path": "/api/v1/audit/capabilities",
+      "status": 200,
+      "requestId": "d1ec47b0-f96f-4c85-ae01-e7384a60cade"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4166a7b5-5435-4b2b-b8e9-37c2ce012402"
+    },
+    {
+      "path": "/api/v1/reports/context",
+      "status": 503,
+      "requestId": "f2794d83-09cd-4f63-be98-0742b928babb"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "e7ec4b5c-012c-4deb-b69d-94d00d494aa7"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "bbfe23f7-c3b9-4e13-96a5-d9f2168e5ed0"
+    },
+    {
+      "path": "/api/v1/auth/logout",
+      "status": 200,
+      "requestId": "a070801b-b8f3-437f-85ba-0b9057676a74"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "d56be094-c4f4-4234-954e-be9a5795d8d7"
+    },
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "44f4767a-cb0c-4ed1-abb4-16555ec96ca7"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "7caa8b8a-ac77-401a-8704-0e5047b16978"
+    }
+  ],
+  "errors": [],
+  "roles": [
+    {
+      "role": "admin",
+      "landing": "/admin-api.html"
+    },
+    {
+      "role": "manager",
+      "landing": "/admin-api.html"
+    },
+    {
+      "role": "receptionist",
+      "landing": "/reception-api.html"
+    },
+    {
+      "role": "cashier",
+      "landing": "/finance-api.html"
+    },
+    {
+      "role": "housekeeping",
+      "landing": "/housekeeping-api.html"
+    }
+  ],
+  "businessFlowsTested": false,
+  "status": "REAL_SQL_BROWSER_PASSED"
+}

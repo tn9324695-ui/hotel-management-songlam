@@ -1,0 +1,42 @@
+-- D1-MARKER separately approved by the user on 2026-11-12: "duyet 004".
+-- Execution still requires confirmation of the stopped-writer window below.
+-- Fill execution approval and actual verified backup receipt only after separate approval.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovedDatabase sysname=N'SongLamPms_Design';
+DECLARE @ServerIdentity nvarchar(128)=N'DESKTOP-9EPI86K\SQLEXPRESS';
+DECLARE @DatabaseGuid uniqueidentifier='C4DD399E-5661-4741-A424-5ABFEEFBC1AC';
+DECLARE @TestUseApprovalReference nvarchar(200)=N'USER-20261111-SONGLAM-TEST-WRITES';
+DECLARE @MarkerExecutionApprovalReference nvarchar(200)=N'USER-20261112-D1-004-MARKER';
+DECLARE @VerifiedBackupSetUuid uniqueidentifier='DEF5A5E8-833A-4D0E-A886-7286CC10BE13';
+DECLARE @WritersStoppedConfirmed bit=0;
+DECLARE @TestIdentity uniqueidentifier='eb18c6f2-373d-4a83-a34f-d9809f1cbc7a';
+DECLARE @MediaName nvarchar(128)=N'SongLamPms_Design_D1_20261111_284d423e-e6ee-428b-b4cf-67531facd064';
+DECLARE @BackupPath nvarchar(4000)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\SongLamPms_Design_D1_20261111_284d423e-e6ee-428b-b4cf-67531facd064.bak';
+IF NULLIF(@MarkerExecutionApprovalReference,N'') IS NULL OR @VerifiedBackupSetUuid IS NULL OR @WritersStoppedConfirmed<>1
+ THROW 53000,'Separate 004 approval, actual verified 000 receipt and stopped writers required.',1;
+IF DB_NAME()<>@ApprovedDatabase OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>@ServerIdentity
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid=@DatabaseGuid)
+ THROW 53001,'Target identity changed; stop and review.',1;
+IF @@TRANCOUNT<>0 THROW 53024,'No ambient transaction permitted.',1;
+IF NOT EXISTS(SELECT 1 FROM msdb.dbo.backupset bs JOIN msdb.dbo.backupmediafamily mf ON mf.media_set_id=bs.media_set_id
+ WHERE bs.backup_set_uuid=@VerifiedBackupSetUuid AND bs.database_name=@ApprovedDatabase AND bs.database_guid=@DatabaseGuid
+ AND bs.name=@MediaName AND mf.physical_device_name=@BackupPath AND bs.type='D' AND bs.position=1
+ AND bs.is_copy_only=1 AND bs.has_backup_checksums=1 AND bs.backup_finish_date IS NOT NULL)
+ THROW 53025,'Verified backup receipt does not match approved target/media.',1;
+-- Any verification failure stops BEFORE the marker transaction. No restore is performed.
+RESTORE VERIFYONLY FROM DISK=@BackupPath WITH FILE=1,CHECKSUM;
+BEGIN TRY
+ BEGIN TRANSACTION;
+ IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name IN (N'SongLam.Environment',N'SongLam.TestIdentity'))
+   THROW 53023, 'Existing environment markers need separate review; never overwrite silently.', 1;
+ EXEC sys.sp_addextendedproperty @name=N'SongLam.Environment',@value=N'test';
+ DECLARE @IdentityText nvarchar(36)=CONVERT(nvarchar(36),@TestIdentity);
+ EXEC sys.sp_addextendedproperty @name=N'SongLam.TestIdentity',@value=@IdentityText;
+ COMMIT;
+ SELECT 'MARKER_COMMITTED' AS Status,@TestIdentity AS TestIdentity,@VerifiedBackupSetUuid AS BackupSetUuid;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

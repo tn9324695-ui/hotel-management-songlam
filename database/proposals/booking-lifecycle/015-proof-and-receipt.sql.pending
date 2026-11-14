@@ -1,0 +1,36 @@
+-- PENDING APPROVAL. Two more narrow EXECUTE entry points; no business writes.
+CREATE PROCEDURE pms.usp_WebBookingMutationRuntime
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ORIGINAL_LOGIN()<>N'DESKTOP-9EPI86K\songlam_pms_test' THROW 52403,'Dedicated service required.',1;
+ IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+  OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC') THROW 54200,'Wrong target.',1;
+ SELECT CONVERT(nvarchar(max),value) ReleaseJson FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Booking015.Release';
+ SELECT o.name Name,CONVERT(varchar(64),HASHBYTES('SHA2_256',m.definition),2) DefinitionSha256,m.uses_ansi_nulls AnsiNullsOn,m.uses_quoted_identifier QuotedIdentifierOn
+  FROM sys.objects o JOIN sys.sql_modules m ON m.object_id=o.object_id WHERE o.schema_id=SCHEMA_ID('pms') AND o.name IN
+  ('usp_AppBookingMutationPrepare','usp_AppBookingMutationCommit','usp_WebBookingMutationRuntime','usp_WebBookingMutationReceipt') ORDER BY o.name;
+END;
+GO
+CREATE PROCEDURE pms.usp_WebBookingMutationReceipt
+ @AppUserId bigint,@Operation varchar(80),@IdempotencyKey varchar(120),@OriginalRequestId nvarchar(80),@RequestId nvarchar(80)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ IF @Operation IS NULL OR @Operation NOT IN('bookings.assign','bookings.cancel','bookings.cancelRooms') OR @IdempotencyKey IS NULL
+  OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120 OR TRY_CONVERT(uniqueidentifier,@OriginalRequestId) IS NULL OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL THROW 54100,'Invalid mutation receipt lookup.',1;
+ IF @Operation='bookings.assign'
+ BEGIN EXEC pms.usp_WebAuthorize @AppUserId,'createBooking'; EXEC pms.usp_WebAuthorize @AppUserId,'viewRoomRack'; END
+ ELSE EXEC pms.usp_WebAuthorize @AppUserId,'cancelBooking';
+ DECLARE @response nvarchar(max),@request uniqueidentifier,@status varchar(12),@committed bit=0,@deployment varchar(40);
+ SELECT @response=ResponseJson,@request=RequestId,@status=Status FROM pms.ApiRequest
+  WHERE ActorId=@AppUserId AND IdempotencyKey=@IdempotencyKey AND Operation=CASE @Operation
+  WHEN 'bookings.assign' THEN 'WEB_BOOKING_ASSIGN' WHEN 'bookings.cancel' THEN 'WEB_BOOKING_CANCEL' ELSE 'WEB_BOOKING_CANCEL_ROOMS' END;
+ IF @status='SUCCEEDED' AND @request=TRY_CONVERT(uniqueidentifier,@OriginalRequestId) AND JSON_VALUE(@response,'$.httpOperation')=@Operation SET @committed=1;
+ SELECT @deployment=JSON_VALUE(CONVERT(nvarchar(max),value),'$.baseDeploymentId') FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Booking015.Release';
+ IF @deployment IS NULL THROW 54200,'Deployment receipt required.',1;
+ SELECT (SELECT CASE WHEN @committed=1 THEN 'COMMITTED' ELSE 'UNKNOWN' END status,@Operation operation,@OriginalRequestId originalRequestId,
+  CONVERT(varchar(20),@AppUserId) ownerAppUserId,LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',@IdempotencyKey),2)) idempotencyKeySha256,
+  CAST(1 AS bit) rightsRechecked,@deployment deploymentId,CASE WHEN @committed=1 THEN CONVERT(varchar(36),@request) END receiptReference,
+  CASE WHEN @committed=1 THEN JSON_VALUE(@response,'$.committedAtUtc') END committedAtUtc FOR JSON PATH,INCLUDE_NULL_VALUES,WITHOUT_ARRAY_WRAPPER) PayloadJson;
+END;

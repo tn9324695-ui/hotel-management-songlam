@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <link rel="stylesheet" href="css/deployment.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Đăng nhập — SongLam PMS</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tabler.min.css">
+  <link rel="stylesheet" href="css/login.css">
+  <script src="js/api/http-client.js" defer></script>
+  <script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script>
+  <script src="js/pages/login.js" defer></script>
+</head>
+<body class="songlam-login">
+  <header class="login-header">
+    <a class="login-brand" href="index.html" aria-label="Mở giao diện demo Sông Lam">
+      <img src="favicon.svg" width="36" height="36" alt="">
+      <span>SÔNG LAM <small>HOTEL MANAGEMENT</small></span>
+    </a>
+    <span class="badge bg-blue-lt">SongLam PMS</span>
+  </header>
+  <main class="login-main">
+    <section class="login-intro" aria-labelledby="hotel-title">
+      <div class="login-eyebrow">KHÁCH SẠN SÔNG LAM</div>
+      <h1 id="hotel-title">Không gian làm việc<br>cho đội ngũ khách sạn</h1>
+      <p>Quản lý đặt phòng, lưu trú, buồng phòng và thanh toán trong cùng hệ thống.</p>
+      <div class="login-demo-note"><strong>Dữ liệu demo được tách riêng</strong><p>Các trang demo dùng dữ liệu cục bộ, không phải dữ liệu SQL Server. Chỉ các phân hệ API mới sử dụng phiên và quyền từ backend.</p></div>
+      <a class="btn btn-outline-primary" href="reception-api.html">Mở phân hệ lễ tân qua API</a>
+    </section>
+    <section class="card login-card" aria-labelledby="login-title">
+      <div class="card-body">
+        <h2 id="login-title" class="card-title">Đăng nhập</h2>
+        <p class="text-secondary">Tài khoản dành cho nhân viên khách sạn.</p>
+        <div class="alert alert-info login-status" role="status" aria-live="polite">
+          <strong id="auth-status">Chưa cấu hình đăng nhập</strong>
+          <p id="auth-detail">Đăng nhập chỉ mở khi backend đã xác minh cấu hình. Không dùng phiên demo thay thế.</p>
+        </div>
+        <form id="login-form" data-auth-state="not-configured" aria-describedby="auth-detail">
+          <fieldset id="login-fields" disabled>
+            <legend class="visually-hidden">Thông tin đăng nhập chưa được kích hoạt</legend>
+            <div class="mb-3">
+              <label class="form-label" for="username">Tên đăng nhập</label>
+              <input class="form-control" id="username" type="text" placeholder="Tên tài khoản nhân viên" autocomplete="username" maxlength="100">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="password">Mật khẩu</label>
+              <input class="form-control" id="password" type="password" placeholder="Mật khẩu" autocomplete="current-password">
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Đăng nhập</button>
+          </fieldset>
+        </form>
+        <p id="login-help" class="login-help">Chức năng đăng nhập đang chờ cấu hình. Hiện chưa cấp phiên đăng nhập hoặc tài khoản mặc định.</p>
+        <a class="btn btn-outline-primary w-100 mb-3" href="admin-api.html">Mở quản trị &amp; báo cáo qua API</a>
+        <div class="login-links" aria-label="Các phân hệ demo">
+          <a href="reception.html">Lễ tân</a><a href="housekeeping.html">Buồng phòng</a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="login-footer">SongLam PMS · Quản lý khách sạn Sông Lam</footer>
+</body>
+</html>

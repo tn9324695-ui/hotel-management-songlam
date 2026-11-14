@@ -1,0 +1,27 @@
+{
+  "format": "songlam-cutover-release/1",
+  "deploymentId": "",
+  "buildId": "",
+  "approvalReference": null,
+  "writesEnabledAtUtc": null,
+  "target": { "environment": "", "server": "", "database": "", "fingerprint": "", "confirmed": false },
+  "g11": {
+    "batchId": "", "finalSourceSha256": "", "reportFile": "", "reportSha256": "",
+    "verificationFile": "", "verificationSha256": ""
+  },
+  "acceptedOperations": [],
+  "operationEvidence": {},
+  "gates": {
+    "build": { "owner": "Phụ trách phát hành", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "access": { "owner": "DBA và phụ trách bảo mật", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "target": { "owner": "DBA", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "backup": { "owner": "DBA và chủ dữ liệu", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "legacyFreeze": { "owner": "Trưởng lễ tân và phụ trách phát hành", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "finalExport": { "owner": "Chủ dữ liệu", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "import": { "owner": "DBA và chủ dữ liệu", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "reconciliation": { "owner": "Kế toán và chủ dữ liệu", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "roles": { "owner": "Đại diện từng vai trò và bảo mật", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "monitoring": { "owner": "Trực vận hành và kế toán", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" },
+    "goLiveApproval": { "owner": "Người có thẩm quyền cho vận hành", "status": "NOT_CHECKED", "startedAtUtc": null, "finishedAtUtc": null, "evidence": null, "approvalReference": null, "decision": "STOP" }
+  }
+}

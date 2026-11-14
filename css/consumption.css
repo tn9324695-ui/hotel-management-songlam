@@ -1,0 +1,7 @@
+.g8-lines { display: grid; gap: 10px; }
+.g8-line { display: grid; grid-template-columns: minmax(200px, 1fr) 135px auto; gap: 8px; align-items: end; padding: 12px; background: #f5f8fc; border: 1px solid #e3e8ef; border-radius: 5px; }
+.g8-amount { white-space: nowrap; text-align: right; }
+.g8-context { padding: 12px; background: #eff6ff; border-left: 3px solid #206bc4; }
+.g8-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.g8-form-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 650px) { .g8-line { grid-template-columns: 1fr; } }

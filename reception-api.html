@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="vi" data-pms-mode="api">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Lễ tân · SongLam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/deployment.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
+  <script src="js/api/http-client.js" defer></script><script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script>
+  <script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script>
+  <script src="js/api/catalog-api.js" defer></script><script src="js/api/customers-api.js" defer></script><script src="js/api/pricing-api.js" defer></script><script src="js/api/bookings-api.js" defer></script><script src="js/api/stays-api.js" defer></script><script src="js/pages/reception-api.js" defer></script>
+</head>
+<body>
+  <header class="ops-topbar"><button class="btn btn-icon" id="desk-menu" aria-label="Mở menu" aria-expanded="false" aria-controls="ops-sidebar">☰</button><a class="sl-wordmark" href="reception-api.html">SL <span>SÔNG LAM <small>QUẢN LÝ KHÁCH SẠN</small></span></a><span class="ops-identity" id="desk-user">Đang xác minh phiên…</span><a href="login.html" class="btn btn-sm">Đăng nhập</a></header>
+  <div class="ops-shell"><aside class="ops-sidebar" id="ops-sidebar"><p class="sl-section-label">VẬN HÀNH LỄ TÂN</p><nav id="desk-nav" aria-label="Lễ tân"></nav><p class="sl-sidebar-note">Dữ liệu chỉ lấy từ máy chủ. Những chức năng chưa được phép ghi sẽ được khóa.</p></aside>
+  <main class="ops-main">
+    <div class="ops-heading"><div><div class="sl-section-label">SONGLAM PMS / LỄ TÂN</div><h1 id="desk-title">Sơ đồ phòng</h1><p class="text-secondary mb-0" id="desk-period">Chưa xác minh ngày nghiệp vụ và múi giờ khách sạn.</p></div><div class="ops-actions"><button class="btn" id="desk-refresh">Tải lại</button><button class="btn" id="desk-quote">Báo giá</button><button class="btn btn-primary" id="desk-create" disabled>Đặt phòng</button><button class="btn" id="desk-preview">Xem biểu mẫu</button></div></div>
+    <div id="desk-message" class="alert alert-info" role="status" aria-live="polite">Đang kiểm tra phiên đăng nhập và nguồn dữ liệu…</div>
+    <button id="desk-filter-toggle" class="btn mb-3 sl-filter-toggle" type="button" aria-expanded="false" aria-controls="desk-filters">Bộ lọc tìm kiếm</button>
+    <form id="desk-filters" class="card card-body ops-filters mb-3">
+      <label>Từ ngày<input type="date" name="from" class="form-control"></label><label>Đến trước ngày<input type="date" name="to" class="form-control"></label>
+      <label>Hạng phòng<select name="roomTypeId" class="form-select"><option value="">Tất cả hạng</option></select></label>
+      <label>Tầng<input name="floor" class="form-control" placeholder="VD: 4" maxlength="30"></label>
+      <label>Tìm kiếm<input name="q" class="form-control" placeholder="Số phòng, tên khách, mã đơn…" maxlength="120"></label>
+      <label>Hiện diện<select name="occupancyStatus" class="form-select"><option value="">Tất cả</option><option value="VACANT">Trống</option><option value="OCCUPIED">Có khách</option></select></label>
+      <label>Vệ sinh<select name="cleanlinessStatus" class="form-select"><option value="">Tất cả</option><option value="CLEAN">Sạch</option><option value="DIRTY">Chờ dọn</option><option value="CLEANING">Đang dọn</option><option value="INSPECTING">Chờ nghiệm thu</option></select></label>
+      <label>Khai thác<select name="exploitationStatus" class="form-select"><option value="">Tất cả</option><option value="ACTIVE">Đang khai thác</option><option value="INACTIVE">Tạm ngừng</option><option value="MAINTENANCE">Bảo trì</option></select></label>
+      <button class="btn btn-primary" type="submit">Áp dụng bộ lọc</button>
+    </form>
+    <div class="sl-legend"><span>● Hiện diện</span><span>● Vệ sinh</span><span>● Khai thác</span><small>Phòng trống chưa đồng nghĩa phòng sẵn sàng nhận khách.</small></div>
+    <section id="desk-results" class="card sl-results table-responsive" aria-live="polite"><div class="sl-empty">Chưa có dữ liệu máy chủ. Không hiển thị số liệu demo.</div></section>
+    <div id="desk-pagination" class="ops-pagination mt-3"></div><p id="desk-trace" class="small text-secondary mt-3"></p>
+  </main></div>
+  <dialog id="desk-dialog" aria-labelledby="desk-dialog-title"><div class="ops-dialog-heading"><h2 id="desk-dialog-title"></h2><button class="btn btn-sm" id="desk-close" type="button">Đóng</button></div><div id="desk-dialog-body"></div></dialog>
+</body></html>

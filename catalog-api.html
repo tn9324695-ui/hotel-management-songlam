@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="vi" data-pms-mode="api">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>Danh mục & cấu hình · SongLam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
+ <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/deployment.css">
+ <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
+ <script src="js/api/http-client.js" defer></script><script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script>
+ <script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script>
+ <script src="js/api/catalog-api.js" defer></script><script src="js/pages/catalog-api.js" defer></script>
+</head>
+<body>
+ <header class="ops-topbar"><button class="btn btn-icon" id="desk-menu" aria-label="Mở menu" aria-expanded="false" aria-controls="ops-sidebar">☰</button><a class="sl-wordmark" href="catalog-api.html">SL <span>SÔNG LAM <small>QUẢN LÝ KHÁCH SẠN</small></span></a><span class="ops-identity">Đang xác minh phiên…</span><a href="login.html" class="btn btn-sm">Đăng nhập</a></header>
+ <div class="ops-shell"><aside class="ops-sidebar" id="ops-sidebar"><p class="sl-section-label">DANH MỤC & CẤU HÌNH</p><nav id="catalog-nav" aria-label="Danh mục"></nav><p class="sl-sidebar-note">Chỉ đọc từ API. Nhập dữ liệu nền cần hợp đồng và lô dữ liệu được duyệt riêng.</p></aside>
+ <main class="ops-main">
+  <div class="ops-heading"><div><div class="sl-section-label">SONGLAM PMS / DỮ LIỆU NỀN</div><h1 id="catalog-title">Danh mục & cấu hình</h1><p id="catalog-source" class="text-secondary">Đang xác minh nguồn dữ liệu.</p></div><button id="catalog-refresh" class="btn">Tải lại</button></div>
+  <div id="catalog-message" class="alert alert-info" role="status" aria-live="polite">Đang kiểm tra phiên và hợp đồng đọc…</div>
+  <form id="catalog-filters" class="card card-body ops-filters mb-3"></form>
+  <section id="catalog-results" class="card table-responsive" aria-live="polite"><div class="sl-empty">Đang tải…</div></section>
+  <div id="catalog-pagination" class="ops-pagination mt-3"></div><p id="catalog-trace" class="text-secondary mt-3"></p>
+  <p class="sl-blocked">Nhập/sửa/xóa danh mục: Chưa khả dụng. Chưa có hợp đồng ghi danh mục được duyệt; không lưu vào localStorage.</p>
+  <dialog id="catalog-detail"><div class="ops-dialog-heading"><h2>Chi tiết dữ liệu</h2><button id="catalog-close" class="btn">Đóng</button></div><div id="catalog-detail-body"></div></dialog>
+ </main></div>
+</body></html>

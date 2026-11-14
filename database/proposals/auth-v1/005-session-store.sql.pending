@@ -1,0 +1,122 @@
+-- S0 DRAFT. Never loaded by server.js or migration/install scripts.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovedDatabase sysname=N'SongLamPms_Design',@ApprovalReference nvarchar(200)=N'USER-20261112-MODULES-3-4';
+DECLARE @SessionWriteApprovalReference nvarchar(200)=N'USER-20261112-MODULES-3-4-SESSION-WRITES';
+IF @ApprovedDatabase IS NULL OR NULLIF(@ApprovalReference,N'') IS NULL
+ OR NULLIF(@SessionWriteApprovalReference,N'') IS NULL THROW 53200,'S0 is not approved.',1;
+IF DB_NAME()<>@ApprovedDatabase OR DB_NAME() IN(N'master',N'model',N'msdb',N'tempdb')
+ THROW 53001,'Explicit approved database required.',1;
+IF SCHEMA_ID(N'pms') IS NULL OR OBJECT_ID(N'pms.AppUser',N'U') IS NULL
+ THROW 53201,'Existing identity schema required.',1;
+IF CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID()
+ AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53203,'Approved physical target mismatch.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity'
+ AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53204,'Approved D1 marker required.',1;
+IF @@TRANCOUNT<>0 THROW 53205,'No ambient transaction permitted.',1;
+IF OBJECT_ID(N'pms.usp_WebSessionProbe') IS NOT NULL OR OBJECT_ID(N'pms.usp_WebSessionCreate') IS NOT NULL
+ OR OBJECT_ID(N'pms.usp_WebSessionGet') IS NOT NULL OR OBJECT_ID(N'pms.usp_WebSessionDestroy') IS NOT NULL
+ OR DATABASE_PRINCIPAL_ID(N'pms_web_session_executor') IS NOT NULL
+ THROW 53206,'Existing S0 objects/role require separate upgrade review.',1;
+IF OBJECT_ID(N'pms.WebSession',N'U') IS NOT NULL
+ THROW 53202,'Existing session table requires versioned review, not adoption.',1;
+BEGIN TRY
+ BEGIN TRANSACTION;
+ CREATE TABLE pms.WebSession(
+  EpochHash char(64) COLLATE Latin1_General_100_BIN2 NOT NULL,
+  SessionKeyHash char(64) COLLATE Latin1_General_100_BIN2 NOT NULL,
+  AppUserId bigint NOT NULL REFERENCES pms.AppUser(UserId),
+  SecurityVersion varchar(18) NOT NULL,
+  CsrfToken varchar(43) COLLATE Latin1_General_100_BIN2 NOT NULL,
+  ExpiresAtUtc datetime2(3) NOT NULL,
+  CreatedAtUtc datetime2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+  CONSTRAINT PK_WebSession PRIMARY KEY(EpochHash,SessionKeyHash),
+  CONSTRAINT CK_WebSession_Epoch CHECK(LEN(EpochHash)=64 AND EpochHash NOT LIKE '%[^0-9a-f]%'),
+  CONSTRAINT CK_WebSession_Key CHECK(LEN(SessionKeyHash)=64 AND SessionKeyHash NOT LIKE '%[^0-9a-f]%'),
+  CONSTRAINT CK_WebSession_Expiry CHECK(ExpiresAtUtc>CreatedAtUtc)
+ );
+ CREATE INDEX IX_WebSession_Expiry ON pms.WebSession(ExpiresAtUtc);
+ CREATE INDEX IX_WebSession_User ON pms.WebSession(AppUserId);
+ EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_WebSessionProbe
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_session_executor''),0)<>1 THROW 53210,''Session caller not authorized.'',1;
+ SELECT CONVERT(bit,1) AS Ready FROM (SELECT COUNT_BIG(*) AS n FROM pms.WebSession WHERE 1=0) q;
+END';
+
+ EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_WebSessionCreate
+ @EpochHash varchar(64),@SessionKeyHash varchar(64),@AppUserId bigint,
+ @SecurityVersion varchar(18),@CsrfToken varchar(43),@ExpiresAtUtc datetime2(3),@TtlMs int
+AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_session_executor''),0)<>1 THROW 53210,''Session caller not authorized.'',1;
+ IF @@TRANCOUNT<>0 THROW 53211,''Session operation owns its transaction.'',1;
+ DECLARE @now datetime2(3)=SYSUTCDATETIME();
+ IF LEN(@EpochHash)<>64 OR @EpochHash COLLATE Latin1_General_100_BIN2 LIKE ''%[^0-9a-f]%''
+  OR LEN(@SessionKeyHash)<>64 OR @SessionKeyHash COLLATE Latin1_General_100_BIN2 LIKE ''%[^0-9a-f]%''
+  OR LEN(@CsrfToken)<>43 OR @CsrfToken COLLATE Latin1_General_100_BIN2 LIKE ''%[^0-9A-Za-z_-]%''
+  OR @EpochHash IS NULL OR @SessionKeyHash IS NULL OR @CsrfToken IS NULL
+  OR @ExpiresAtUtc IS NULL OR @ExpiresAtUtc<=@now OR @ExpiresAtUtc>DATEADD(hour,24,@now)
+  OR @TtlMs IS NULL OR @TtlMs<1000 OR @TtlMs>86400000
+  OR ABS(DATEDIFF_BIG(millisecond,DATEADD(millisecond,@TtlMs,@now),@ExpiresAtUtc))>5000
+  THROW 53212,''Invalid session parameters.'',1;
+ BEGIN TRY
+  BEGIN TRANSACTION;
+  IF NOT EXISTS(SELECT 1 FROM pms.AppUser WITH(UPDLOCK,HOLDLOCK)
+    WHERE UserId=@AppUserId AND IsActive=1 AND CONVERT(varchar(18),RowVer,1)=@SecurityVersion)
+    THROW 53213,''Session identity no longer valid.'',1;
+  -- Composite PK is create-if-absent; duplicate never overwrites another session.
+  INSERT pms.WebSession(EpochHash,SessionKeyHash,AppUserId,SecurityVersion,CsrfToken,ExpiresAtUtc)
+  VALUES(@EpochHash,@SessionKeyHash,@AppUserId,@SecurityVersion,@CsrfToken,@ExpiresAtUtc);
+  COMMIT;
+  SELECT ''CREATED'' AS Status,@EpochHash AS EpochHash,@SessionKeyHash AS SessionKeyHash;
+ END TRY
+ BEGIN CATCH
+  IF XACT_STATE()<>0 ROLLBACK;
+  THROW;
+ END CATCH;
+END';
+
+ EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_WebSessionGet @EpochHash varchar(64),@SessionKeyHash varchar(64)
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_session_executor''),0)<>1 THROW 53210,''Session caller not authorized.'',1;
+ SELECT s.EpochHash,s.SessionKeyHash,CONVERT(varchar(20),s.AppUserId) AS AppUserId,s.SecurityVersion,s.CsrfToken,
+  CONVERT(varchar(20),DATEDIFF_BIG(millisecond,CONVERT(datetime2(3),''19700101''),s.ExpiresAtUtc)) AS ExpiresAtMs
+ FROM pms.WebSession s JOIN pms.AppUser u ON u.UserId=s.AppUserId
+ WHERE s.EpochHash=@EpochHash AND s.SessionKeyHash=@SessionKeyHash AND s.ExpiresAtUtc>SYSUTCDATETIME()
+  AND u.IsActive=1 AND CONVERT(varchar(18),u.RowVer,1)=s.SecurityVersion;
+END';
+
+ EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_WebSessionDestroy @EpochHash varchar(64),@SessionKeyHash varchar(64)
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_session_executor''),0)<>1 THROW 53210,''Session caller not authorized.'',1;
+ -- Idempotent and isolated to the caller epoch and hashed cookie identifier.
+ DELETE pms.WebSession WHERE EpochHash=@EpochHash AND SessionKeyHash=@SessionKeyHash;
+ SELECT ''DESTROYED'' AS Status,@EpochHash AS EpochHash,@SessionKeyHash AS SessionKeyHash;
+END';
+
+ IF DATABASE_PRINCIPAL_ID(N'pms_web_session_executor') IS NULL
+  EXEC(N'CREATE ROLE pms_web_session_executor AUTHORIZATION dbo');
+ GRANT EXECUTE ON OBJECT::pms.usp_WebSessionProbe TO pms_web_session_executor;
+ GRANT EXECUTE ON OBJECT::pms.usp_WebSessionCreate TO pms_web_session_executor;
+ GRANT EXECUTE ON OBJECT::pms.usp_WebSessionGet TO pms_web_session_executor;
+ GRANT EXECUTE ON OBJECT::pms.usp_WebSessionDestroy TO pms_web_session_executor;
+ -- No direct SELECT/INSERT/UPDATE/DELETE grants, no login/user/membership created.
+ -- DBA separately owns approved expiry cleanup; web role gets no purge command.
+ COMMIT;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;
+

@@ -1,0 +1,68 @@
+-- REVIEW ONLY: private, read-only validation. No direct EXECUTE to service user.
+CREATE PROCEDURE pms.usp_WebCheckInContext @InputJson nvarchar(max)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ DECLARE @now datetime2(3)=SYSUTCDATETIME(),@booking bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingId')),
+ @version binary(8)=TRY_CONVERT(binary(8),JSON_VALUE(@InputJson,'$.expectedVersion'),1),@units nvarchar(max);
+ DECLARE @sourcePolicy bigint;
+ SELECT @sourcePolicy=TRY_CONVERT(bigint,JSON_VALUE(CONVERT(nvarchar(max),value),'$.sourcePolicyVersionId')) FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.CheckIn016.Release';
+ IF @sourcePolicy IS NULL THROW 52431,'Approved source price policy required.',1;
+ IF ISJSON(@InputJson)<>1 OR DATALENGTH(@InputJson)>1000000 OR @version IS NULL
+ OR EXISTS(SELECT 1 FROM OPENJSON(@InputJson) WHERE [key] NOT IN('bookingId','expectedVersion','rooms'))
+ OR EXISTS(SELECT [key] FROM OPENJSON(@InputJson) GROUP BY [key] HAVING COUNT(*)>1)
+ OR LEFT(JSON_QUERY(@InputJson,'$.rooms'),1)<>'['
+ OR NOT EXISTS(SELECT 1 FROM pms.Booking WHERE BookingId=@booking AND RowVer=@version AND Status IN('CONFIRMED','PARTIALLY_CHECKED_IN')) THROW 52412,'Booking version/state invalid.',1;
+ DECLARE @selected TABLE(n int PRIMARY KEY,raw nvarchar(max),id bigint,room int,allocation bigint);
+ INSERT @selected SELECT CONVERT(int,[key]),value,TRY_CONVERT(bigint,JSON_VALUE(value,'$.bookingRoomId')),TRY_CONVERT(int,JSON_VALUE(value,'$.roomId')),TRY_CONVERT(bigint,JSON_VALUE(value,'$.allocationId')) FROM OPENJSON(@InputJson,'$.rooms');
+ IF (SELECT COUNT(*) FROM @selected x CROSS APPLY OPENJSON(x.raw,'$.guestCustomerIds') g)>125 THROW 54100,'Guest links exceed atomic limit.',1;
+ IF EXISTS(SELECT 1 FROM @selected x CROSS APPLY OPENJSON(x.raw) f WHERE f.[key] NOT IN('bookingRoomId','expectedVersion','roomId','roomVersion','allocationId','allocationVersion','guestCustomerIds','leadCustomerId'))
+  OR EXISTS(SELECT x.n,f.[key] FROM @selected x CROSS APPLY OPENJSON(x.raw) f GROUP BY x.n,f.[key] HAVING COUNT(*)>1) THROW 54100,'Unexpected selected-room fields.',1;
+ IF (SELECT COUNT(*) FROM @selected) NOT BETWEEN 1 AND 25 OR EXISTS(SELECT id FROM @selected GROUP BY id HAVING COUNT(*)>1)
+ OR EXISTS(SELECT room FROM @selected GROUP BY room HAVING COUNT(*)>1) THROW 54100,'Invalid atomic check-in scope.',1;
+ IF EXISTS(SELECT 1 FROM @selected x LEFT JOIN pms.BookingRoom b ON b.BookingRoomId=x.id
+  LEFT JOIN pms.Room r ON r.RoomId=x.room LEFT JOIN pms.RoomType t ON t.RoomTypeId=r.RoomTypeId
+  LEFT JOIN pms.RoomAllocation a ON a.AllocationId=x.allocation
+  WHERE b.BookingId IS NULL OR b.BookingId<>@booking OR b.Status<>'CONFIRMED'
+   OR ISNULL(CONVERT(varchar(18),CONVERT(binary(8),b.RowVer),1),'')<>ISNULL(JSON_VALUE(x.raw,'$.expectedVersion'),'')
+   OR b.PolicyVersionId<>@sourcePolicy OR r.RoomId IS NULL OR r.IsActive<>1 OR r.CleanStatus<>'CLEAN' OR r.RoomTypeId<>b.RoomTypeId OR t.MaxOccupancy<b.Adults+b.Children
+   OR ISNULL(CONVERT(varchar(18),CONVERT(binary(8),r.RowVer),1),'')<>ISNULL(JSON_VALUE(x.raw,'$.roomVersion'),'')
+   OR a.AllocationId IS NULL OR a.IsCancelled<>0 OR a.BookingRoomId IS NULL OR a.BookingRoomId<>b.BookingRoomId OR a.RoomId<>r.RoomId
+   OR ISNULL(CONVERT(varchar(18),CONVERT(binary(8),a.RowVer),1),'')<>ISNULL(JSON_VALUE(x.raw,'$.allocationVersion'),'')
+   OR @now<b.StartsAtUtc OR @now>=b.EndsAtUtc OR @now<a.StartsAtUtc OR a.EndsAtUtc<b.EndsAtUtc
+   OR EXISTS(SELECT 1 FROM pms.Stay s WHERE s.BookingRoomId=b.BookingRoomId)
+   OR EXISTS(SELECT 1 FROM pms.StayRoomSegment g WHERE g.RoomId=r.RoomId AND g.DepartedAtUtc IS NULL)
+   OR EXISTS(SELECT 1 FROM pms.MaintenanceTicket m WHERE m.RoomId=r.RoomId AND m.Status IN('OPEN','IN_PROGRESS'))
+   OR EXISTS(SELECT 1 FROM pms.RoomAllocation other LEFT JOIN pms.BookingRoom ob ON ob.BookingRoomId=other.BookingRoomId WHERE other.RoomId=r.RoomId AND other.AllocationId<>a.AllocationId AND other.IsCancelled=0
+     AND other.StartsAtUtc<b.EndsAtUtc AND other.EndsAtUtc>@now AND (other.BookingRoomId IS NULL OR ob.Status IN('HELD','CONFIRMED','IN_HOUSE')))
+ ) THROW 52416,'Room/booking/allocation is not ready for check-in.',1;
+ -- Initial composite supports fresh ROOM folios only, never append another room
+ -- charge to a pre-existing ledger or silently choose a MASTER payer.
+ IF EXISTS(SELECT 1 FROM @selected x JOIN pms.Folio f ON f.BookingRoomId=x.id) THROW 52220,'Existing folio requires a separately reconciled check-in contract.',1;
+ IF EXISTS(SELECT 1 FROM @selected x WHERE NOT EXISTS(SELECT 1 FROM OPENJSON(x.raw,'$.guestCustomerIds'))
+  OR (SELECT COUNT(*) FROM OPENJSON(x.raw,'$.guestCustomerIds'))>125
+  OR EXISTS(SELECT value FROM OPENJSON(x.raw,'$.guestCustomerIds') GROUP BY value HAVING COUNT(*)>1)
+  OR EXISTS(SELECT 1 FROM OPENJSON(x.raw,'$.guestCustomerIds') g WHERE NOT EXISTS(SELECT 1 FROM pms.BookingGuest bg JOIN pms.Customer c ON c.CustomerId=bg.CustomerId AND c.IsActive=1 WHERE bg.BookingRoomId=x.id AND CONVERT(varchar(20),bg.CustomerId)=g.value))
+  OR NOT EXISTS(SELECT 1 FROM pms.BookingGuest bg WHERE bg.BookingRoomId=x.id AND bg.IsLead=1 AND CONVERT(varchar(20),bg.CustomerId)=JSON_VALUE(x.raw,'$.leadCustomerId'))
+  OR NOT EXISTS(SELECT 1 FROM OPENJSON(x.raw,'$.guestCustomerIds') WHERE value=JSON_VALUE(x.raw,'$.leadCustomerId'))
+  OR (SELECT COUNT(*) FROM OPENJSON(x.raw,'$.guestCustomerIds'))>(SELECT Adults+Children FROM pms.BookingRoom WHERE BookingRoomId=x.id)) THROW 52416,'Invalid declared guest roster.',1;
+ IF EXISTS(SELECT 1 FROM @selected x JOIN pms.BookingRoom b ON b.BookingRoomId=x.id WHERE
+  ISNULL(JSON_VALUE(b.RateSnapshotJson,'$.schema'),'')<>'songlam.quote.snapshot.v1'
+  OR ISNULL(JSON_VALUE(b.RateSnapshotJson,'$.engineVersion'),'')<>'songlam.pricing.v1'
+  OR TRY_CONVERT(decimal(19,0),JSON_VALUE(b.RateSnapshotJson,'$.roomBaseVnd')) IS NULL
+  OR TRY_CONVERT(decimal(19,0),JSON_VALUE(b.RateSnapshotJson,'$.roomBaseVnd'))<>b.QuotedTotalVnd
+  OR JSON_VALUE(b.RateSnapshotJson,'$.policyVersionId')<>CONVERT(varchar(20),b.PolicyVersionId)
+ ) THROW 52431,'Unsupported/mismatched frozen price snapshot.',1;
+ SET @units=(SELECT JSON_QUERY((SELECT CONVERT(varchar(20),b.BookingRoomId) id,CONVERT(varchar(20),b.BookingId) bookingId,b.Status status,CONVERT(varchar(18),CONVERT(binary(8),b.RowVer),1) version,
+  CONVERT(varchar(20),b.RoomTypeId) roomTypeId,CONVERT(varchar(20),b.RatePlanId) ratePlanId,CONVERT(varchar(20),b.PolicyVersionId) policyVersionId,b.StayType stayType,b.Adults adults,b.Children children,
+  CONVERT(varchar(23),b.StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),b.EndsAtUtc,126)+'Z' endsAtUtc,CONVERT(varchar(30),b.QuotedTotalVnd) quotedRoomBaseVnd,JSON_QUERY(b.RateSnapshotJson) pricingSnapshot FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) bookingRoom,
+  JSON_QUERY((SELECT CONVERT(varchar(20),r.RoomId) id,CONVERT(varchar(20),r.RoomTypeId) roomTypeId,CONVERT(varchar(18),CONVERT(binary(8),r.RowVer),1) version,'VACANT' occupancyStatus,r.CleanStatus cleanlinessStatus,'ACTIVE' exploitationStatus,t.MaxOccupancy maxOccupancy FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) room,
+  JSON_QUERY((SELECT CONVERT(varchar(20),a.AllocationId) id,CONVERT(varchar(20),a.RoomId) roomId,CONVERT(varchar(20),a.BookingRoomId) bookingRoomId,CONVERT(varchar(18),CONVERT(binary(8),a.RowVer),1) version,a.IsCancelled isCancelled,
+   CONVERT(varchar(23),a.StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),a.EndsAtUtc,126)+'Z' endsAtUtc FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) allocation,
+  CAST(NULL AS varchar(20)) existingStayId,CAST(NULL AS nvarchar(max)) folio,CAST(1 AS bit) guestRosterVerified,
+  JSON_QUERY(N'{"required":false,"satisfied":false,"paymentState":"NOT_REQUIRED"}') depositRequirement,
+  JSON_QUERY((SELECT 'ATOMIC_ROOM_FOLIO_V1' profile,'ROOM' kind,CONVERT(varchar(20),b.BookingId) bookingId,CONVERT(varchar(20),b.BookingRoomId) bookingRoomId,CONVERT(varchar(20),h.CustomerId) payerCustomerId,CAST(NULL AS varchar(20)) payerOrganizationId FOR JSON PATH,INCLUDE_NULL_VALUES,WITHOUT_ARRAY_WRAPPER)) folioCreation
+  FROM @selected x JOIN pms.BookingRoom b ON b.BookingRoomId=x.id JOIN pms.Booking h ON h.BookingId=b.BookingId JOIN pms.Room r ON r.RoomId=x.room JOIN pms.RoomType t ON t.RoomTypeId=r.RoomTypeId JOIN pms.RoomAllocation a ON a.AllocationId=x.allocation ORDER BY x.n FOR JSON PATH,INCLUDE_NULL_VALUES);
+ SELECT (SELECT JSON_QUERY(pms.fn_WebBookingJson(@booking,0)) booking,CONVERT(varchar(23),@now,126)+'Z' checkedInAtUtc,
+  'FROZEN_ROOM_AND_AGREED_EARLY_V1' chargingMode,'BOOKED_INTERVAL' hourlyBillingAnchor,JSON_QUERY(@units) units FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) PayloadJson;
+END;

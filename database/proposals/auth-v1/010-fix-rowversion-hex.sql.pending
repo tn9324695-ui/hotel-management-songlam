@@ -1,0 +1,48 @@
+-- Separate review: convert timestamp/rowversion through binary(8) before hex.
+-- No table/data/permission changes. Revoke semantics and actor policy unchanged.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovalReference nvarchar(200)=N'USER-20261112-APPROVED-010-ROWVERSION-HEX';
+IF NULLIF(@ApprovalReference,N'') IS NULL THROW 53980,'Rowversion conversion fix needs approval.',1;
+IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53981,'Unexpected rowversion fix target.',1;
+IF @@TRANCOUNT<>0 THROW 53982,'No ambient transaction allowed.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53983,'Test markers required.',1;
+DECLARE @modules TABLE(Id int PRIMARY KEY,Name sysname,ExpectedHash varchar(64),Body nvarchar(max));
+INSERT @modules(Id,Name,ExpectedHash) VALUES
+ (1,N'pms.usp_AppAuthLookup','3F9289CA13593BC7237F41307902DD2D4FDC26319B05C2BEACB155FCE413CF3D'),
+ (2,N'pms.usp_AppIdentity','664CB7E88273B2142507EF847CF9F4364DAFA26E8647D3F003C7FD5555854CBA'),
+ (3,N'pms.usp_WebSessionCreate','2F327C6D36DF96C6C40B9C1DC2242A1F51C1F525D50147463FBD5E0B62CD0915'),
+ (4,N'pms.usp_WebSessionGet','0039018180A0E0DB046D339797A1DBA2FD2D541D4F13419F4FCFE8F75DF792C0');
+UPDATE @modules SET Body=OBJECT_DEFINITION(OBJECT_ID(Name));
+IF EXISTS(SELECT 1 FROM @modules WHERE Body IS NULL OR LEFT(Body,6)<>N'CREATE'
+ OR CONVERT(varchar(64),HASHBYTES('SHA2_256',Body),2)<>ExpectedHash)
+ THROW 53984,'Reviewed module definitions differ; stop.',1;
+IF EXISTS(SELECT 1 FROM @modules WHERE
+ (LEN(Body)-LEN(REPLACE(Body,N'CONVERT(varchar(18),RowVer,1)',N'')))/LEN(N'CONVERT(varchar(18),RowVer,1)')
+ +(LEN(Body)-LEN(REPLACE(Body,N'CONVERT(varchar(18),u.RowVer,1)',N'')))/LEN(N'CONVERT(varchar(18),u.RowVer,1)')<>1)
+ THROW 53985,'Unexpected conversion occurrences; stop.',1;
+UPDATE @modules SET Body=STUFF(REPLACE(REPLACE(Body,
+ N'CONVERT(varchar(18),RowVer,1)',N'CONVERT(varchar(18),CONVERT(binary(8),RowVer),1)'),
+ N'CONVERT(varchar(18),u.RowVer,1)',N'CONVERT(varchar(18),CONVERT(binary(8),u.RowVer),1)'),1,6,N'ALTER');
+DECLARE @i int=1,@body nvarchar(max);
+BEGIN TRY
+ BEGIN TRANSACTION;
+ WHILE @i<=4
+ BEGIN
+  SELECT @body=Body FROM @modules WHERE Id=@i;
+  EXEC sys.sp_executesql @body;
+  SET @i+=1;
+ END;
+ COMMIT;
+ SELECT N'ROWVERSION_HEX_FIXED_INTEGRATION_NOT_YET_VERIFIED' AS Status;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi" data-pms-mode="api">
+<head>
+  <link rel="stylesheet" href="css/deployment.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dịch vụ &amp; minibar | Sông Lam PMS</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/consumption.css">
+  <script src="js/api/http-client.js" defer></script>
+<script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script><script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script><script src="js/api/services-api.js" defer></script>
+  <script src="js/api/minibar-api.js" defer></script><script src="js/pages/services-api.js" defer></script>
+</head>
+<body>
+  <header class="ops-topbar"><button class="btn btn-sm" id="ops-menu" aria-controls="ops-sidebar" aria-expanded="false">☰ Menu</button>
+    <strong>SÔNG LAM PMS</strong><span class="badge bg-blue-lt">Dịch vụ &amp; minibar qua API</span><span id="g8-identity" class="ops-identity">Đang kiểm tra phiên…</span><a class="btn btn-sm" href="login.html">Đăng nhập</a></header>
+  <div class="ops-shell">
+    <aside class="ops-sidebar" id="ops-sidebar"><div class="small text-secondary mb-3">DỊCH VỤ PHÁT SINH</div><nav id="g8-nav" aria-label="Dịch vụ và minibar"></nav>
+      <hr><a href="housekeeping-api.html">Buồng phòng &amp; bảo trì qua API</a><hr><a href="finance-api.html">Thu ngân &amp; trả phòng qua API</a><hr>
+      <p class="small text-secondary">Ghi phí theo nguồn phát sinh; không thu tiền hoặc quyết toán tại đây.</p>
+    </aside>
+    <main class="ops-main"><div class="ops-heading"><div><div class="small text-secondary">VẬN HÀNH KHÁCH SẠN</div><h1 id="g8-title">Dịch vụ &amp; minibar</h1></div>
+      <div class="ops-actions"><button id="g8-reload" class="btn" disabled>Tải lại</button><button id="g8-create" class="btn btn-primary" hidden>Tạo mới</button></div></div>
+      <div class="alert alert-info">Giá chốt của dòng cũ được giữ nguyên. Biên bản 0đ vẫn cần xác nhận kiểm thực tế. Hủy phí đã ghi phải có credit liên kết; không phải giao dịch hoàn tiền.</div>
+      <div id="g8-message" role="status" aria-live="polite" class="alert alert-secondary">Đang kết nối API…</div>
+      <form id="g8-filters" class="card card-body ops-filters" hidden><label>Mã lượt lưu trú<input name="stayId" class="form-control" inputmode="numeric" placeholder="StayId trong SQL"></label>
+        <label>Trạng thái<select name="status" id="g8-status" class="form-select"></select></label><button class="btn btn-primary">Lọc</button></form>
+      <section class="card mt-3"><div class="table-responsive" id="g8-table"><p class="p-3 mb-0">Chưa tải dữ liệu thật.</p></div>
+        <div class="card-footer ops-pagination"><span id="g8-page">Chưa có dữ liệu</span><div class="ops-actions"><button class="btn btn-sm" id="g8-prev" disabled>Trước</button><button class="btn btn-sm" id="g8-next" disabled>Sau</button></div></div></section>
+    </main>
+  </div>
+  <dialog id="g8-dialog" aria-labelledby="g8-dialog-title"><div class="ops-dialog-heading"><h2 id="g8-dialog-title"></h2><button class="btn btn-sm" type="button" id="g8-close">Đóng</button></div><div id="g8-dialog-body"></div></dialog>
+  <noscript><p class="alert alert-warning">Cần JavaScript để dùng giao diện API.</p></noscript>
+</body>
+</html>

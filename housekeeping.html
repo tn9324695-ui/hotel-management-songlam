@@ -1,116 +1,38 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <link rel="stylesheet" href="css/deployment.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Phân hệ Buồng Phòng - Quản lý khách sạn Sông Lam</title>
   
   <!-- Google Fonts: Be Vietnam Pro & Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="js/lucide.min.js"></script>
 
   <!-- Tabler Core CSS (Bản mã nguồn mở miễn phí từ E:\demo\tabler-dev) -->
   <link rel="stylesheet" href="css/tabler.min.css">
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/pms.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
 
   <!-- Topbar Cố định Buồng Phòng -->
-  <header class="topbar" style="background-color: #059669;">
-    <div class="topbar-left">
-      <button class="sidebar-toggle-btn" onclick="window.housekeepingApp.toggleSidebar()" title="Thu gọn / Mở rộng menu">
-        <i data-lucide="menu"></i>
-      </button>
-
-      <div class="brand-wrapper" onclick="window.housekeepingApp.switchScreen('hk_room_board')">
-        <div class="brand-icon-box" style="background: rgba(255,255,255,0.25);">BP</div>
-        <div>
-          <div class="brand-text-title">PHÂN HỆ BUỒNG PHÒNG &bull; SÔNG LAM</div>
-          <span class="brand-subtext">Mường Thanh Luxury Sông Lam &bull; Vệ sinh & Giám sát</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="topbar-center">
-      <!-- Bộ chuyển 3 Phân hệ chính (1-click chuyển đổi nhanh) -->
-      <nav class="topbar-nav-portals" aria-label="Phân hệ vận hành">
-        <a href="index.html" class="portal-nav-pill" title="Chuyển sang Quản lý & Thu ngân"><i data-lucide="building"></i> Quản lý</a>
-        <a href="reception.html" class="portal-nav-pill" title="Chuyển sang Quầy Lễ Tân"><i data-lucide="bell"></i> Lễ tân</a>
-        <a href="housekeeping.html" class="portal-nav-pill active" title="Đang ở Buồng Phòng"><i data-lucide="sparkles"></i> Buồng phòng</a>
-      </nav>
-
-      <div class="working-date-pill">
-        <i data-lucide="calendar" style="width: 14px; height: 14px;"></i>
-        <span><b id="topbarWorkingDateText">25/10/2026</b></span>
-      </div>
-
-      <div class="quick-search-box">
-        <i data-lucide="search" class="search-icon" style="width: 15px; height: 15px;"></i>
-        <input type="text" placeholder="Tìm số phòng cần dọn..." 
-               oninput="window.housekeepingApp.searchRoom(this.value)" />
-      </div>
-    </div>
-
-    <div class="topbar-right">
-      <!-- Thông báo nghiệp vụ Buồng phòng -->
-      <div style="position: relative;">
-        <button class="icon-btn-badge" onclick="window.housekeepingApp.toggleNotifications()" title="Thông báo Buồng phòng">
-          <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
-          <span class="badge-counter" style="background:#d97706;">3</span>
-        </button>
-
-        <div id="notificationsPopover" style="display: none; position: absolute; right: 0; top: 44px; width: 310px; background: #fff; border: 1px solid #cbd5e1; border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 1100; color: var(--text-main);">
-          <div style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 700; font-size: 13px;">Thông báo Buồng phòng</span>
-            <span class="badge badge-vacant">3 việc gấp</span>
-          </div>
-          <div style="padding: 6px;">
-            <div style="padding: 8px 10px; border-bottom: 1px solid #f8fafc; font-size: 12px; cursor: pointer;" onclick="window.housekeepingApp.switchScreen('hk_minibar_check')">
-              <div style="font-weight: 600; color: #b45309;"><i data-lucide="wine" style="width:12px;height:12px;vertical-align:middle;"></i> P.403 cần kiểm tra Minibar</div>
-              <div style="color: var(--text-secondary); margin-top: 2px;">Khách vừa check-out, cần báo đồ đã uống cho lễ tân</div>
-            </div>
-            <div style="padding: 8px 10px; border-bottom: 1px solid #f8fafc; font-size: 12px; cursor: pointer;" onclick="window.housekeepingApp.switchScreen('hk_room_board')">
-              <div style="font-weight: 600; color: #059669;"><i data-lucide="spray-can" style="width:12px;height:12px;vertical-align:middle;"></i> P.604 khách vừa trả</div>
-              <div style="color: var(--text-secondary); margin-top: 2px;">Phân công dọn thay ga gối đón khách tối nay</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Menu Tài khoản Buồng phòng -->
-      <div class="user-profile-menu">
-        <div class="user-avatar-circle" style="background: #059669;">M</div>
-        <div class="user-info-text">
-          <span class="user-fullname">Trần Thị Mai</span>
-          <span class="user-role-tag">Nhân viên Buồng phòng</span>
-        </div>
-        <i data-lucide="chevron-down" style="width: 14px; height: 14px; opacity: 0.7;"></i>
-      </div>
-    </div>
-  </header>
+  <header class="topbar" aria-label="Thanh công cụ"></header>
 
   <!-- Banner lưu ý phân tách quyền của Buồng phòng -->
-  <div class="demo-banner-strip" style="position: fixed; top: 58px; left: 0; right: 0; z-index: 950; background: #ecfdf5; border-bottom: 1px solid #a7f3d0; color: #065f46;">
-    <div>
-      <i data-lucide="shield" style="width: 13px; height: 13px; vertical-align: middle; margin-right: 4px;"></i>
-      <b>PHÂN HỆ BUỒNG PHÒNG (HOUSEKEEPING - MÔ PHÒNG):</b> Tối ưu quy trình 4 bước vệ sinh phòng, kiểm minibar, báo sự cố kỹ thuật và Lost & Found. Dữ liệu đồng bộ tự động qua <code>SongLamStore</code>.
-    </div>
-    <div style="font-size: 11px; font-weight: 600;">
-      <a href="index.html" style="color: #065f46; text-decoration: underline;" title="Chuyển về Giao diện Quản lý (yêu cầu quyền)">Về Giao diện Quản lý &rarr;</a>
-    </div>
-  </div>
+  <div class="demo-banner-strip" role="note" style="position:fixed;left:0;right:0;z-index:950"></div>
 
-  <!-- Bố cục Chính App Container -->
   <div class="app-container" style="padding-top: 88px;">
 
     <!-- Thanh Menu Bên Trái (Dành riêng cho Buồng phòng) -->
     <aside class="sidebar" id="sidebar" style="top: 88px; height: calc(100vh - 88px); border-right: 1.5px solid #a7f3d0;">
+      <div class="pms-source-card"><span class="pms-source-label">BẢN TRẢI NGHIỆM</span><p>Theo dõi phòng, công việc và minibar trên trình duyệt.</p><details><summary>Màn hình dữ liệu máy chủ</summary><a href="housekeeping-api.html">Buồng phòng</a><a href="services-api.html#minibar">Kiểm minibar</a></details></div>
       <div class="nav-group-title" style="color: #059669;">NGHIỆP VỤ BUỒNG PHÒNG</div>
       <ul class="nav-list">
         <li class="nav-item active" data-screen="hk_room_board" onclick="window.housekeepingApp.switchScreen('hk_room_board')">
@@ -153,7 +75,7 @@
   <div id="appModal"></div>
 
   <!-- Container Thông báo Toast -->
-  <div class="toast-container" id="toastContainer"></div>
+  <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
   <!-- Tabler Core JS -->
   <script src="js/tabler.min.js"></script>
@@ -163,6 +85,8 @@
 
   <!-- Lớp quản lý dữ liệu dùng chung & Core Business Engine -->
   <script src="js/store.js"></script>
+  <script src="js/pms-data.js"></script>
+  <script src="js/pms-ui.js"></script>
 
   <!-- Script logic nghiệp vụ riêng của Buồng phòng -->
   <script src="js/housekeeping.js"></script>

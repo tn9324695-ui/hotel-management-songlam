@@ -1,0 +1,31 @@
+-- D2-P artifact. Do not execute until D1 marker and 001/003 are deployed.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovalReference nvarchar(200)=N'USER-20261112-MODULES-3-4';
+IF NULLIF(@ApprovalReference,N'') IS NULL THROW 53600,'D2-P execution reference required.',1;
+IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53601,'Unexpected D2-P target.',1;
+IF @@TRANCOUNT<>0 THROW 53602,'No ambient transaction allowed.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53603,'D1 marker required.',1;
+IF DATABASE_PRINCIPAL_ID(N'pms_web_auth_reader') IS NULL
+ OR OBJECT_ID(N'pms.usp_AppEnvironment',N'P') IS NULL OR OBJECT_ID(N'pms.usp_AppAuthLookup',N'P') IS NULL OR OBJECT_ID(N'pms.usp_AppIdentity',N'P') IS NULL
+ THROW 53604,'Deploy 001/003 first.',1;
+IF SUSER_ID(N'DESKTOP-9EPI86K\songlam_pms_test') IS NOT NULL OR DATABASE_PRINCIPAL_ID(N'pms_web_auth_test') IS NOT NULL
+ THROW 53605,'Existing service identity requires review; never adopt or overwrite.',1;
+BEGIN TRY
+ BEGIN TRANSACTION;
+ -- OS account must already exist, be non-admin and be separately verified.
+ CREATE LOGIN [DESKTOP-9EPI86K\songlam_pms_test] FROM WINDOWS;
+ CREATE USER [pms_web_auth_test] FOR LOGIN [DESKTOP-9EPI86K\songlam_pms_test];
+ GRANT CONNECT TO [pms_web_auth_test];
+ ALTER ROLE [pms_web_auth_reader] ADD MEMBER [pms_web_auth_test];
+ COMMIT;
+ SELECT N'D2P_COMMITTED_EFFECTIVE_RIGHTS_NOT_YET_VERIFIED' AS Status;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

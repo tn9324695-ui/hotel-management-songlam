@@ -1,0 +1,64 @@
+{
+  "format": "songlam-migration-reconciliation/1",
+  "generatedAtUtc": "2026-11-14T06:10:00.000Z",
+  "batchId": "SONGLAM_MIGRATION_REHEARSAL_20261114",
+  "sourceSha256": "8f3b259d4c2b92138a0a996791b86e7456d2e675b6ec67e5a7b6cf9db889aa01",
+  "planSha256": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+  "targetSha256": "16f907de4ac4c6c4ffaa95e1ba5baadcbe05a7e397e658e6fc2893b6f1ff8bf0",
+  "targetDatabaseFingerprint": "C4DD399E-5661-4741-A424-5ABFEEFBC1AC",
+  "status": "PASS",
+  "issues": [],
+  "quarantine": [],
+  "sourceCounts": {
+    "rooms": 420,
+    "roomTypes": 11,
+    "services": 15
+  },
+  "entityCounts": [
+    {
+      "entity": "Room",
+      "expected": 1,
+      "actual": 1,
+      "missing": 0,
+      "extra": 0
+    },
+    {
+      "entity": "RoomType",
+      "expected": 1,
+      "actual": 1,
+      "missing": 0,
+      "extra": 0
+    },
+    {
+      "entity": "Service",
+      "expected": 1,
+      "actual": 1,
+      "missing": 0,
+      "extra": 0
+    }
+  ],
+  "missing": [],
+  "extra": [],
+  "different": [],
+  "moneyDifferences": [],
+  "scopeTotalsBefore": [
+    {
+      "scope": [
+        "STAY",
+        "stay:1",
+        "CHARGE"
+      ],
+      "amountVnd": "650000"
+    }
+  ],
+  "scopeTotalsAfter": [
+    {
+      "scope": [
+        "STAY",
+        "stay:1",
+        "CHARGE"
+      ],
+      "amountVnd": "650000"
+    }
+  ]
+}

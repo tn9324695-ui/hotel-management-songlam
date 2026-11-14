@@ -1,0 +1,91 @@
+-- Explicit 001/003 execution approved 2026-11-12; not an automatic installer.
+-- No database is created; no user/login/data is seeded.
+-- DBA must fill BOTH values only after separate written approval.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovedDatabase sysname = N'SongLamPms_Design';
+DECLARE @ApprovalReference nvarchar(200) = N'USER-20261112-FIRST-TWO-001-003';
+IF @ApprovedDatabase IS NULL OR NULLIF(@ApprovalReference,N'') IS NULL
+    THROW 53000, 'SQL draft is not approved. No changes applied.', 1;
+IF DB_NAME() <> @ApprovedDatabase OR DB_NAME() IN (N'master',N'model',N'msdb',N'tempdb')
+    THROW 53001, 'Explicit approved database required.', 1;
+IF SCHEMA_ID(N'pms') IS NULL THROW 53002, 'Existing pms schema required.', 1;
+IF CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID()
+ AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53003,'Approved physical target mismatch.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity'
+ AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53004,'Approved D1 marker required.',1;
+IF @@TRANCOUNT<>0 THROW 53005,'No ambient transaction permitted.',1;
+IF OBJECT_ID(N'pms.usp_AppEnvironment') IS NOT NULL OR OBJECT_ID(N'pms.usp_AppAuthLookup') IS NOT NULL
+ OR OBJECT_ID(N'pms.usp_AppIdentity') IS NOT NULL
+ THROW 53006,'Existing authentication objects require separate upgrade review.',1;
+BEGIN TRY
+BEGIN TRANSACTION;
+EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_AppEnvironment
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_auth_reader''),0)<>1 THROW 53010,''RPC caller not authorized.'',1;
+ IF ISNULL(IS_SRVROLEMEMBER(N''sysadmin''),1)<>0 OR ISNULL(IS_MEMBER(N''db_owner''),1)<>0
+   THROW 53016,''Application pool must not use an administrator identity.'',1;
+ SELECT DB_NAME() AS DatabaseName,
+   CONVERT(nvarchar(128),SERVERPROPERTY(''ServerName'')) AS ServerIdentity,
+   CONVERT(nvarchar(128),i.value) AS DatabaseIdentity,
+   N''test'' AS Environment,N''songlam.auth.v1'' AS ContractVersion
+ FROM sys.extended_properties i
+ WHERE i.class=0 AND i.name=N''SongLam.TestIdentity''
+   AND EXISTS(SELECT 1 FROM sys.extended_properties e WHERE e.class=0
+     AND e.name=N''SongLam.Environment'' AND CONVERT(nvarchar(128),e.value)=N''test'');
+END';
+
+EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_AppAuthLookup @Username nvarchar(100)
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_auth_reader''),0)<>1 THROW 53010,''RPC caller not authorized.'',1;
+ IF @Username IS NULL OR LEN(@Username)=0 THROW 53011,''Invalid credential lookup.'',1;
+ -- No username normalization beyond the existing unique-index/collation rules.
+ -- Backend alone sees hash, verifies the actual approved encoding, and returns generic login errors.
+ SELECT CONVERT(varchar(20),UserId) AS UserId,PasswordHash,IsActive,
+   CONVERT(varchar(18),RowVer,1) AS RowVer
+ FROM pms.AppUser WHERE Username=@Username;
+END';
+
+EXEC sys.sp_executesql N'CREATE OR ALTER PROCEDURE pms.usp_AppIdentity @AppUserId bigint
+AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON;
+ IF ISNULL(IS_ROLEMEMBER(N''pms_web_auth_reader''),0)<>1 THROW 53010,''RPC caller not authorized.'',1;
+ IF @AppUserId IS NULL OR @AppUserId<=0 THROW 53012,''Invalid identity lookup.'',1;
+ IF @@TRANCOUNT<>0 THROW 53013,''Identity lookup owns its read transaction.'',1;
+ BEGIN TRY
+  BEGIN TRANSACTION;
+  -- HOLDLOCK keeps the user/role projection consistent during these two result sets.
+  SELECT CONVERT(varchar(20),u.UserId) AS UserId,u.Username,u.FullName,u.IsActive,
+    CONVERT(varchar(18),u.RowVer,1) AS RowVer
+  FROM pms.AppUser u WITH(HOLDLOCK) WHERE u.UserId=@AppUserId;
+  SELECT DISTINCT p.Code AS PermissionCode
+  FROM pms.AppUser u WITH(HOLDLOCK)
+  JOIN pms.UserRole ur WITH(HOLDLOCK) ON ur.UserId=u.UserId
+  JOIN pms.AppRole ar WITH(HOLDLOCK) ON ar.RoleId=ur.RoleId
+  JOIN pms.RolePermission rp WITH(HOLDLOCK) ON rp.RoleId=ar.RoleId
+  JOIN pms.Permission p WITH(HOLDLOCK) ON p.PermissionId=rp.PermissionId
+  WHERE u.UserId=@AppUserId AND u.IsActive=1 AND ar.IsActive=1 ORDER BY p.Code;
+  COMMIT;
+ END TRY
+ BEGIN CATCH
+  IF XACT_STATE()<>0 ROLLBACK;
+  THROW;
+ END CATCH;
+END';
+
+COMMIT;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;
+

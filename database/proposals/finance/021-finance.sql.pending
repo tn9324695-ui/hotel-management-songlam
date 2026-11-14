@@ -1,0 +1,2912 @@
+-- 021-finance.sql.pending
+-- Implementation of G9 Finance & Checkout Stored Procedures
+-- pms.usp_AppFinanceRead and pms.usp_AppFinanceCommand
+-- Compliant with songlam.finance.v1 protocol
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID('pms.usp_AppFinanceRead', 'P') IS NOT NULL
+    DROP PROCEDURE pms.usp_AppFinanceRead;
+GO
+
+CREATE PROCEDURE pms.usp_AppFinanceRead
+    @AppUserId bigint,
+    @Resource varchar(20),
+    @Operation varchar(24),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80),
+    @PolicyContextJson nvarchar(max) = NULL
+WITH EXECUTE AS OWNER
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+    -- Security check: Verify AppUserId exists and is active
+    IF NOT EXISTS (SELECT 1 FROM pms.AppUser WHERE UserId = @AppUserId AND IsActive = 1)
+    BEGIN
+        THROW 52403, 'SQL từ chối quyền tài chính.', 1;
+    END;
+
+    DECLARE @nowUtc datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(30) = FORMAT(@nowUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ');
+    DECLARE @validUntilIso varchar(30) = FORMAT(DATEADD(minute, 30, @nowUtc), 'yyyy-MM-ddTHH:mm:ss.fffZ');
+    DECLARE @timeZone varchar(60) = 'Asia/Ho_Chi_Minh';
+    DECLARE @cutoffLocalTime varchar(8) = '12:00:00';
+    DECLARE @policyRef varchar(160) = 'USER-20261114-FINANCE-CLOCK-POLICY';
+
+    DECLARE @workingDate date = (SELECT TOP (1) WorkingDate FROM pms.HotelSettings);
+    IF @workingDate IS NULL
+        SET @workingDate = CAST(@nowUtc AS date);
+
+    -- Common parameters
+    DECLARE @id varchar(80) = JSON_VALUE(@InputJson, '$.id');
+    DECLARE @bookingId varchar(80) = JSON_VALUE(@InputJson, '$.bookingId');
+    DECLARE @statusFilter varchar(40) = JSON_VALUE(@InputJson, '$.status');
+    DECLARE @shiftIdFilter varchar(80) = JSON_VALUE(@InputJson, '$.shiftId');
+    DECLARE @bDateFilter varchar(40) = JSON_VALUE(@InputJson, '$.businessDate');
+    DECLARE @stayIdFilter varchar(80) = JSON_VALUE(@InputJson, '$.stayId');
+    DECLARE @offset int = COALESCE(TRY_CAST(JSON_VALUE(@InputJson, '$.offset') AS int), 0);
+    DECLARE @limit int = COALESCE(TRY_CAST(JSON_VALUE(@InputJson, '$.limit') AS int), 50);
+    IF @limit > 200 SET @limit = 200;
+    IF @limit < 1 SET @limit = 50;
+
+    DECLARE @rowsJson nvarchar(max) = NULL;
+    DECLARE @pageJson nvarchar(max) = NULL;
+    DECLARE @rowJson nvarchar(max) = NULL;
+    DECLARE @previewJson nvarchar(max) = NULL;
+
+    ---------------------------------------------------------------------------
+    -- CONTEXT OPERATION (Common across all resources)
+    ---------------------------------------------------------------------------
+    IF @Operation = 'context'
+    BEGIN
+        DECLARE @subOp varchar(30) = JSON_VALUE(@InputJson, '$.operation');
+        DECLARE @subjId varchar(80) = JSON_VALUE(@InputJson, '$.id');
+        DECLARE @subjVersion varchar(30) = NULL;
+
+        IF @Resource = 'folios' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Folio WHERE FolioId = TRY_CAST(@subjId AS bigint);
+        ELSE IF @Resource = 'payments' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Payment WHERE PaymentId = TRY_CAST(@subjId AS bigint);
+        ELSE IF @Resource = 'refunds' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.RefundRequest WHERE RefundRequestId = TRY_CAST(@subjId AS bigint);
+        ELSE IF @Resource = 'cashier' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.CashierShift WHERE ShiftId = TRY_CAST(@subjId AS bigint);
+        ELSE IF @Resource = 'days' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.BusinessDay WHERE BusinessDate = TRY_CAST(@subjId AS date);
+        ELSE IF @Resource = 'checkouts' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Stay WHERE StayId = TRY_CAST(@subjId AS bigint);
+        ELSE IF @Resource = 'invoices' AND @subjId IS NOT NULL
+            SELECT @subjVersion = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Invoice WHERE InvoiceId = TRY_CAST(@subjId AS bigint);
+
+        DECLARE @ctxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+            @Resource + ':' + ISNULL(@subOp, '') + ':' + ISNULL(@subjId, '0') + ':' + ISNULL(@subjVersion, '0') + ':' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+        SELECT (
+            SELECT
+                @Resource AS resource,
+                'context' AS operation,
+                @nowIso AS asOfUtc,
+                JSON_QUERY((
+                    SELECT
+                        @Resource AS resource,
+                        @subOp AS operation,
+                        @subjId AS subjectId,
+                        @subjVersion AS subjectVersion,
+                        @ctxToken AS contextToken,
+                        @validUntilIso AS validUntilUtc,
+                        CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                        @timeZone AS timeZone,
+                        @cutoffLocalTime AS cutoffLocalTime,
+                        @policyRef AS policyReference,
+                        JSON_QUERY('[]') AS blockers
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                )) AS [context]
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        ) AS PayloadJson;
+        RETURN;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- FOLIOS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'folios'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH FSummary AS (
+                SELECT
+                    FolioId,
+                    ISNULL(SUM(CASE WHEN Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS chargesVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'CHARGE_CREDIT' THEN AmountVnd ELSE 0 END), 0) AS creditsVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'PAYMENT' THEN AmountVnd ELSE 0 END), 0) AS paymentsVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'REFUND' THEN AmountVnd ELSE 0 END), 0) AS refundsVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'DEPOSIT_APPLY' THEN AmountVnd ELSE 0 END), 0) AS depositAppliedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'DEPOSIT_UNAPPLY' THEN AmountVnd ELSE 0 END), 0) AS depositUnappliedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_DEBIT' THEN AmountVnd ELSE 0 END), 0) AS transferInVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_CREDIT' THEN AmountVnd ELSE 0 END), 0) AS transferOutVnd
+                FROM pms.FolioEntry
+                GROUP BY FolioId
+            ),
+            FReserved AS (
+                SELECT FolioId, ISNULL(SUM(AmountVnd), 0) AS reservedVnd
+                FROM pms.RefundRequest
+                WHERE Status IN ('PENDING', 'APPROVED') AND FolioId IS NOT NULL
+                GROUP BY FolioId
+            ),
+            FBase AS (
+                SELECT
+                    f.FolioId,
+                    CONVERT(varchar(20), f.FolioId) AS id,
+                    CONVERT(varchar(30), CAST(f.RowVer AS varbinary(8)), 1) AS [version],
+                    f.Code AS code,
+                    CONVERT(varchar(20), f.BookingId) AS bookingId,
+                    CONVERT(varchar(20), f.BookingRoomId) AS bookingRoomId,
+                    f.Kind AS kind,
+                    f.Status AS [status],
+                    CONVERT(varchar(20), f.PayerCustomerId) AS payerCustomerId,
+                    CONVERT(varchar(20), f.PayerOrganizationId) AS payerOrganizationId,
+                    FORMAT(f.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(38), CAST(ISNULL(s.chargesVnd, 0) AS bigint)) AS chargesVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.creditsVnd, 0) AS bigint)) AS creditsVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.paymentsVnd, 0) AS bigint)) AS paymentsVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.refundsVnd, 0) AS bigint)) AS refundsVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.depositAppliedVnd, 0) AS bigint)) AS depositAppliedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.depositUnappliedVnd, 0) AS bigint)) AS depositUnappliedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.transferInVnd, 0) AS bigint)) AS transferInVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.transferOutVnd, 0) AS bigint)) AS transferOutVnd
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS totals,
+                    CONVERT(varchar(38), CAST((ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) AS bigint)) AS balanceVnd,
+                    CONVERT(varchar(38), CAST(CASE WHEN (ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) > 0
+                        THEN (ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) ELSE 0 END AS bigint)) AS dueVnd,
+                    CONVERT(varchar(38), CAST(CASE WHEN (ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) < 0
+                        THEN -(ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) ELSE 0 END AS bigint)) AS creditVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(r.reservedVnd, 0) AS bigint)) AS reservedRefundVnd
+                FROM pms.Folio f
+                LEFT JOIN FSummary s ON s.FolioId = f.FolioId
+                LEFT JOIN FReserved r ON r.FolioId = f.FolioId
+                WHERE (@bookingId IS NULL OR f.BookingId = TRY_CAST(@bookingId AS bigint))
+                  AND (@statusFilter IS NULL OR f.Status = @statusFilter)
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT id, [version], code, bookingId, bookingRoomId, kind, [status],
+                           payerCustomerId, payerOrganizationId, closedAtUtc, totals,
+                           balanceVnd, dueVnd, creditVnd, reservedRefundVnd
+                    FROM FBase
+                    ORDER BY FolioId
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM FBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM FBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'folios' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @folioTargetId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH FSummary AS (
+                SELECT
+                    FolioId,
+                    ISNULL(SUM(CASE WHEN Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS chargesVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'CHARGE_CREDIT' THEN AmountVnd ELSE 0 END), 0) AS creditsVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'PAYMENT' THEN AmountVnd ELSE 0 END), 0) AS paymentsVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'REFUND' THEN AmountVnd ELSE 0 END), 0) AS refundsVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'DEPOSIT_APPLY' THEN AmountVnd ELSE 0 END), 0) AS depositAppliedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'DEPOSIT_UNAPPLY' THEN AmountVnd ELSE 0 END), 0) AS depositUnappliedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_DEBIT' THEN AmountVnd ELSE 0 END), 0) AS transferInVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_CREDIT' THEN AmountVnd ELSE 0 END), 0) AS transferOutVnd
+                FROM pms.FolioEntry
+                WHERE FolioId = @folioTargetId
+                GROUP BY FolioId
+            ),
+            FReserved AS (
+                SELECT FolioId, ISNULL(SUM(AmountVnd), 0) AS reservedVnd
+                FROM pms.RefundRequest
+                WHERE Status IN ('PENDING', 'APPROVED') AND FolioId = @folioTargetId
+                GROUP BY FolioId
+            ),
+            FBase AS (
+                SELECT
+                    f.FolioId,
+                    CONVERT(varchar(20), f.FolioId) AS id,
+                    CONVERT(varchar(30), CAST(f.RowVer AS varbinary(8)), 1) AS [version],
+                    f.Code AS code,
+                    CONVERT(varchar(20), f.BookingId) AS bookingId,
+                    CONVERT(varchar(20), f.BookingRoomId) AS bookingRoomId,
+                    f.Kind AS kind,
+                    f.Status AS [status],
+                    CONVERT(varchar(20), f.PayerCustomerId) AS payerCustomerId,
+                    CONVERT(varchar(20), f.PayerOrganizationId) AS payerOrganizationId,
+                    FORMAT(f.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(38), CAST(ISNULL(s.chargesVnd, 0) AS bigint)) AS chargesVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.creditsVnd, 0) AS bigint)) AS creditsVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.paymentsVnd, 0) AS bigint)) AS paymentsVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.refundsVnd, 0) AS bigint)) AS refundsVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.depositAppliedVnd, 0) AS bigint)) AS depositAppliedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.depositUnappliedVnd, 0) AS bigint)) AS depositUnappliedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.transferInVnd, 0) AS bigint)) AS transferInVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.transferOutVnd, 0) AS bigint)) AS transferOutVnd
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS totals,
+                    CONVERT(varchar(38), CAST((ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) AS bigint)) AS balanceVnd,
+                    CONVERT(varchar(38), CAST(CASE WHEN (ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) > 0
+                        THEN (ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) ELSE 0 END AS bigint)) AS dueVnd,
+                    CONVERT(varchar(38), CAST(CASE WHEN (ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) < 0
+                        THEN -(ISNULL(s.chargesVnd, 0) - ISNULL(s.creditsVnd, 0) - ISNULL(s.paymentsVnd, 0) + ISNULL(s.refundsVnd, 0)
+                        - ISNULL(s.depositAppliedVnd, 0) + ISNULL(s.depositUnappliedVnd, 0) + ISNULL(s.transferInVnd, 0) - ISNULL(s.transferOutVnd, 0)) ELSE 0 END AS bigint)) AS creditVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(r.reservedVnd, 0) AS bigint)) AS reservedRefundVnd
+                FROM pms.Folio f
+                LEFT JOIN FSummary s ON s.FolioId = f.FolioId
+                LEFT JOIN FReserved r ON r.FolioId = f.FolioId
+                WHERE f.FolioId = @folioTargetId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1)
+                        id, [version], code, bookingId, bookingRoomId, kind, [status],
+                        payerCustomerId, payerOrganizationId, closedAtUtc, totals,
+                        balanceVnd, dueVnd, creditVnd, reservedRefundVnd
+                    FROM FBase
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'folios' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'entries'
+        BEGIN
+            DECLARE @eFolioId bigint = TRY_CAST(@id AS bigint);
+            DECLARE @eTotal bigint = (SELECT COUNT_BIG(*) FROM pms.FolioEntry WHERE FolioId = @eFolioId);
+
+            SELECT
+                @rowsJson = (
+                    SELECT
+                        CONVERT(varchar(20), FolioEntryId) AS id,
+                        CONVERT(varchar(20), FolioId) AS folioId,
+                        CONVERT(varchar(20), StayId) AS stayId,
+                        Kind AS kind,
+                        Category AS category,
+                        CONVERT(varchar(38), CAST(AmountVnd AS bigint)) AS amountVnd,
+                        CONVERT(varchar(38), CAST(SignedAmountVnd AS bigint)) AS signedAmountVnd,
+                        Description AS [description],
+                        CONVERT(varchar(10), BusinessDate, 23) AS businessDate,
+                        CONVERT(varchar(20), CreatedBy) AS createdById,
+                        FORMAT(CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS createdAtUtc,
+                        CONVERT(varchar(20), PaymentId) AS paymentId,
+                        CONVERT(varchar(20), DepositMovementId) AS depositMovementId,
+                        CONVERT(varchar(20), ServiceOrderLineId) AS serviceOrderLineId,
+                        CONVERT(varchar(20), ReversesEntryId) AS reversesEntryId,
+                        CONVERT(varchar(36), TransferPairId) AS transferPairId
+                    FROM pms.FolioEntry
+                    WHERE FolioId = @eFolioId
+                    ORDER BY FolioEntryId
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), @eTotal) AS total,
+                           CAST(CASE WHEN @offset + @limit < @eTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'folios' AS resource,
+                    'entries' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- DEPOSIT ACCOUNTS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'deposits'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH DSummary AS (
+                SELECT
+                    DepositAccountId,
+                    ISNULL(SUM(CASE WHEN Kind = 'RECEIVE' THEN AmountVnd ELSE 0 END), 0) AS receivedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'REFUND' THEN AmountVnd ELSE 0 END), 0) AS refundedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'APPLY' THEN AmountVnd ELSE 0 END), 0) AS appliedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'UNAPPLY' THEN AmountVnd ELSE 0 END), 0) AS unappliedVnd,
+                    0 AS allocatedInVnd,
+                    0 AS allocatedOutVnd
+                FROM pms.DepositMovement
+                GROUP BY DepositAccountId
+            ),
+            DReserved AS (
+                SELECT DepositAccountId, ISNULL(SUM(AmountVnd), 0) AS reservedVnd
+                FROM pms.RefundRequest
+                WHERE Status IN ('PENDING', 'APPROVED') AND DepositAccountId IS NOT NULL
+                GROUP BY DepositAccountId
+            ),
+            DBase AS (
+                SELECT
+                    da.DepositAccountId,
+                    CONVERT(varchar(20), da.DepositAccountId) AS id,
+                    CONVERT(varchar(20), da.BookingId) AS bookingId,
+                    CONVERT(varchar(20), da.BookingRoomId) AS bookingRoomId,
+                    da.Kind AS kind,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                        CONVERT(varchar(20), da.DepositAccountId) + ':' + CONVERT(varchar(38), ISNULL(s.receivedVnd, 0)) + ':' + CONVERT(varchar(38), ISNULL(s.appliedVnd, 0))), 2)) AS stateToken,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(38), CAST(ISNULL(s.receivedVnd, 0) AS bigint)) AS receivedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.refundedVnd, 0) AS bigint)) AS refundedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.appliedVnd, 0) AS bigint)) AS appliedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.unappliedVnd, 0) AS bigint)) AS unappliedVnd,
+                            '0' AS allocatedInVnd,
+                            '0' AS allocatedOutVnd
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS totals,
+                    CONVERT(varchar(38), CAST((ISNULL(s.receivedVnd, 0) + ISNULL(s.unappliedVnd, 0) - ISNULL(s.appliedVnd, 0) - ISNULL(s.refundedVnd, 0)) AS bigint)) AS balanceVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(r.reservedVnd, 0) AS bigint)) AS reservedRefundVnd,
+                    CONVERT(varchar(38), CAST((ISNULL(s.receivedVnd, 0) + ISNULL(s.unappliedVnd, 0) - ISNULL(s.appliedVnd, 0) - ISNULL(s.refundedVnd, 0) - ISNULL(r.reservedVnd, 0)) AS bigint)) AS availableVnd
+                FROM pms.DepositAccount da
+                LEFT JOIN DSummary s ON s.DepositAccountId = da.DepositAccountId
+                LEFT JOIN DReserved r ON r.DepositAccountId = da.DepositAccountId
+                WHERE (@bookingId IS NULL OR da.BookingId = TRY_CAST(@bookingId AS bigint))
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT id, bookingId, bookingRoomId, kind, stateToken, totals,
+                           balanceVnd, reservedRefundVnd, availableVnd
+                    FROM DBase
+                    ORDER BY DepositAccountId
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM DBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM DBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'deposits' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @depTargetId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH DSummary AS (
+                SELECT
+                    DepositAccountId,
+                    ISNULL(SUM(CASE WHEN Kind = 'RECEIVE' THEN AmountVnd ELSE 0 END), 0) AS receivedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'REFUND' THEN AmountVnd ELSE 0 END), 0) AS refundedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'APPLY' THEN AmountVnd ELSE 0 END), 0) AS appliedVnd,
+                    ISNULL(SUM(CASE WHEN Kind = 'UNAPPLY' THEN AmountVnd ELSE 0 END), 0) AS unappliedVnd,
+                    0 AS allocatedInVnd,
+                    0 AS allocatedOutVnd
+                FROM pms.DepositMovement
+                WHERE DepositAccountId = @depTargetId
+                GROUP BY DepositAccountId
+            ),
+            DReserved AS (
+                SELECT DepositAccountId, ISNULL(SUM(AmountVnd), 0) AS reservedVnd
+                FROM pms.RefundRequest
+                WHERE Status IN ('PENDING', 'APPROVED') AND DepositAccountId = @depTargetId
+                GROUP BY DepositAccountId
+            ),
+            DBase AS (
+                SELECT
+                    da.DepositAccountId,
+                    CONVERT(varchar(20), da.DepositAccountId) AS id,
+                    CONVERT(varchar(20), da.BookingId) AS bookingId,
+                    CONVERT(varchar(20), da.BookingRoomId) AS bookingRoomId,
+                    da.Kind AS kind,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                        CONVERT(varchar(20), da.DepositAccountId) + ':' + CONVERT(varchar(38), ISNULL(s.receivedVnd, 0)) + ':' + CONVERT(varchar(38), ISNULL(s.appliedVnd, 0))), 2)) AS stateToken,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(38), CAST(ISNULL(s.receivedVnd, 0) AS bigint)) AS receivedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.refundedVnd, 0) AS bigint)) AS refundedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.appliedVnd, 0) AS bigint)) AS appliedVnd,
+                            CONVERT(varchar(38), CAST(ISNULL(s.unappliedVnd, 0) AS bigint)) AS unappliedVnd,
+                            '0' AS allocatedInVnd,
+                            '0' AS allocatedOutVnd
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS totals,
+                    CONVERT(varchar(38), CAST((ISNULL(s.receivedVnd, 0) + ISNULL(s.unappliedVnd, 0) - ISNULL(s.appliedVnd, 0) - ISNULL(s.refundedVnd, 0)) AS bigint)) AS balanceVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(r.reservedVnd, 0) AS bigint)) AS reservedRefundVnd,
+                    CONVERT(varchar(38), CAST((ISNULL(s.receivedVnd, 0) + ISNULL(s.unappliedVnd, 0) - ISNULL(s.appliedVnd, 0) - ISNULL(s.refundedVnd, 0) - ISNULL(r.reservedVnd, 0)) AS bigint)) AS availableVnd
+                FROM pms.DepositAccount da
+                LEFT JOIN DSummary s ON s.DepositAccountId = da.DepositAccountId
+                LEFT JOIN DReserved r ON r.DepositAccountId = da.DepositAccountId
+                WHERE da.DepositAccountId = @depTargetId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1)
+                        id, bookingId, bookingRoomId, kind, stateToken, totals,
+                        balanceVnd, reservedRefundVnd, availableVnd
+                    FROM DBase
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'deposits' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'movements'
+        BEGIN
+            DECLARE @mDepId bigint = TRY_CAST(@id AS bigint);
+            DECLARE @mTotal bigint = (SELECT COUNT_BIG(*) FROM pms.DepositMovement WHERE DepositAccountId = @mDepId);
+
+            SELECT
+                @rowsJson = (
+                    SELECT
+                        CONVERT(varchar(20), DepositMovementId) AS id,
+                        CONVERT(varchar(20), DepositAccountId) AS depositAccountId,
+                        Kind AS kind,
+                        CONVERT(varchar(38), CAST(AmountVnd AS bigint)) AS amountVnd,
+                        CONVERT(varchar(20), PaymentId) AS paymentId,
+                        CONVERT(varchar(20), ReversesMovementId) AS reversesMovementId,
+                        CONVERT(varchar(10), BusinessDate, 23) AS businessDate,
+                        CONVERT(varchar(20), CreatedBy) AS createdById,
+                        FORMAT(CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS createdAtUtc
+                    FROM pms.DepositMovement
+                    WHERE DepositAccountId = @mDepId
+                    ORDER BY DepositMovementId
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), @mTotal) AS total,
+                           CAST(CASE WHEN @offset + @limit < @mTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'deposits' AS resource,
+                    'movements' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- PAYMENTS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'payments'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH PBase AS (
+                SELECT
+                    PaymentId,
+                    CONVERT(varchar(20), PaymentId) AS id,
+                    Code AS code,
+                    CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), BookingId) AS bookingId,
+                    Direction AS direction,
+                    Purpose AS purpose,
+                    Method AS method,
+                    Status AS [status],
+                    CONVERT(varchar(38), CAST(AmountVnd AS bigint)) AS amountVnd,
+                    CONVERT(varchar(20), OriginalPaymentId) AS originalPaymentId,
+                    CONVERT(varchar(20), RefundRequestId) AS refundRequestId,
+                    CONVERT(varchar(20), RecordedBy) AS recordedById,
+                    CONVERT(varchar(20), ShiftId) AS shiftId,
+                    CONVERT(varchar(10), BusinessDate, 23) AS businessDate,
+                    FORMAT(CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS createdAtUtc,
+                    FORMAT(SucceededAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS succeededAtUtc
+                FROM pms.Payment
+                WHERE (@bookingId IS NULL OR BookingId = TRY_CAST(@bookingId AS bigint))
+                  AND (@shiftIdFilter IS NULL OR ShiftId = TRY_CAST(@shiftIdFilter AS bigint))
+                  AND (@bDateFilter IS NULL OR BusinessDate = TRY_CAST(@bDateFilter AS date))
+                  AND (@statusFilter IS NULL OR Status = @statusFilter)
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT * FROM PBase
+                    ORDER BY PaymentId DESC
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM PBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM PBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'payments' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @payTargetId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH PBase AS (
+                SELECT
+                    PaymentId,
+                    CONVERT(varchar(20), PaymentId) AS id,
+                    Code AS code,
+                    CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), BookingId) AS bookingId,
+                    Direction AS direction,
+                    Purpose AS purpose,
+                    Method AS method,
+                    Status AS [status],
+                    CONVERT(varchar(38), CAST(AmountVnd AS bigint)) AS amountVnd,
+                    CONVERT(varchar(20), OriginalPaymentId) AS originalPaymentId,
+                    CONVERT(varchar(20), RefundRequestId) AS refundRequestId,
+                    CONVERT(varchar(20), RecordedBy) AS recordedById,
+                    CONVERT(varchar(20), ShiftId) AS shiftId,
+                    CONVERT(varchar(10), BusinessDate, 23) AS businessDate,
+                    FORMAT(CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS createdAtUtc,
+                    FORMAT(SucceededAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS succeededAtUtc
+                FROM pms.Payment
+                WHERE PaymentId = @payTargetId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1) * FROM PBase FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'payments' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- REFUNDS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'refunds'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH RBase AS (
+                SELECT
+                    RefundRequestId,
+                    CONVERT(varchar(20), RefundRequestId) AS id,
+                    CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), OriginalPaymentId) AS originalPaymentId,
+                    CONVERT(varchar(20), FolioId) AS folioId,
+                    CONVERT(varchar(20), DepositAccountId) AS depositAccountId,
+                    CONVERT(varchar(38), CAST(AmountVnd AS bigint)) AS amountVnd,
+                    Status AS [status],
+                    Reason AS reason,
+                    CONVERT(varchar(20), RequestedBy) AS requestedById,
+                    FORMAT(RequestedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS requestedAtUtc,
+                    CONVERT(varchar(20), ApprovedBy) AS approvedById,
+                    FORMAT(ApprovedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS approvedAtUtc,
+                    CONVERT(varchar(20), RefundPaymentId) AS refundPaymentId
+                FROM pms.RefundRequest
+                WHERE (@statusFilter IS NULL OR Status = @statusFilter)
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT * FROM RBase
+                    ORDER BY RefundRequestId DESC
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM RBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM RBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'refunds' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @refTargetId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH RBase AS (
+                SELECT
+                    RefundRequestId,
+                    CONVERT(varchar(20), RefundRequestId) AS id,
+                    CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), OriginalPaymentId) AS originalPaymentId,
+                    CONVERT(varchar(20), FolioId) AS folioId,
+                    CONVERT(varchar(20), DepositAccountId) AS depositAccountId,
+                    CONVERT(varchar(38), CAST(AmountVnd AS bigint)) AS amountVnd,
+                    Status AS [status],
+                    Reason AS reason,
+                    CONVERT(varchar(20), RequestedBy) AS requestedById,
+                    FORMAT(RequestedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS requestedAtUtc,
+                    CONVERT(varchar(20), ApprovedBy) AS approvedById,
+                    FORMAT(ApprovedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS approvedAtUtc,
+                    CONVERT(varchar(20), RefundPaymentId) AS refundPaymentId
+                FROM pms.RefundRequest
+                WHERE RefundRequestId = @refTargetId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1) * FROM RBase FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'refunds' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- CASHIER SHIFTS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'cashier'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH SSummary AS (
+                SELECT
+                    ShiftId,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashOutVnd,
+                    COUNT(CASE WHEN Status = 'PENDING' THEN 1 END) AS pendingCount
+                FROM pms.Payment
+                GROUP BY ShiftId
+            ),
+            SBase AS (
+                SELECT
+                    cs.ShiftId,
+                    CONVERT(varchar(20), cs.ShiftId) AS id,
+                    CONVERT(varchar(30), CAST(cs.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), cs.CashierId) AS cashierId,
+                    CONVERT(varchar(10), cs.BusinessDate, 23) AS businessDate,
+                    CASE WHEN cs.ClosedAtUtc IS NULL THEN 'OPEN' ELSE 'CLOSED' END AS [status],
+                    FORMAT(cs.OpenedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS openedAtUtc,
+                    FORMAT(cs.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    CONVERT(varchar(38), CAST(cs.OpeningCashVnd AS bigint)) AS openingCashVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(sm.cashInVnd, 0) AS bigint)) AS cashInVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(sm.cashOutVnd, 0) AS bigint)) AS cashOutVnd,
+                    CONVERT(varchar(38), CAST(cs.OpeningCashVnd + ISNULL(sm.cashInVnd, 0) - ISNULL(sm.cashOutVnd, 0) AS bigint)) AS expectedCashVnd,
+                    CASE WHEN cs.CountedCashVnd IS NOT NULL THEN CONVERT(varchar(38), CAST(cs.CountedCashVnd AS bigint)) ELSE NULL END AS countedCashVnd,
+                    CASE WHEN cs.ClosedAtUtc IS NOT NULL AND cs.CountedCashVnd IS NOT NULL THEN
+                        CONVERT(varchar(38), CAST(cs.CountedCashVnd - (cs.OpeningCashVnd + ISNULL(sm.cashInVnd, 0) - ISNULL(sm.cashOutVnd, 0)) AS bigint))
+                    ELSE NULL END AS varianceVnd,
+                    ISNULL(sm.pendingCount, 0) AS pendingPaymentCount,
+                    cs.Notes AS notes
+                FROM pms.CashierShift cs
+                LEFT JOIN SSummary sm ON sm.ShiftId = cs.ShiftId
+                WHERE (@bDateFilter IS NULL OR cs.BusinessDate = TRY_CAST(@bDateFilter AS date))
+                  AND (@statusFilter IS NULL 
+                       OR (@statusFilter = 'OPEN' AND cs.ClosedAtUtc IS NULL)
+                       OR (@statusFilter = 'CLOSED' AND cs.ClosedAtUtc IS NOT NULL))
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT * FROM SBase
+                    ORDER BY ShiftId DESC
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM SBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM SBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'cashier' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @shiftTargetId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH SSummary AS (
+                SELECT
+                    ShiftId,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashOutVnd,
+                    COUNT(CASE WHEN Status = 'PENDING' THEN 1 END) AS pendingCount
+                FROM pms.Payment
+                WHERE ShiftId = @shiftTargetId
+                GROUP BY ShiftId
+            ),
+            SBase AS (
+                SELECT
+                    cs.ShiftId,
+                    CONVERT(varchar(20), cs.ShiftId) AS id,
+                    CONVERT(varchar(30), CAST(cs.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), cs.CashierId) AS cashierId,
+                    CONVERT(varchar(10), cs.BusinessDate, 23) AS businessDate,
+                    CASE WHEN cs.ClosedAtUtc IS NULL THEN 'OPEN' ELSE 'CLOSED' END AS [status],
+                    FORMAT(cs.OpenedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS openedAtUtc,
+                    FORMAT(cs.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    CONVERT(varchar(38), CAST(cs.OpeningCashVnd AS bigint)) AS openingCashVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(sm.cashInVnd, 0) AS bigint)) AS cashInVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(sm.cashOutVnd, 0) AS bigint)) AS cashOutVnd,
+                    CONVERT(varchar(38), CAST(cs.OpeningCashVnd + ISNULL(sm.cashInVnd, 0) - ISNULL(sm.cashOutVnd, 0) AS bigint)) AS expectedCashVnd,
+                    CASE WHEN cs.CountedCashVnd IS NOT NULL THEN CONVERT(varchar(38), CAST(cs.CountedCashVnd AS bigint)) ELSE NULL END AS countedCashVnd,
+                    CASE WHEN cs.ClosedAtUtc IS NOT NULL AND cs.CountedCashVnd IS NOT NULL THEN
+                        CONVERT(varchar(38), CAST(cs.CountedCashVnd - (cs.OpeningCashVnd + ISNULL(sm.cashInVnd, 0) - ISNULL(sm.cashOutVnd, 0)) AS bigint))
+                    ELSE NULL END AS varianceVnd,
+                    ISNULL(sm.pendingCount, 0) AS pendingPaymentCount,
+                    cs.Notes AS notes
+                FROM pms.CashierShift cs
+                LEFT JOIN SSummary sm ON sm.ShiftId = cs.ShiftId
+                WHERE cs.ShiftId = @shiftTargetId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1) * FROM SBase FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'cashier' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'preview'
+        BEGIN
+            DECLARE @prevShiftId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH SSummary AS (
+                SELECT
+                    ShiftId,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashOutVnd,
+                    COUNT(CASE WHEN Status = 'PENDING' THEN 1 END) AS pendingCount
+                FROM pms.Payment
+                WHERE ShiftId = @prevShiftId
+                GROUP BY ShiftId
+            ),
+            SBase AS (
+                SELECT
+                    cs.ShiftId,
+                    CONVERT(varchar(20), cs.ShiftId) AS id,
+                    CONVERT(varchar(30), CAST(cs.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), cs.CashierId) AS cashierId,
+                    CONVERT(varchar(10), cs.BusinessDate, 23) AS businessDate,
+                    CASE WHEN cs.ClosedAtUtc IS NULL THEN 'OPEN' ELSE 'CLOSED' END AS [status],
+                    FORMAT(cs.OpenedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS openedAtUtc,
+                    FORMAT(cs.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    CONVERT(varchar(38), CAST(cs.OpeningCashVnd AS bigint)) AS openingCashVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(sm.cashInVnd, 0) AS bigint)) AS cashInVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(sm.cashOutVnd, 0) AS bigint)) AS cashOutVnd,
+                    CONVERT(varchar(38), CAST(cs.OpeningCashVnd + ISNULL(sm.cashInVnd, 0) - ISNULL(sm.cashOutVnd, 0) AS bigint)) AS expectedCashVnd,
+                    CASE WHEN cs.CountedCashVnd IS NOT NULL THEN CONVERT(varchar(38), CAST(cs.CountedCashVnd AS bigint)) ELSE NULL END AS countedCashVnd,
+                    CASE WHEN cs.ClosedAtUtc IS NOT NULL AND cs.CountedCashVnd IS NOT NULL THEN
+                        CONVERT(varchar(38), CAST(cs.CountedCashVnd - (cs.OpeningCashVnd + ISNULL(sm.cashInVnd, 0) - ISNULL(sm.cashOutVnd, 0)) AS bigint))
+                    ELSE NULL END AS varianceVnd,
+                    ISNULL(sm.pendingCount, 0) AS pendingPaymentCount,
+                    cs.Notes AS notes
+                FROM pms.CashierShift cs
+                LEFT JOIN SSummary sm ON sm.ShiftId = cs.ShiftId
+                WHERE cs.ShiftId = @prevShiftId
+            )
+            SELECT
+                @previewJson = (
+                    SELECT TOP (1)
+                        'cashier' AS resource,
+                        id AS subjectId,
+                        LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', id + ':preview:' + [version]), 2)) AS previewToken,
+                        JSON_VALUE(@InputJson, '$.contextToken') AS contextToken,
+                        [version] AS expectedVersion,
+                        LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(@InputJson AS varchar(8000))), 2)) AS planDigest,
+                        @validUntilIso AS expiresAtUtc,
+                        businessDate,
+                        @timeZone AS timeZone,
+                        @cutoffLocalTime AS cutoffLocalTime,
+                        @policyRef AS policyReference,
+                        JSON_QUERY('[]') AS blockers,
+                        CAST(1 AS bit) AS canComplete,
+                        JSON_QUERY((SELECT * FROM SBase s2 WHERE s2.ShiftId = SBase.ShiftId FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS shift,
+                        COALESCE(JSON_VALUE(@InputJson, '$.countedCashVnd'), expectedCashVnd) AS countedCashVnd,
+                        CONVERT(varchar(38), CAST(TRY_CAST(COALESCE(JSON_VALUE(@InputJson, '$.countedCashVnd'), expectedCashVnd) AS bigint) - TRY_CAST(expectedCashVnd AS bigint) AS bigint)) AS varianceVnd
+                    FROM SBase
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'cashier' AS resource,
+                    'preview' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@previewJson) AS preview
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- BUSINESS DAYS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'days'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH DaySummary AS (
+                SELECT
+                    BusinessDate,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' THEN AmountVnd ELSE 0 END), 0) AS pInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' THEN AmountVnd ELSE 0 END), 0) AS pOutVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashOutVnd
+                FROM pms.Payment
+                GROUP BY BusinessDate
+            ),
+            DaySettlement AS (
+                SELECT BusinessDate, ISNULL(SUM(TotalAmountVnd), 0) AS settledVnd
+                FROM pms.StaySettlement
+                GROUP BY BusinessDate
+            ),
+            DBase AS (
+                SELECT
+                    bd.BusinessDate AS rawDate,
+                    CONVERT(varchar(10), bd.BusinessDate, 23) AS id,
+                    CONVERT(varchar(30), CAST(bd.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(10), bd.BusinessDate, 23) AS businessDate,
+                    @timeZone AS timeZone,
+                    @cutoffLocalTime AS cutoffLocalTime,
+                    @policyRef AS policyReference,
+                    bd.Status AS [status],
+                    FORMAT(bd.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    CONVERT(varchar(20), bd.ClosedBy) AS closedById,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.CollectedVnd, ds.pInVnd, 0) AS bigint)) AS collectedVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.RefundedVnd, ds.pOutVnd, 0) AS bigint)) AS refundedVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.CollectedVnd, ds.pInVnd, 0) - COALESCE(bd.RefundedVnd, ds.pOutVnd, 0) AS bigint)) AS netReceiptsVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(ds.cashInVnd, 0) AS bigint)) AS cashInVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(ds.cashOutVnd, 0) AS bigint)) AS cashOutVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.SettledRevenueVnd, st.settledVnd, 0) AS bigint)) AS settledRevenueVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.OutstandingVnd, 0) AS bigint)) AS outstandingVnd
+                FROM pms.BusinessDay bd
+                LEFT JOIN DaySummary ds ON ds.BusinessDate = bd.BusinessDate
+                LEFT JOIN DaySettlement st ON st.BusinessDate = bd.BusinessDate
+                WHERE (@statusFilter IS NULL OR bd.Status = @statusFilter)
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT id, [version], businessDate, timeZone, cutoffLocalTime, policyReference,
+                           [status], closedAtUtc, closedById, collectedVnd, refundedVnd, netReceiptsVnd,
+                           cashInVnd, cashOutVnd, settledRevenueVnd, outstandingVnd
+                    FROM DBase
+                    ORDER BY rawDate DESC
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM DBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM DBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'days' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @dayTargetDate date = TRY_CAST(@id AS date);
+
+            ;WITH DaySummary AS (
+                SELECT
+                    BusinessDate,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' THEN AmountVnd ELSE 0 END), 0) AS pInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' THEN AmountVnd ELSE 0 END), 0) AS pOutVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashOutVnd
+                FROM pms.Payment
+                WHERE BusinessDate = @dayTargetDate
+                GROUP BY BusinessDate
+            ),
+            DaySettlement AS (
+                SELECT BusinessDate, ISNULL(SUM(TotalAmountVnd), 0) AS settledVnd
+                FROM pms.StaySettlement
+                WHERE BusinessDate = @dayTargetDate
+                GROUP BY BusinessDate
+            ),
+            DBase AS (
+                SELECT
+                    bd.BusinessDate AS rawDate,
+                    CONVERT(varchar(10), bd.BusinessDate, 23) AS id,
+                    CONVERT(varchar(30), CAST(bd.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(10), bd.BusinessDate, 23) AS businessDate,
+                    @timeZone AS timeZone,
+                    @cutoffLocalTime AS cutoffLocalTime,
+                    @policyRef AS policyReference,
+                    bd.Status AS [status],
+                    FORMAT(bd.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    CONVERT(varchar(20), bd.ClosedBy) AS closedById,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.CollectedVnd, ds.pInVnd, 0) AS bigint)) AS collectedVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.RefundedVnd, ds.pOutVnd, 0) AS bigint)) AS refundedVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.CollectedVnd, ds.pInVnd, 0) - COALESCE(bd.RefundedVnd, ds.pOutVnd, 0) AS bigint)) AS netReceiptsVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(ds.cashInVnd, 0) AS bigint)) AS cashInVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(ds.cashOutVnd, 0) AS bigint)) AS cashOutVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.SettledRevenueVnd, st.settledVnd, 0) AS bigint)) AS settledRevenueVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.OutstandingVnd, 0) AS bigint)) AS outstandingVnd
+                FROM pms.BusinessDay bd
+                LEFT JOIN DaySummary ds ON ds.BusinessDate = bd.BusinessDate
+                LEFT JOIN DaySettlement st ON st.BusinessDate = bd.BusinessDate
+                WHERE bd.BusinessDate = @dayTargetDate
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1)
+                        id, [version], businessDate, timeZone, cutoffLocalTime, policyReference,
+                        [status], closedAtUtc, closedById, collectedVnd, refundedVnd, netReceiptsVnd,
+                        cashInVnd, cashOutVnd, settledRevenueVnd, outstandingVnd
+                    FROM DBase
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'days' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'preview'
+        BEGIN
+            DECLARE @prevDayDate date = TRY_CAST(@id AS date);
+
+            ;WITH DaySummary AS (
+                SELECT
+                    BusinessDate,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' THEN AmountVnd ELSE 0 END), 0) AS pInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' THEN AmountVnd ELSE 0 END), 0) AS pOutVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashInVnd,
+                    ISNULL(SUM(CASE WHEN Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH' THEN AmountVnd ELSE 0 END), 0) AS cashOutVnd
+                FROM pms.Payment
+                WHERE BusinessDate = @prevDayDate
+                GROUP BY BusinessDate
+            ),
+            DaySettlement AS (
+                SELECT BusinessDate, ISNULL(SUM(TotalAmountVnd), 0) AS settledVnd
+                FROM pms.StaySettlement
+                WHERE BusinessDate = @prevDayDate
+                GROUP BY BusinessDate
+            ),
+            DBase AS (
+                SELECT
+                    bd.BusinessDate AS rawDate,
+                    CONVERT(varchar(10), bd.BusinessDate, 23) AS id,
+                    CONVERT(varchar(30), CAST(bd.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(10), bd.BusinessDate, 23) AS businessDate,
+                    @timeZone AS timeZone,
+                    @cutoffLocalTime AS cutoffLocalTime,
+                    @policyRef AS policyReference,
+                    bd.Status AS [status],
+                    FORMAT(bd.ClosedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS closedAtUtc,
+                    CONVERT(varchar(20), bd.ClosedBy) AS closedById,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.CollectedVnd, ds.pInVnd, 0) AS bigint)) AS collectedVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.RefundedVnd, ds.pOutVnd, 0) AS bigint)) AS refundedVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.CollectedVnd, ds.pInVnd, 0) - COALESCE(bd.RefundedVnd, ds.pOutVnd, 0) AS bigint)) AS netReceiptsVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(ds.cashInVnd, 0) AS bigint)) AS cashInVnd,
+                    CONVERT(varchar(38), CAST(ISNULL(ds.cashOutVnd, 0) AS bigint)) AS cashOutVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.SettledRevenueVnd, st.settledVnd, 0) AS bigint)) AS settledRevenueVnd,
+                    CONVERT(varchar(38), CAST(COALESCE(bd.OutstandingVnd, 0) AS bigint)) AS outstandingVnd
+                FROM pms.BusinessDay bd
+                LEFT JOIN DaySummary ds ON ds.BusinessDate = bd.BusinessDate
+                LEFT JOIN DaySettlement st ON st.BusinessDate = bd.BusinessDate
+                WHERE bd.BusinessDate = @prevDayDate
+            )
+            SELECT
+                @previewJson = (
+                    SELECT TOP (1)
+                        'days' AS resource,
+                        id AS subjectId,
+                        LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', id + ':preview:' + [version]), 2)) AS previewToken,
+                        JSON_VALUE(@InputJson, '$.contextToken') AS contextToken,
+                        [version] AS expectedVersion,
+                        LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(@InputJson AS varchar(8000))), 2)) AS planDigest,
+                        @validUntilIso AS expiresAtUtc,
+                        businessDate,
+                        timeZone,
+                        cutoffLocalTime,
+                        policyReference,
+                        JSON_QUERY('[]') AS blockers,
+                        CAST(1 AS bit) AS canComplete,
+                        JSON_QUERY((
+                            SELECT id, [version], businessDate, timeZone, cutoffLocalTime, policyReference,
+                                   [status], closedAtUtc, closedById, collectedVnd, refundedVnd, netReceiptsVnd,
+                                   cashInVnd, cashOutVnd, settledRevenueVnd, outstandingVnd
+                            FROM DBase d2
+                            WHERE d2.rawDate = DBase.rawDate
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS day,
+                        CONVERT(varchar(10), DATEADD(day, 1, rawDate), 23) AS nextBusinessDate
+                    FROM DBase
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'days' AS resource,
+                    'preview' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@previewJson) AS preview
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- INVOICES RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'invoices'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH IBase AS (
+                SELECT
+                    InvoiceId,
+                    CONVERT(varchar(20), InvoiceId) AS id,
+                    CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), FolioId) AS folioId,
+                    InternalNumber AS internalNumber,
+                    DocumentKind AS documentKind,
+                    'PAYMENT' AS sourceType,
+                    CONVERT(varchar(20), ISNULL(AdjustsInvoiceId, 1)) AS sourceId,
+                    Status AS [status],
+                    BuyerName AS buyerName,
+                    CONVERT(varchar(38), CAST(NetVnd AS bigint)) AS netVnd,
+                    CONVERT(varchar(38), CAST(TaxVnd AS bigint)) AS taxVnd,
+                    CONVERT(varchar(38), CAST(TotalVnd AS bigint)) AS totalVnd,
+                    FORMAT(IssuedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS issuedAtUtc,
+                    CONVERT(varchar(20), CreatedBy) AS createdById,
+                    'NOT_INTEGRATED' AS eInvoiceStatus
+                FROM pms.Invoice
+                WHERE (@statusFilter IS NULL OR Status = @statusFilter)
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT * FROM IBase
+                    ORDER BY InvoiceId DESC
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM IBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM IBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'invoices' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @invTargetId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH IBase AS (
+                SELECT
+                    InvoiceId,
+                    CONVERT(varchar(20), InvoiceId) AS id,
+                    CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), FolioId) AS folioId,
+                    InternalNumber AS internalNumber,
+                    DocumentKind AS documentKind,
+                    'PAYMENT' AS sourceType,
+                    CONVERT(varchar(20), ISNULL(AdjustsInvoiceId, 1)) AS sourceId,
+                    Status AS [status],
+                    BuyerName AS buyerName,
+                    CONVERT(varchar(38), CAST(NetVnd AS bigint)) AS netVnd,
+                    CONVERT(varchar(38), CAST(TaxVnd AS bigint)) AS taxVnd,
+                    CONVERT(varchar(38), CAST(TotalVnd AS bigint)) AS totalVnd,
+                    FORMAT(IssuedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS issuedAtUtc,
+                    CONVERT(varchar(20), CreatedBy) AS createdById,
+                    'NOT_INTEGRATED' AS eInvoiceStatus
+                FROM pms.Invoice
+                WHERE InvoiceId = @invTargetId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1) * FROM IBase FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'invoices' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    ---------------------------------------------------------------------------
+    -- CHECKOUTS RESOURCE
+    ---------------------------------------------------------------------------
+    IF @Resource = 'checkouts'
+    BEGIN
+        IF @Operation = 'list'
+        BEGIN
+            ;WITH StaysBase AS (
+                SELECT
+                    s.StayId,
+                    CONVERT(varchar(20), s.StayId) AS id,
+                    CONVERT(varchar(30), CAST(s.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), br.BookingId) AS bookingId,
+                    CONVERT(varchar(20), s.BookingRoomId) AS bookingRoomId,
+                    CASE WHEN s.CheckedOutAtUtc IS NULL THEN 'IN_HOUSE' ELSE 'CHECKED_OUT' END AS [status],
+                    CONVERT(varchar(20), seg.RoomId) AS roomId,
+                    CONVERT(varchar(20), f.FolioId) AS folioId,
+                    FORMAT(s.CheckedOutAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS checkedOutAtUtc,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(38), ISNULL(sm.roomVnd, 0)) AS roomVnd,
+                            CONVERT(varchar(38), ISNULL(sm.servVnd, 0)) AS serviceVnd,
+                            CONVERT(varchar(38), ISNULL(sm.miniVnd, 0)) AS minibarVnd,
+                            CONVERT(varchar(38), ISNULL(sm.surVnd, 0)) AS surchargeVnd,
+                            CONVERT(varchar(38), ISNULL(sm.discVnd, 0)) AS discountVnd,
+                            CONVERT(varchar(38), ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0)) AS chargesVnd,
+                            CONVERT(varchar(38), ISNULL(sm.depApplied, 0)) AS depositAppliedVnd,
+                            CONVERT(varchar(38), ISNULL(sm.pmtsTotal, 0)) AS paymentsVnd,
+                            CONVERT(varchar(38), ISNULL(sm.refsTotal, 0)) AS refundsVnd,
+                            CONVERT(varchar(38), ISNULL(sm.trInTotal, 0)) AS transferInVnd,
+                            CONVERT(varchar(38), ISNULL(sm.trOutTotal, 0)) AS transferOutVnd,
+                            CONVERT(varchar(38), (ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) AS balanceVnd,
+                            CONVERT(varchar(38), CASE WHEN ((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) > 0
+                                THEN ((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) ELSE 0 END) AS dueVnd,
+                            CONVERT(varchar(38), CASE WHEN ((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) < 0
+                                THEN -((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) ELSE 0 END) AS creditVnd
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS summary
+                FROM pms.Stay s
+                JOIN pms.BookingRoom br ON br.BookingRoomId = s.BookingRoomId
+                LEFT JOIN pms.Folio f ON f.BookingRoomId = s.BookingRoomId
+                OUTER APPLY (
+                    SELECT TOP (1) RoomId FROM pms.StayRoomSegment WHERE StayId = s.StayId ORDER BY SegmentId DESC
+                ) seg
+                OUTER APPLY (
+                    SELECT
+                        ISNULL(SUM(CASE WHEN Category = 'ROOM' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS roomVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'SERVICE' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS servVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'MINIBAR' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS miniVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'SURCHARGE' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS surVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'DISCOUNT' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS discVnd,
+                        ISNULL(SUM(CASE WHEN Kind = 'DEPOSIT_APPLY' THEN AmountVnd ELSE 0 END), 0) AS depApplied,
+                        ISNULL(SUM(CASE WHEN Kind = 'PAYMENT' THEN AmountVnd ELSE 0 END), 0) AS pmtsTotal,
+                        ISNULL(SUM(CASE WHEN Kind = 'REFUND' THEN AmountVnd ELSE 0 END), 0) AS refsTotal,
+                        ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_DEBIT' THEN AmountVnd ELSE 0 END), 0) AS trInTotal,
+                        ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_CREDIT' THEN AmountVnd ELSE 0 END), 0) AS trOutTotal
+                    FROM pms.FolioEntry
+                    WHERE FolioId = f.FolioId
+                ) sm
+            )
+            SELECT
+                @rowsJson = (
+                    SELECT id, [version], bookingId, bookingRoomId, [status], roomId, folioId, checkedOutAtUtc, summary
+                    FROM StaysBase
+                    ORDER BY StayId DESC
+                    OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                ),
+                @pageJson = (
+                    SELECT @offset AS offset, @limit AS limit,
+                           CONVERT(varchar(30), (SELECT COUNT(*) FROM StaysBase)) AS total,
+                           CAST(CASE WHEN @offset + @limit < (SELECT COUNT(*) FROM StaysBase) THEN 1 ELSE 0 END AS bit) AS hasMore
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'checkouts' AS resource,
+                    'list' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(COALESCE(@rowsJson, '[]')) AS [rows],
+                    JSON_QUERY(@pageJson) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @stDetailId bigint = TRY_CAST(@id AS bigint);
+
+            ;WITH StaysBase AS (
+                SELECT
+                    s.StayId,
+                    CONVERT(varchar(20), s.StayId) AS id,
+                    CONVERT(varchar(30), CAST(s.RowVer AS varbinary(8)), 1) AS [version],
+                    CONVERT(varchar(20), br.BookingId) AS bookingId,
+                    CONVERT(varchar(20), s.BookingRoomId) AS bookingRoomId,
+                    CASE WHEN s.CheckedOutAtUtc IS NULL THEN 'IN_HOUSE' ELSE 'CHECKED_OUT' END AS [status],
+                    CONVERT(varchar(20), seg.RoomId) AS roomId,
+                    CONVERT(varchar(20), f.FolioId) AS folioId,
+                    FORMAT(s.CheckedOutAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS checkedOutAtUtc,
+                    JSON_QUERY((
+                        SELECT
+                            CONVERT(varchar(38), ISNULL(sm.roomVnd, 0)) AS roomVnd,
+                            CONVERT(varchar(38), ISNULL(sm.servVnd, 0)) AS serviceVnd,
+                            CONVERT(varchar(38), ISNULL(sm.miniVnd, 0)) AS minibarVnd,
+                            CONVERT(varchar(38), ISNULL(sm.surVnd, 0)) AS surchargeVnd,
+                            CONVERT(varchar(38), ISNULL(sm.discVnd, 0)) AS discountVnd,
+                            CONVERT(varchar(38), ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0)) AS chargesVnd,
+                            CONVERT(varchar(38), ISNULL(sm.depApplied, 0)) AS depositAppliedVnd,
+                            CONVERT(varchar(38), ISNULL(sm.pmtsTotal, 0)) AS paymentsVnd,
+                            CONVERT(varchar(38), ISNULL(sm.refsTotal, 0)) AS refundsVnd,
+                            CONVERT(varchar(38), ISNULL(sm.trInTotal, 0)) AS transferInVnd,
+                            CONVERT(varchar(38), ISNULL(sm.trOutTotal, 0)) AS transferOutVnd,
+                            CONVERT(varchar(38), (ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) AS balanceVnd,
+                            CONVERT(varchar(38), CASE WHEN ((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) > 0
+                                THEN ((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) ELSE 0 END) AS dueVnd,
+                            CONVERT(varchar(38), CASE WHEN ((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) < 0
+                                THEN -((ISNULL(sm.roomVnd, 0) + ISNULL(sm.servVnd, 0) + ISNULL(sm.miniVnd, 0) + ISNULL(sm.surVnd, 0) - ISNULL(sm.discVnd, 0))
+                                - ISNULL(sm.depApplied, 0) - ISNULL(sm.pmtsTotal, 0) + ISNULL(sm.refsTotal, 0) + ISNULL(sm.trInTotal, 0) - ISNULL(sm.trOutTotal, 0)) ELSE 0 END) AS creditVnd
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS summary
+                FROM pms.Stay s
+                JOIN pms.BookingRoom br ON br.BookingRoomId = s.BookingRoomId
+                LEFT JOIN pms.Folio f ON f.BookingRoomId = s.BookingRoomId
+                OUTER APPLY (
+                    SELECT TOP (1) RoomId FROM pms.StayRoomSegment WHERE StayId = s.StayId ORDER BY SegmentId DESC
+                ) seg
+                OUTER APPLY (
+                    SELECT
+                        ISNULL(SUM(CASE WHEN Category = 'ROOM' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS roomVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'SERVICE' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS servVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'MINIBAR' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS miniVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'SURCHARGE' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS surVnd,
+                        ISNULL(SUM(CASE WHEN Category = 'DISCOUNT' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0) AS discVnd,
+                        ISNULL(SUM(CASE WHEN Kind = 'DEPOSIT_APPLY' THEN AmountVnd ELSE 0 END), 0) AS depApplied,
+                        ISNULL(SUM(CASE WHEN Kind = 'PAYMENT' THEN AmountVnd ELSE 0 END), 0) AS pmtsTotal,
+                        ISNULL(SUM(CASE WHEN Kind = 'REFUND' THEN AmountVnd ELSE 0 END), 0) AS refsTotal,
+                        ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_DEBIT' THEN AmountVnd ELSE 0 END), 0) AS trInTotal,
+                        ISNULL(SUM(CASE WHEN Kind = 'TRANSFER_CREDIT' THEN AmountVnd ELSE 0 END), 0) AS trOutTotal
+                    FROM pms.FolioEntry
+                    WHERE FolioId = f.FolioId
+                ) sm
+                WHERE s.StayId = @stDetailId
+            )
+            SELECT
+                @rowJson = (
+                    SELECT TOP (1) id, [version], bookingId, bookingRoomId, [status], roomId, folioId, checkedOutAtUtc, summary
+                    FROM StaysBase
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'checkouts' AS resource,
+                    'detail' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@rowJson) AS [row]
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'preview'
+        BEGIN
+            DECLARE @stayId bigint = TRY_CAST(@id AS bigint);
+
+            -- Find stay, room folio, booking
+            DECLARE @stStayId bigint, @stVersion varchar(30), @stStatus varchar(20), @stBookingId bigint, @stRoomId bigint, @stFolioId bigint, @stBookingRoomId bigint;
+            SELECT
+                @stStayId = s.StayId,
+                @stVersion = CONVERT(varchar(30), CAST(s.RowVer AS varbinary(8)), 1),
+                @stStatus = CASE WHEN s.CheckedOutAtUtc IS NULL THEN 'IN_HOUSE' ELSE 'CHECKED_OUT' END,
+                @stBookingId = br.BookingId,
+                @stRoomId = seg.RoomId,
+                @stFolioId = f.FolioId,
+                @stBookingRoomId = s.BookingRoomId
+            FROM pms.Stay s
+            JOIN pms.BookingRoom br ON br.BookingRoomId = s.BookingRoomId
+            LEFT JOIN pms.Folio f ON f.BookingRoomId = s.BookingRoomId
+            OUTER APPLY (
+                SELECT TOP (1) RoomId FROM pms.StayRoomSegment WHERE StayId = s.StayId ORDER BY SegmentId DESC
+            ) seg
+            WHERE s.StayId = @stayId;
+
+            IF @stStayId IS NULL
+            BEGIN
+                THROW 50404, 'Không tìm thấy lượt lưu trú.', 1;
+            END;
+
+            -- Calculate Room Folio charges and totals
+            DECLARE @roomVnd bigint = 0, @servVnd bigint = 0, @miniVnd bigint = 0, @surVnd bigint = 0, @discVnd bigint = 0;
+            SELECT
+                @roomVnd = ISNULL(SUM(CASE WHEN Category = 'ROOM' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0),
+                @servVnd = ISNULL(SUM(CASE WHEN Category = 'SERVICE' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0),
+                @miniVnd = ISNULL(SUM(CASE WHEN Category = 'MINIBAR' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0),
+                @surVnd = ISNULL(SUM(CASE WHEN Category = 'SURCHARGE' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0),
+                @discVnd = ISNULL(SUM(CASE WHEN Category = 'DISCOUNT' AND Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0)
+            FROM pms.FolioEntry
+            WHERE FolioId = @stFolioId;
+
+            IF @roomVnd = 0 AND @servVnd = 0 AND @miniVnd = 0
+            BEGIN
+                SELECT @roomVnd = ISNULL(SUM(CASE WHEN Kind = 'CHARGE' THEN AmountVnd ELSE 0 END), 0)
+                FROM pms.FolioEntry WHERE FolioId = @stFolioId;
+            END;
+
+            DECLARE @chargesTotal bigint = @roomVnd + @servVnd + @miniVnd + @surVnd - @discVnd;
+            DECLARE @depApplied bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @stFolioId AND Kind = 'DEPOSIT_APPLY'), 0);
+            DECLARE @pmtsTotal bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @stFolioId AND Kind = 'PAYMENT'), 0);
+            DECLARE @refsTotal bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @stFolioId AND Kind = 'REFUND'), 0);
+            DECLARE @trInTotal bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @stFolioId AND Kind = 'TRANSFER_DEBIT'), 0);
+            DECLARE @trOutTotal bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @stFolioId AND Kind = 'TRANSFER_CREDIT'), 0);
+
+            DECLARE @curBalance bigint = @chargesTotal - @depApplied - @pmtsTotal + @refsTotal + @trInTotal - @trOutTotal;
+
+            -- Plan inputs
+            DECLARE @planCashReceipt bigint = COALESCE(TRY_CAST(JSON_VALUE(@InputJson, '$.cashReceipt.amountVnd') AS bigint), 0);
+            DECLARE @planDepositApply bigint = 0;
+            SELECT @planDepositApply = ISNULL(SUM(TRY_CAST(JSON_VALUE(value, '$.amountVnd') AS bigint)), 0)
+            FROM OPENJSON(JSON_QUERY(@InputJson, '$.depositApplications'));
+            DECLARE @planTransferToMaster bigint = COALESCE(TRY_CAST(JSON_VALUE(@InputJson, '$.transferToMaster.amountVnd') AS bigint), 0);
+
+            -- After calculation
+            DECLARE @afterDepApplied bigint = @depApplied + @planDepositApply;
+            DECLARE @afterPmts bigint = @pmtsTotal + @planCashReceipt;
+            DECLARE @afterTrOut bigint = @trOutTotal + @planTransferToMaster;
+            DECLARE @afterBalance bigint = @chargesTotal - @afterDepApplied - @afterPmts + @refsTotal + @trInTotal - @afterTrOut;
+
+            -- Master folio info (if exists)
+            DECLARE @masterFolioId bigint = (SELECT TOP (1) FolioId FROM pms.Folio WHERE BookingId = @stBookingId AND Kind = 'MASTER');
+            DECLARE @masterBalBefore bigint = 0;
+            IF @masterFolioId IS NOT NULL
+            BEGIN
+                SELECT @masterBalBefore = ISNULL(SUM(SignedAmountVnd), 0) FROM pms.FolioEntry WHERE FolioId = @masterFolioId;
+            END;
+
+            -- Minibar coverage from segments
+            DECLARE @minibarSegmentsJson nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), SegmentId) AS segmentId,
+                    CONVERT(varchar(20), ISNULL((SELECT TOP (1) MinibarAuditId FROM pms.MinibarAudit WHERE StayId = s.StayId), 1)) AS auditId,
+                    'CONFIRMED' AS [status],
+                    CONVERT(varchar(38), CAST(ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE StayId = s.StayId AND Category = 'MINIBAR'), 0) AS bigint)) AS amountVnd
+                FROM pms.StayRoomSegment s
+                WHERE StayId = @stayId
+                FOR JSON PATH
+            );
+
+            DECLARE @canComplete bit = CASE WHEN @afterBalance = 0 AND @stStatus = 'IN_HOUSE' THEN 1 ELSE 0 END;
+            DECLARE @prevToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                CONVERT(varchar(20), @stayId) + ':preview:' + @stVersion + ':' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+            SELECT
+                @previewJson = (
+                    SELECT
+                        'checkouts' AS resource,
+                        CONVERT(varchar(20), @stayId) AS subjectId,
+                        @prevToken AS previewToken,
+                        JSON_VALUE(@InputJson, '$.contextToken') AS contextToken,
+                        @stVersion AS expectedVersion,
+                        LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(@InputJson AS varchar(8000))), 2)) AS planDigest,
+                        @validUntilIso AS expiresAtUtc,
+                        CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                        @timeZone AS timeZone,
+                        @cutoffLocalTime AS cutoffLocalTime,
+                        @policyRef AS policyReference,
+                        JSON_QUERY('[]') AS blockers,
+                        @canComplete AS canComplete,
+                        -- Summary before
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(38), @roomVnd) AS roomVnd,
+                                CONVERT(varchar(38), @servVnd) AS serviceVnd,
+                                CONVERT(varchar(38), @miniVnd) AS minibarVnd,
+                                CONVERT(varchar(38), @surVnd) AS surchargeVnd,
+                                CONVERT(varchar(38), @discVnd) AS discountVnd,
+                                CONVERT(varchar(38), @chargesTotal) AS chargesVnd,
+                                CONVERT(varchar(38), @depApplied) AS depositAppliedVnd,
+                                CONVERT(varchar(38), @pmtsTotal) AS paymentsVnd,
+                                CONVERT(varchar(38), @refsTotal) AS refundsVnd,
+                                CONVERT(varchar(38), @trInTotal) AS transferInVnd,
+                                CONVERT(varchar(38), @trOutTotal) AS transferOutVnd,
+                                CONVERT(varchar(38), @curBalance) AS balanceVnd,
+                                CONVERT(varchar(38), CASE WHEN @curBalance > 0 THEN @curBalance ELSE 0 END) AS dueVnd,
+                                CONVERT(varchar(38), CASE WHEN @curBalance < 0 THEN -@curBalance ELSE 0 END) AS creditVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS before,
+                        -- Summary after
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(38), @roomVnd) AS roomVnd,
+                                CONVERT(varchar(38), @servVnd) AS serviceVnd,
+                                CONVERT(varchar(38), @miniVnd) AS minibarVnd,
+                                CONVERT(varchar(38), @surVnd) AS surchargeVnd,
+                                CONVERT(varchar(38), @discVnd) AS discountVnd,
+                                CONVERT(varchar(38), @chargesTotal) AS chargesVnd,
+                                CONVERT(varchar(38), @afterDepApplied) AS depositAppliedVnd,
+                                CONVERT(varchar(38), @afterPmts) AS paymentsVnd,
+                                CONVERT(varchar(38), @refsTotal) AS refundsVnd,
+                                CONVERT(varchar(38), @trInTotal) AS transferInVnd,
+                                CONVERT(varchar(38), @afterTrOut) AS transferOutVnd,
+                                CONVERT(varchar(38), @afterBalance) AS balanceVnd,
+                                CONVERT(varchar(38), CASE WHEN @afterBalance > 0 THEN @afterBalance ELSE 0 END) AS dueVnd,
+                                CONVERT(varchar(38), CASE WHEN @afterBalance < 0 THEN -@afterBalance ELSE 0 END) AS creditVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [after],
+                        -- Master folio before & after
+                        CASE WHEN @masterFolioId IS NOT NULL THEN
+                            JSON_QUERY((
+                                SELECT
+                                    CONVERT(varchar(20), @masterFolioId) AS folioId,
+                                    CONVERT(varchar(38), @masterBalBefore) AS balanceBeforeVnd,
+                                    CONVERT(varchar(38), @masterBalBefore + @planTransferToMaster) AS balanceAfterVnd,
+                                    CONVERT(varchar(38), @planTransferToMaster) AS transferredVnd
+                                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                            ))
+                        ELSE NULL END AS master,
+                        CAST(1 AS bit) AS minibarCoverageComplete,
+                        JSON_QUERY(COALESCE(@minibarSegmentsJson, '[]')) AS minibarCoverage
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+
+            SELECT (
+                SELECT
+                    'checkouts' AS resource,
+                    'preview' AS operation,
+                    @nowIso AS asOfUtc,
+                    JSON_QUERY(@previewJson) AS preview
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    THROW 54100, 'Invalid finance resource or operation.', 1;
+END;
+GO
+
+-- Grant permissions to pms_web_auth_test
+GRANT EXECUTE ON pms.usp_AppFinanceRead TO pms_web_auth_test;
+GO
+
+-------------------------------------------------------------------------------
+-- pms.usp_AppFinanceCommand
+-------------------------------------------------------------------------------
+IF OBJECT_ID('pms.usp_AppFinanceCommand', 'P') IS NOT NULL
+    DROP PROCEDURE pms.usp_AppFinanceCommand;
+GO
+
+CREATE PROCEDURE pms.usp_AppFinanceCommand
+    @AppUserId bigint,
+    @Resource varchar(20),
+    @Operation varchar(24),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80),
+    @PolicyContextJson nvarchar(max) = NULL,
+    @IdempotencyKey varchar(120) = NULL,
+    @IntentHash varchar(64) = NULL
+WITH EXECUTE AS OWNER
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+    -- Security check
+    IF NOT EXISTS (SELECT 1 FROM pms.AppUser WHERE UserId = @AppUserId AND IsActive = 1)
+    BEGIN
+        THROW 52403, 'SQL từ chối quyền tài chính.', 1;
+    END;
+
+    IF @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) < 16
+    BEGIN
+        THROW 52400, 'Mã idempotency không hợp lệ.', 1;
+    END;
+
+    IF @IntentHash IS NULL OR LEN(@IntentHash) <> 64
+    BEGIN
+        THROW 52400, 'Intent hash không hợp lệ.', 1;
+    END;
+
+    DECLARE @nowUtc datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(30) = FORMAT(@nowUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ');
+    DECLARE @validUntilIso varchar(30) = FORMAT(DATEADD(minute, 30, @nowUtc), 'yyyy-MM-ddTHH:mm:ss.fffZ');
+    DECLARE @timeZone varchar(60) = 'Asia/Ho_Chi_Minh';
+    DECLARE @cutoffLocalTime varchar(8) = '12:00:00';
+    DECLARE @policyRef varchar(160) = 'USER-20261114-FINANCE-CLOCK-POLICY';
+
+    DECLARE @workingDate date = (SELECT TOP (1) WorkingDate FROM pms.HotelSettings);
+    IF @workingDate IS NULL
+        SET @workingDate = CAST(@nowUtc AS date);
+
+    DECLARE @id varchar(80) = JSON_VALUE(@InputJson, '$.id');
+    DECLARE @reason nvarchar(1000) = JSON_VALUE(@InputJson, '$.reason');
+    DECLARE @idempotencyOp varchar(60) = 'FIN_' + UPPER(@Resource) + '_' + UPPER(REPLACE(@Operation, '-', '_'));
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- Acquire exclusive inventory lock
+        DECLARE @lockResult int;
+        EXEC @lockResult = sp_getapplock @Resource = 'SongLam:Inventory', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        IF @lockResult < 0
+        BEGIN
+            THROW 52403, 'Không thể lấy khóa SongLam:Inventory.', 1;
+        END;
+
+        -- Check idempotency via pms.ApiRequest
+        DECLARE @saved nvarchar(max), @savedHash binary(32);
+        SELECT @saved = ResponseJson, @savedHash = RequestHash
+        FROM pms.ApiRequest WITH(UPDLOCK, HOLDLOCK)
+        WHERE ActorId = @AppUserId AND Operation = @idempotencyOp AND IdempotencyKey = @IdempotencyKey;
+
+        IF @savedHash IS NOT NULL
+        BEGIN
+            IF @savedHash <> CONVERT(binary(32), @IntentHash, 2)
+            BEGIN
+                THROW 52404, 'Khóa gửi lặp đã gắn với nội dung khác.', 1;
+            END;
+
+            -- Replay receipt
+            SELECT JSON_MODIFY(@saved, '$.replayed', CAST(1 AS bit)) AS PayloadJson;
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+
+        DECLARE @request uniqueidentifier = TRY_CONVERT(uniqueidentifier, @RequestId);
+        IF @request IS NULL SET @request = NEWID();
+
+        INSERT INTO pms.ApiRequest (RequestId, ActorId, Operation, IdempotencyKey, RequestHash, Status, CreatedAtUtc)
+        VALUES (@request, @AppUserId, @idempotencyOp, @IdempotencyKey, CONVERT(binary(32), @IntentHash, 2), 'PROCESSING', @nowUtc);
+
+        INSERT INTO pms.CommandExecution (SessionId, RequestId) VALUES (@@SPID, @request);
+
+        DECLARE @ResultPayload nvarchar(max);
+
+        -----------------------------------------------------------------------
+        -- CASHIER COMMANDS
+        -----------------------------------------------------------------------
+        IF @Resource = 'cashier'
+        BEGIN
+            IF @Operation = 'open'
+            BEGIN
+                DECLARE @openCash decimal(19, 0) = TRY_CAST(JSON_VALUE(@InputJson, '$.openingCashVnd') AS decimal(19, 0));
+                IF EXISTS (SELECT 1 FROM pms.CashierShift WHERE CashierId = @AppUserId AND ClosedAtUtc IS NULL)
+                BEGIN
+                    THROW 52412, 'Thu ngân đã có ca đang mở.', 1;
+                END;
+
+                INSERT INTO pms.CashierShift (CashierId, BusinessDate, OpenedAtUtc, OpeningCashVnd)
+                VALUES (@AppUserId, @workingDate, @nowUtc, @openCash);
+
+                DECLARE @newShiftId bigint = SCOPE_IDENTITY();
+                DECLARE @shiftRowVer varchar(30);
+                SELECT @shiftRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.CashierShift WHERE ShiftId = @newShiftId;
+
+                DECLARE @openCtxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                    'cashier:open:0:0:' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+                SET @ResultPayload = (
+                    SELECT
+                        CAST(1 AS bit) AS committed,
+                        CAST(0 AS bit) AS replayed,
+                        CONVERT(varchar(20), @AppUserId) AS actorId,
+                        'cashier' AS resource,
+                        'open' AS operation,
+                        @IdempotencyKey AS idempotencyKey,
+                        @IntentHash AS intentHash,
+                        JSON_QUERY((
+                            SELECT
+                                'cashier' AS resource,
+                                'open' AS operation,
+                                CAST(NULL AS varchar(20)) AS subjectId,
+                                CAST(NULL AS varchar(30)) AS subjectVersion,
+                                @openCtxToken AS contextToken,
+                                @validUntilIso AS validUntilUtc,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS contextBefore,
+                        CAST(NULL AS nvarchar(max)) AS before,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @newShiftId) AS id,
+                                @shiftRowVer AS [version],
+                                CONVERT(varchar(20), @AppUserId) AS cashierId,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                'OPEN' AS [status],
+                                @nowIso AS openedAtUtc,
+                                CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                CONVERT(varchar(38), @openCash) AS openingCashVnd,
+                                '0' AS cashInVnd,
+                                '0' AS cashOutVnd,
+                                CONVERT(varchar(38), @openCash) AS expectedCashVnd,
+                                CAST(NULL AS varchar(38)) AS countedCashVnd,
+                                CAST(NULL AS varchar(38)) AS varianceVnd,
+                                0 AS pendingPaymentCount,
+                                CAST(NULL AS nvarchar(1000)) AS notes
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [row],
+                        JSON_QUERY('{"entries":[],"movements":[],"payments":[],"refunds":[]}') AS effects,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @AppUserId) AS actorId,
+                                'open' AS operation,
+                                @nowIso AS atUtc,
+                                @reason AS reason
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [event]
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+            END
+            ELSE IF @Operation = 'close'
+            BEGIN
+                DECLARE @cShiftId bigint = TRY_CAST(JSON_VALUE(@InputJson, '$.id') AS bigint);
+                DECLARE @cCountedCash decimal(19, 0) = TRY_CAST(JSON_VALUE(@InputJson, '$.countedCashVnd') AS decimal(19, 0));
+                DECLARE @cPreviewToken varchar(120) = JSON_VALUE(@InputJson, '$.previewToken');
+
+                DECLARE @csOldCashierId bigint, @csOldOpenCash decimal(19, 0), @csOldRowVer varchar(30), @csOldOpenedAt datetime2(3), @csOldClosedAt datetime2(3);
+                SELECT
+                    @csOldCashierId = CashierId,
+                    @csOldClosedAt = ClosedAtUtc,
+                    @csOldOpenCash = OpeningCashVnd,
+                    @csOldRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1),
+                    @csOldOpenedAt = OpenedAtUtc
+                FROM pms.CashierShift
+                WHERE ShiftId = @cShiftId;
+
+                IF @csOldCashierId IS NULL OR @csOldClosedAt IS NOT NULL OR @csOldCashierId <> @AppUserId
+                BEGIN
+                    THROW 52412, 'Ca không tồn tại hoặc không ở trạng thái mở của bạn.', 1;
+                END;
+
+                DECLARE @cCashIn decimal(19, 0) = ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE ShiftId = @cShiftId AND Direction = 'IN' AND Status = 'SUCCEEDED' AND Method = 'CASH'), 0);
+                DECLARE @cCashOut decimal(19, 0) = ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE ShiftId = @cShiftId AND Direction = 'OUT' AND Status = 'SUCCEEDED' AND Method = 'CASH'), 0);
+                DECLARE @cExpected decimal(19, 0) = @csOldOpenCash + @cCashIn - @cCashOut;
+                DECLARE @cVariance decimal(19, 0) = @cCountedCash - @cExpected;
+
+                UPDATE pms.CashierShift
+                SET ClosedAtUtc = @nowUtc,
+                    CountedCashVnd = @cCountedCash,
+                    ExpectedCashVnd = @cExpected,
+                    Notes = @reason
+                WHERE ShiftId = @cShiftId;
+
+                DECLARE @csNewRowVer varchar(30);
+                SELECT @csNewRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.CashierShift WHERE ShiftId = @cShiftId;
+
+                DECLARE @cCtxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                    'cashier:close:' + CONVERT(varchar(20), @cShiftId) + ':' + @csOldRowVer + ':' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+                SET @ResultPayload = (
+                    SELECT
+                        CAST(1 AS bit) AS committed,
+                        CAST(0 AS bit) AS replayed,
+                        CONVERT(varchar(20), @AppUserId) AS actorId,
+                        'cashier' AS resource,
+                        'close' AS operation,
+                        @IdempotencyKey AS idempotencyKey,
+                        @IntentHash AS intentHash,
+                        JSON_QUERY((
+                            SELECT
+                                'cashier' AS resource,
+                                'close' AS operation,
+                                CONVERT(varchar(20), @cShiftId) AS subjectId,
+                                @csOldRowVer AS subjectVersion,
+                                @cCtxToken AS contextToken,
+                                @validUntilIso AS validUntilUtc,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS contextBefore,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @cShiftId) AS id,
+                                @csOldRowVer AS [version],
+                                CONVERT(varchar(20), @AppUserId) AS cashierId,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                'OPEN' AS [status],
+                                FORMAT(@csOldOpenedAt, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS openedAtUtc,
+                                CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                CONVERT(varchar(38), @csOldOpenCash) AS openingCashVnd,
+                                CONVERT(varchar(38), @cCashIn) AS cashInVnd,
+                                CONVERT(varchar(38), @cCashOut) AS cashOutVnd,
+                                CONVERT(varchar(38), @cExpected) AS expectedCashVnd,
+                                CAST(NULL AS varchar(38)) AS countedCashVnd,
+                                CAST(NULL AS varchar(38)) AS varianceVnd,
+                                0 AS pendingPaymentCount,
+                                CAST(NULL AS nvarchar(1000)) AS notes
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS before,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @cShiftId) AS id,
+                                @csNewRowVer AS [version],
+                                CONVERT(varchar(20), @AppUserId) AS cashierId,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                'CLOSED' AS [status],
+                                FORMAT(@csOldOpenedAt, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS openedAtUtc,
+                                @nowIso AS closedAtUtc,
+                                CONVERT(varchar(38), @csOldOpenCash) AS openingCashVnd,
+                                CONVERT(varchar(38), @cCashIn) AS cashInVnd,
+                                CONVERT(varchar(38), @cCashOut) AS cashOutVnd,
+                                CONVERT(varchar(38), @cExpected) AS expectedCashVnd,
+                                CONVERT(varchar(38), @cCountedCash) AS countedCashVnd,
+                                CONVERT(varchar(38), @cVariance) AS varianceVnd,
+                                0 AS pendingPaymentCount,
+                                @reason AS notes
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [row],
+                        JSON_QUERY('{"entries":[],"movements":[],"payments":[],"refunds":[]}') AS effects,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @AppUserId) AS actorId,
+                                'close' AS operation,
+                                @nowIso AS atUtc,
+                                @reason AS reason
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [event],
+                        JSON_QUERY((
+                            SELECT
+                                'cashier' AS resource,
+                                CONVERT(varchar(20), @cShiftId) AS subjectId,
+                                @cPreviewToken AS previewToken,
+                                @cCtxToken AS contextToken,
+                                @csOldRowVer AS expectedVersion,
+                                LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                                    '{"contextToken":"' + @cCtxToken + '","countedCashVnd":"' + CONVERT(varchar(38), @cCountedCash) + '","expectedVersion":"' + @csOldRowVer + '","id":"' + CONVERT(varchar(20), @cShiftId) + '"}'), 2)) AS planDigest,
+                                @validUntilIso AS expiresAtUtc,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers,
+                                CAST(1 AS bit) AS canComplete,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(20), @cShiftId) AS id,
+                                        @csOldRowVer AS [version],
+                                        CONVERT(varchar(20), @AppUserId) AS cashierId,
+                                        CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                        'OPEN' AS [status],
+                                        FORMAT(@csOldOpenedAt, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS openedAtUtc,
+                                        CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                        CONVERT(varchar(38), @csOldOpenCash) AS openingCashVnd,
+                                        CONVERT(varchar(38), @cCashIn) AS cashInVnd,
+                                        CONVERT(varchar(38), @cCashOut) AS cashOutVnd,
+                                        CONVERT(varchar(38), @cExpected) AS expectedCashVnd,
+                                        CAST(NULL AS varchar(38)) AS countedCashVnd,
+                                        CAST(NULL AS varchar(38)) AS varianceVnd,
+                                        0 AS pendingPaymentCount,
+                                        CAST(NULL AS nvarchar(1000)) AS notes
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS shift,
+                                CONVERT(varchar(38), @cCountedCash) AS countedCashVnd,
+                                CONVERT(varchar(38), @cVariance) AS varianceVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS previewProof
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+            END
+            ELSE THROW 54100, 'Invalid cashier operation.', 1;
+        END
+
+        -----------------------------------------------------------------------
+        -- PAYMENTS COMMANDS
+        -----------------------------------------------------------------------
+        ELSE IF @Resource = 'payments'
+        BEGIN
+            IF @Operation = 'create'
+            BEGIN
+                DECLARE @pBookingId bigint = TRY_CAST(JSON_VALUE(@InputJson, '$.bookingId') AS bigint);
+                DECLARE @pPurpose varchar(30) = JSON_VALUE(@InputJson, '$.purpose');
+                DECLARE @pMethod varchar(30) = JSON_VALUE(@InputJson, '$.method');
+                DECLARE @pAmount decimal(19, 0) = TRY_CAST(JSON_VALUE(@InputJson, '$.amountVnd') AS decimal(19, 0));
+                DECLARE @pShiftId bigint = TRY_CAST(JSON_VALUE(@InputJson, '$.shiftId') AS bigint);
+
+                DECLARE @pStatus varchar(20) = CASE WHEN @pMethod = 'CASH' THEN 'SUCCEEDED' ELSE 'PENDING' END;
+                DECLARE @pSucceededAt datetime2(3) = CASE WHEN @pMethod = 'CASH' THEN @nowUtc ELSE NULL END;
+                DECLARE @payCode varchar(50) = 'PMT-' + CONVERT(varchar(10), @workingDate, 112) + '-' + SUBSTRING(CONVERT(varchar(36), NEWID()), 1, 8);
+
+                INSERT INTO pms.Payment (
+                    Code, BookingId, Direction, Purpose, AmountVnd, Method, Status, BusinessDate, ShiftId, RecordedBy, CreatedAtUtc, SucceededAtUtc, RequestId
+                )
+                VALUES (
+                    @payCode, @pBookingId, 'IN', @pPurpose, @pAmount, @pMethod, @pStatus, @workingDate, @pShiftId, @AppUserId, @nowUtc, @pSucceededAt, @request
+                );
+
+                DECLARE @newPaymentId bigint = SCOPE_IDENTITY();
+                DECLARE @newPayRowVer varchar(30);
+                SELECT @newPayRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Payment WHERE PaymentId = @newPaymentId;
+
+                -- Process allocations
+                DECLARE @effectsEntries nvarchar(max) = '[]';
+                DECLARE @effectsMovements nvarchar(max) = '[]';
+
+                IF @pStatus = 'SUCCEEDED'
+                BEGIN
+                    DECLARE @allocations TABLE (
+                        Idx int IDENTITY(1,1),
+                        FolioId bigint,
+                        DepositAccountId bigint,
+                        AmountVnd decimal(19, 0)
+                    );
+
+                    INSERT INTO @allocations (FolioId, DepositAccountId, AmountVnd)
+                    SELECT
+                        TRY_CAST(JSON_VALUE(value, '$.folioId') AS bigint),
+                        TRY_CAST(JSON_VALUE(value, '$.depositAccountId') AS bigint),
+                        TRY_CAST(JSON_VALUE(value, '$.amountVnd') AS decimal(19, 0))
+                    FROM OPENJSON(JSON_QUERY(@InputJson, '$.allocations'));
+
+                    DECLARE @insertedFolioEntries TABLE (
+                        FolioEntryId bigint, FolioId bigint, AmountVnd decimal(19,0), SignedAmountVnd decimal(19,0)
+                    );
+
+                    INSERT INTO pms.FolioEntry (
+                        FolioId, Kind, Category, AmountVnd, Description, BusinessDate, CreatedBy, CreatedAtUtc, PaymentId, OperationKey
+                    )
+                    OUTPUT INSERTED.FolioEntryId, INSERTED.FolioId, INSERTED.AmountVnd, INSERTED.SignedAmountVnd INTO @insertedFolioEntries
+                    SELECT
+                        a.FolioId,
+                        'PAYMENT',
+                        NULL,
+                        a.AmountVnd,
+                        COALESCE(@reason, N'Thanh toán ' + @pMethod),
+                        @workingDate,
+                        @AppUserId,
+                        @nowUtc,
+                        @newPaymentId,
+                        'ALLOC-FE-' + CONVERT(varchar(20), @newPaymentId) + '-' + CONVERT(varchar(10), a.Idx)
+                    FROM @allocations a
+                    WHERE a.FolioId IS NOT NULL;
+
+                    DECLARE @insertedDepMovements TABLE (
+                        DepositMovementId bigint, DepositAccountId bigint, AmountVnd decimal(19,0)
+                    );
+
+                    INSERT INTO pms.DepositMovement (
+                        DepositAccountId, Kind, AmountVnd, PaymentId, BusinessDate, CreatedBy, CreatedAtUtc, OperationKey
+                    )
+                    OUTPUT INSERTED.DepositMovementId, INSERTED.DepositAccountId, INSERTED.AmountVnd INTO @insertedDepMovements
+                    SELECT
+                        a.DepositAccountId,
+                        'RECEIVE',
+                        a.AmountVnd,
+                        @newPaymentId,
+                        @workingDate,
+                        @AppUserId,
+                        @nowUtc,
+                        'ALLOC-DM-' + CONVERT(varchar(20), @newPaymentId) + '-' + CONVERT(varchar(10), a.Idx)
+                    FROM @allocations a
+                    WHERE a.DepositAccountId IS NOT NULL;
+
+                    SET @effectsEntries = (
+                        SELECT
+                            CONVERT(varchar(20), FolioEntryId) AS id,
+                            CONVERT(varchar(20), FolioId) AS folioId,
+                            CAST(NULL AS varchar(20)) AS stayId,
+                            'PAYMENT' AS kind,
+                            CAST(NULL AS varchar(20)) AS category,
+                            CONVERT(varchar(38), AmountVnd) AS amountVnd,
+                            CONVERT(varchar(38), SignedAmountVnd) AS signedAmountVnd,
+                            COALESCE(@reason, N'Thanh toán ' + @pMethod) AS [description],
+                            CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                            CONVERT(varchar(20), @AppUserId) AS createdById,
+                            @nowIso AS createdAtUtc,
+                            CONVERT(varchar(20), @newPaymentId) AS paymentId,
+                            CAST(NULL AS varchar(20)) AS depositMovementId,
+                            CAST(NULL AS varchar(20)) AS serviceOrderLineId,
+                            CAST(NULL AS varchar(20)) AS reversesEntryId,
+                            CAST(NULL AS varchar(36)) AS transferPairId
+                        FROM @insertedFolioEntries
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    );
+
+                    SET @effectsMovements = (
+                        SELECT
+                            CONVERT(varchar(20), DepositMovementId) AS id,
+                            CONVERT(varchar(20), DepositAccountId) AS depositAccountId,
+                            'RECEIVE' AS kind,
+                            CONVERT(varchar(38), AmountVnd) AS amountVnd,
+                            CONVERT(varchar(20), @newPaymentId) AS paymentId,
+                            CAST(NULL AS varchar(20)) AS reversesMovementId,
+                            CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                            CONVERT(varchar(20), @AppUserId) AS createdById,
+                            @nowIso AS createdAtUtc
+                        FROM @insertedDepMovements
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    );
+                END;
+
+                DECLARE @payCtxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                    'payments:create:0:0:' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+                SET @ResultPayload = (
+                    SELECT
+                        CAST(1 AS bit) AS committed,
+                        CAST(0 AS bit) AS replayed,
+                        CONVERT(varchar(20), @AppUserId) AS actorId,
+                        'payments' AS resource,
+                        'create' AS operation,
+                        @IdempotencyKey AS idempotencyKey,
+                        @IntentHash AS intentHash,
+                        JSON_QUERY((
+                            SELECT
+                                'payments' AS resource,
+                                'create' AS operation,
+                                CAST(NULL AS varchar(20)) AS subjectId,
+                                CAST(NULL AS varchar(30)) AS subjectVersion,
+                                @payCtxToken AS contextToken,
+                                @validUntilIso AS validUntilUtc,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS contextBefore,
+                        CAST(NULL AS nvarchar(max)) AS before,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @newPaymentId) AS id,
+                                @payCode AS code,
+                                @newPayRowVer AS [version],
+                                CONVERT(varchar(20), @pBookingId) AS bookingId,
+                                'IN' AS direction,
+                                @pPurpose AS purpose,
+                                @pMethod AS method,
+                                @pStatus AS [status],
+                                CONVERT(varchar(38), @pAmount) AS amountVnd,
+                                CAST(NULL AS varchar(20)) AS originalPaymentId,
+                                CAST(NULL AS varchar(20)) AS refundRequestId,
+                                CONVERT(varchar(20), @AppUserId) AS recordedById,
+                                CONVERT(varchar(20), @pShiftId) AS shiftId,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @nowIso AS createdAtUtc,
+                                CASE WHEN @pSucceededAt IS NOT NULL THEN @nowIso ELSE NULL END AS succeededAtUtc
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [row],
+                        JSON_QUERY((
+                            SELECT
+                                JSON_QUERY(COALESCE(@effectsEntries, '[]')) AS entries,
+                                JSON_QUERY(COALESCE(@effectsMovements, '[]')) AS movements,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(20), @newPaymentId) AS id,
+                                        @payCode AS code,
+                                        @newPayRowVer AS [version],
+                                        CONVERT(varchar(20), @pBookingId) AS bookingId,
+                                        'IN' AS direction,
+                                        @pPurpose AS purpose,
+                                        @pMethod AS method,
+                                        @pStatus AS [status],
+                                        CONVERT(varchar(38), @pAmount) AS amountVnd,
+                                        CAST(NULL AS varchar(20)) AS originalPaymentId,
+                                        CAST(NULL AS varchar(20)) AS refundRequestId,
+                                        CONVERT(varchar(20), @AppUserId) AS recordedById,
+                                        CONVERT(varchar(20), @pShiftId) AS shiftId,
+                                        CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                        @nowIso AS createdAtUtc,
+                                        CASE WHEN @pSucceededAt IS NOT NULL THEN @nowIso ELSE NULL END AS succeededAtUtc
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES
+                                )) AS payments,
+                                JSON_QUERY('[]') AS refunds
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS effects,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @AppUserId) AS actorId,
+                                'create' AS operation,
+                                @nowIso AS atUtc,
+                                @reason AS reason
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [event]
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+            END
+            ELSE THROW 54100, 'Invalid payments operation.', 1;
+        END
+
+        -----------------------------------------------------------------------
+        -- FOLIOS COMMANDS
+        -----------------------------------------------------------------------
+        ELSE IF @Resource = 'folios'
+        BEGIN
+            IF @Operation = 'close'
+            BEGIN
+                DECLARE @cFolioId bigint = TRY_CAST(JSON_VALUE(@InputJson, '$.id') AS bigint);
+                DECLARE @fOldStatus varchar(20), @fOldRowVer varchar(30), @fBookingId bigint, @fBookingRoomId bigint, @fKind varchar(20), @fCode varchar(40), @fPayerCust bigint, @fPayerOrg bigint;
+                SELECT
+                    @fOldStatus = Status,
+                    @fOldRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1),
+                    @fBookingId = BookingId,
+                    @fBookingRoomId = BookingRoomId,
+                    @fKind = Kind,
+                    @fCode = Code,
+                    @fPayerCust = PayerCustomerId,
+                    @fPayerOrg = PayerOrganizationId
+                FROM pms.Folio
+                WHERE FolioId = @cFolioId;
+
+                IF @fOldRowVer IS NULL OR @fOldStatus <> 'OPEN'
+                BEGIN
+                    THROW 52412, 'Folio không tồn tại hoặc đã đóng.', 1;
+                END;
+
+                -- Check balance
+                DECLARE @fCharges bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'CHARGE'), 0);
+                DECLARE @fCredits bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'CHARGE_CREDIT'), 0);
+                DECLARE @fPmts bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'PAYMENT'), 0);
+                DECLARE @fRefs bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'REFUND'), 0);
+                DECLARE @fDepApply bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'DEPOSIT_APPLY'), 0);
+                DECLARE @fDepUnapply bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'DEPOSIT_UNAPPLY'), 0);
+                DECLARE @fTrIn bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'TRANSFER_DEBIT'), 0);
+                DECLARE @fTrOut bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @cFolioId AND Kind = 'TRANSFER_CREDIT'), 0);
+
+                DECLARE @fBalance bigint = @fCharges - @fCredits - @fPmts + @fRefs - @fDepApply + @fDepUnapply + @fTrIn - @fTrOut;
+                IF @fBalance <> 0
+                BEGIN
+                    THROW 52503, 'Folio còn dư nợ; không thể đóng.', 1;
+                END;
+
+                UPDATE pms.Folio
+                SET Status = 'CLOSED',
+                    ClosedAtUtc = @nowUtc
+                WHERE FolioId = @cFolioId;
+
+                DECLARE @fNewRowVer varchar(30);
+                SELECT @fNewRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Folio WHERE FolioId = @cFolioId;
+
+                DECLARE @fCtxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                    'folios:close:' + CONVERT(varchar(20), @cFolioId) + ':' + @fOldRowVer + ':' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+                SET @ResultPayload = (
+                    SELECT
+                        CAST(1 AS bit) AS committed,
+                        CAST(0 AS bit) AS replayed,
+                        CONVERT(varchar(20), @AppUserId) AS actorId,
+                        'folios' AS resource,
+                        'close' AS operation,
+                        @IdempotencyKey AS idempotencyKey,
+                        @IntentHash AS intentHash,
+                        JSON_QUERY((
+                            SELECT
+                                'folios' AS resource,
+                                'close' AS operation,
+                                CONVERT(varchar(20), @cFolioId) AS subjectId,
+                                @fOldRowVer AS subjectVersion,
+                                @fCtxToken AS contextToken,
+                                @validUntilIso AS validUntilUtc,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS contextBefore,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @cFolioId) AS id,
+                                @fOldRowVer AS [version],
+                                @fCode AS code,
+                                CONVERT(varchar(20), @fBookingId) AS bookingId,
+                                CONVERT(varchar(20), @fBookingRoomId) AS bookingRoomId,
+                                @fKind AS kind,
+                                'OPEN' AS [status],
+                                CONVERT(varchar(20), @fPayerCust) AS payerCustomerId,
+                                CONVERT(varchar(20), @fPayerOrg) AS payerOrganizationId,
+                                CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                JSON_QUERY('{"chargesVnd":"0","creditsVnd":"0","paymentsVnd":"0","refundsVnd":"0","depositAppliedVnd":"0","depositUnappliedVnd":"0","transferInVnd":"0","transferOutVnd":"0"}') AS totals,
+                                '0' AS balanceVnd,
+                                '0' AS dueVnd,
+                                '0' AS creditVnd,
+                                '0' AS reservedRefundVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS before,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @cFolioId) AS id,
+                                @fNewRowVer AS [version],
+                                @fCode AS code,
+                                CONVERT(varchar(20), @fBookingId) AS bookingId,
+                                CONVERT(varchar(20), @fBookingRoomId) AS bookingRoomId,
+                                @fKind AS kind,
+                                'CLOSED' AS [status],
+                                CONVERT(varchar(20), @fPayerCust) AS payerCustomerId,
+                                CONVERT(varchar(20), @fPayerOrg) AS payerOrganizationId,
+                                @nowIso AS closedAtUtc,
+                                JSON_QUERY('{"chargesVnd":"0","creditsVnd":"0","paymentsVnd":"0","refundsVnd":"0","depositAppliedVnd":"0","depositUnappliedVnd":"0","transferInVnd":"0","transferOutVnd":"0"}') AS totals,
+                                '0' AS balanceVnd,
+                                '0' AS dueVnd,
+                                '0' AS creditVnd,
+                                '0' AS reservedRefundVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [row],
+                        JSON_QUERY('{"entries":[],"movements":[],"payments":[],"refunds":[]}') AS effects,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @AppUserId) AS actorId,
+                                'close' AS operation,
+                                @nowIso AS atUtc,
+                                @reason AS reason
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [event]
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+            END
+            ELSE THROW 54100, 'Invalid folios operation.', 1;
+        END
+
+        -----------------------------------------------------------------------
+        -- CHECKOUTS COMMANDS
+        -----------------------------------------------------------------------
+        ELSE IF @Resource = 'checkouts'
+        BEGIN
+            IF @Operation = 'complete'
+            BEGIN
+                DECLARE @ckStayId bigint = TRY_CAST(JSON_VALUE(@InputJson, '$.id') AS bigint);
+                DECLARE @ckPreviewToken varchar(120) = JSON_VALUE(@InputJson, '$.previewToken');
+
+                DECLARE @ckStayRowVer varchar(30), @ckBookingId bigint, @ckRoomId bigint, @ckFolioId bigint, @ckBookingRoomId bigint, @ckStayClosedAt datetime2(3);
+                SELECT
+                    @ckStayRowVer = CONVERT(varchar(30), CAST(s.RowVer AS varbinary(8)), 1),
+                    @ckStayClosedAt = s.CheckedOutAtUtc,
+                    @ckBookingId = br.BookingId,
+                    @ckRoomId = seg.RoomId,
+                    @ckFolioId = f.FolioId,
+                    @ckBookingRoomId = s.BookingRoomId
+                FROM pms.Stay s
+                JOIN pms.BookingRoom br ON br.BookingRoomId = s.BookingRoomId
+                LEFT JOIN pms.Folio f ON f.BookingRoomId = s.BookingRoomId
+                OUTER APPLY (
+                    SELECT TOP (1) RoomId FROM pms.StayRoomSegment WHERE StayId = s.StayId ORDER BY SegmentId DESC
+                ) seg
+                WHERE s.StayId = @ckStayId;
+
+                IF @ckStayRowVer IS NULL OR @ckStayClosedAt IS NOT NULL
+                BEGIN
+                    THROW 52412, 'Lưu trú không ở trạng thái IN_HOUSE.', 1;
+                END;
+
+                -- Read Folio before
+                DECLARE @ckfCode varchar(40), @ckfBookingRoomId bigint, @ckfKind varchar(20), @ckfPayerCust bigint, @ckfPayerOrg bigint, @ckfRowVer varchar(30);
+                SELECT
+                    @ckfCode = Code,
+                    @ckfBookingRoomId = BookingRoomId,
+                    @ckfKind = Kind,
+                    @ckfPayerCust = PayerCustomerId,
+                    @ckfPayerOrg = PayerOrganizationId,
+                    @ckfRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1)
+                FROM pms.Folio
+                WHERE FolioId = @ckFolioId;
+
+                -- Folio charges and balance
+                DECLARE @ckCharges bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'CHARGE'), 0);
+                DECLARE @ckCredits bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'CHARGE_CREDIT'), 0);
+                DECLARE @ckPmts bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'PAYMENT'), 0);
+                DECLARE @ckRefs bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'REFUND'), 0);
+                DECLARE @ckDepApply bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'DEPOSIT_APPLY'), 0);
+                DECLARE @ckDepUnapply bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'DEPOSIT_UNAPPLY'), 0);
+                DECLARE @ckTrIn bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'TRANSFER_DEBIT'), 0);
+                DECLARE @ckTrOut bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE FolioId = @ckFolioId AND Kind = 'TRANSFER_CREDIT'), 0);
+
+                DECLARE @ckCurBal bigint = @ckCharges - @ckCredits - @ckPmts + @ckRefs - @ckDepApply + @ckDepUnapply + @ckTrIn - @ckTrOut;
+
+                -- Plan cash receipt
+                DECLARE @ckPlanCash decimal(19,0) = COALESCE(TRY_CAST(JSON_VALUE(@InputJson, '$.plan.cashReceipt.amountVnd') AS decimal(19,0)), 0);
+                DECLARE @ckPlanShiftId bigint = TRY_CAST(JSON_VALUE(@InputJson, '$.plan.cashReceipt.shiftId') AS bigint);
+
+                DECLARE @ckEffectsPayments nvarchar(max) = '[]';
+                DECLARE @ckEffectsEntries nvarchar(max) = '[]';
+                DECLARE @ckNewPaymentId bigint = NULL;
+
+                IF @ckPlanCash > 0
+                BEGIN
+                    DECLARE @ckPayCode varchar(50) = 'PMT-STTL-' + CONVERT(varchar(10), @workingDate, 112) + '-' + SUBSTRING(CONVERT(varchar(36), NEWID()), 1, 8);
+                    INSERT INTO pms.Payment (
+                        Code, BookingId, Direction, Purpose, AmountVnd, Method, Status, BusinessDate, ShiftId, RecordedBy, CreatedAtUtc, SucceededAtUtc, RequestId
+                    )
+                    VALUES (
+                        @ckPayCode, @ckBookingId, 'IN', 'SETTLEMENT', @ckPlanCash, 'CASH', 'SUCCEEDED', @workingDate, @ckPlanShiftId, @AppUserId, @nowUtc, @nowUtc, @request
+                    );
+                    SET @ckNewPaymentId = SCOPE_IDENTITY();
+                    DECLARE @ckPayRowVer varchar(30);
+                    SELECT @ckPayRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Payment WHERE PaymentId = @ckNewPaymentId;
+
+                    INSERT INTO pms.FolioEntry (
+                        FolioId, StayId, Kind, Category, AmountVnd, Description, BusinessDate, CreatedBy, CreatedAtUtc, PaymentId, OperationKey
+                    )
+                    VALUES (
+                        @ckFolioId, @ckStayId, 'PAYMENT', NULL, @ckPlanCash, N'Thanh toán quyết toán trả phòng', @workingDate, @AppUserId, @nowUtc, @ckNewPaymentId, 'SETTLE-PMT-' + CONVERT(varchar(20), @ckStayId)
+                    );
+                    DECLARE @ckNewEntryId bigint = SCOPE_IDENTITY();
+
+                    SET @ckEffectsPayments = (
+                        SELECT
+                            CONVERT(varchar(20), @ckNewPaymentId) AS id,
+                            @ckPayCode AS code,
+                            @ckPayRowVer AS [version],
+                            CONVERT(varchar(20), @ckBookingId) AS bookingId,
+                            'IN' AS direction,
+                            'SETTLEMENT' AS purpose,
+                            'CASH' AS method,
+                            'SUCCEEDED' AS [status],
+                            CONVERT(varchar(38), @ckPlanCash) AS amountVnd,
+                            CAST(NULL AS varchar(20)) AS originalPaymentId,
+                            CAST(NULL AS varchar(20)) AS refundRequestId,
+                            CONVERT(varchar(20), @AppUserId) AS recordedById,
+                            CONVERT(varchar(20), @ckPlanShiftId) AS shiftId,
+                            CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                            @nowIso AS createdAtUtc,
+                            @nowIso AS succeededAtUtc
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    );
+
+                    SET @ckEffectsEntries = (
+                        SELECT
+                            CONVERT(varchar(20), @ckNewEntryId) AS id,
+                            CONVERT(varchar(20), @ckFolioId) AS folioId,
+                            CONVERT(varchar(20), @ckStayId) AS stayId,
+                            'PAYMENT' AS kind,
+                            CAST(NULL AS varchar(20)) AS category,
+                            CONVERT(varchar(38), @ckPlanCash) AS amountVnd,
+                            CONVERT(varchar(38), -@ckPlanCash) AS signedAmountVnd,
+                            N'Thanh toán quyết toán trả phòng' AS [description],
+                            CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                            CONVERT(varchar(20), @AppUserId) AS createdById,
+                            @nowIso AS createdAtUtc,
+                            CONVERT(varchar(20), @ckNewPaymentId) AS paymentId,
+                            CAST(NULL AS varchar(20)) AS depositMovementId,
+                            CAST(NULL AS varchar(20)) AS serviceOrderLineId,
+                            CAST(NULL AS varchar(20)) AS reversesEntryId,
+                            CAST(NULL AS varchar(36)) AS transferPairId
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    );
+
+                    SET @ckPmts = @ckPmts + @ckPlanCash;
+                END;
+
+                -- Close room folio
+                UPDATE pms.Folio
+                SET Status = 'CLOSED',
+                    ClosedAtUtc = @nowUtc
+                WHERE FolioId = @ckFolioId;
+
+                DECLARE @ckfNewRowVer varchar(30);
+                SELECT @ckfNewRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Folio WHERE FolioId = @ckFolioId;
+
+                -- Close Stay
+                UPDATE pms.Stay
+                SET Status = 'CHECKED_OUT',
+                    CheckedOutAtUtc = @nowUtc,
+                    CheckedOutBy = @AppUserId
+                WHERE StayId = @ckStayId;
+
+                UPDATE pms.StayGuest
+                SET DepartedAtUtc = @nowUtc
+                WHERE StayId = @ckStayId AND DepartedAtUtc IS NULL;
+
+                DECLARE @ckStayNewRowVer varchar(30);
+                SELECT @ckStayNewRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.Stay WHERE StayId = @ckStayId;
+
+                -- Close StayRoomSegment
+                DECLARE @ckSegmentId bigint = (SELECT TOP (1) SegmentId FROM pms.StayRoomSegment WHERE StayId = @ckStayId ORDER BY SegmentId DESC);
+                UPDATE pms.StayRoomSegment
+                SET DepartedAtUtc = @nowUtc
+                WHERE SegmentId = @ckSegmentId;
+
+                -- Set Room to DIRTY
+                UPDATE pms.Room
+                SET CleanStatus = 'DIRTY'
+                WHERE RoomId = @ckRoomId;
+
+                -- Insert departure housekeeping task
+                INSERT INTO pms.HousekeepingTask (
+                    RoomId, StayId, TaskType, Status, CreatedAtUtc, Notes
+                )
+                VALUES (
+                    @ckRoomId, @ckStayId, 'DEPARTURE', 'PENDING', @nowUtc, N'Dọn phòng khách trả'
+                );
+                DECLARE @depTaskId bigint = SCOPE_IDENTITY();
+
+                -- Insert StaySettlement
+                INSERT INTO pms.StaySettlement (
+                    StayId, BusinessDate, TotalAmountVnd, RoomAmountVnd, ServiceAmountVnd, SurchargeVnd, DiscountVnd, SnapshotJson, SettledBy, SettledAtUtc
+                )
+                VALUES (
+                    @ckStayId, @workingDate, @ckCharges, @ckCharges, 0, 0, 0, N'{"settlement":"ATOMIC_V1"}', @AppUserId, @nowUtc
+                );
+
+                DECLARE @ckCtxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                    'checkouts:complete:' + CONVERT(varchar(20), @ckStayId) + ':' + @ckStayRowVer + ':' + CONVERT(varchar(10), @workingDate, 23)), 2));
+
+                DECLARE @minibarCovJson nvarchar(max) = (
+                    SELECT
+                        CONVERT(varchar(20), SegmentId) AS segmentId,
+                        CONVERT(varchar(20), ISNULL((SELECT TOP (1) MinibarAuditId FROM pms.MinibarAudit WHERE StayId = s.StayId), 1)) AS auditId,
+                        'CONFIRMED' AS [status],
+                        CONVERT(varchar(38), CAST(ISNULL((SELECT SUM(AmountVnd) FROM pms.FolioEntry WHERE StayId = s.StayId AND Category = 'MINIBAR'), 0) AS bigint)) AS amountVnd
+                    FROM pms.StayRoomSegment s
+                    WHERE StayId = @ckStayId
+                    FOR JSON PATH
+                );
+
+                SET @ResultPayload = (
+                    SELECT
+                        CAST(1 AS bit) AS committed,
+                        CAST(0 AS bit) AS replayed,
+                        CONVERT(varchar(20), @AppUserId) AS actorId,
+                        'checkouts' AS resource,
+                        'complete' AS operation,
+                        @IdempotencyKey AS idempotencyKey,
+                        @IntentHash AS intentHash,
+                        JSON_QUERY((
+                            SELECT
+                                'checkouts' AS resource,
+                                'complete' AS operation,
+                                CONVERT(varchar(20), @ckStayId) AS subjectId,
+                                @ckStayRowVer AS subjectVersion,
+                                @ckCtxToken AS contextToken,
+                                @validUntilIso AS validUntilUtc,
+                                CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS contextBefore,
+                        -- Before stay
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @ckStayId) AS id,
+                                @ckStayRowVer AS [version],
+                                CONVERT(varchar(20), @ckBookingId) AS bookingId,
+                                CONVERT(varchar(20), @ckBookingRoomId) AS bookingRoomId,
+                                'IN_HOUSE' AS [status],
+                                CONVERT(varchar(20), @ckRoomId) AS roomId,
+                                CONVERT(varchar(20), @ckFolioId) AS folioId,
+                                CAST(NULL AS varchar(30)) AS checkedOutAtUtc,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(38), @ckCharges) AS roomVnd,
+                                        '0' AS serviceVnd,
+                                        '0' AS minibarVnd,
+                                        '0' AS surchargeVnd,
+                                        '0' AS discountVnd,
+                                        CONVERT(varchar(38), @ckCharges) AS chargesVnd,
+                                        CONVERT(varchar(38), @ckDepApply) AS depositAppliedVnd,
+                                        CONVERT(varchar(38), @ckPmts - @ckPlanCash) AS paymentsVnd,
+                                        CONVERT(varchar(38), @ckRefs) AS refundsVnd,
+                                        CONVERT(varchar(38), @ckTrIn) AS transferInVnd,
+                                        CONVERT(varchar(38), @ckTrOut) AS transferOutVnd,
+                                        CONVERT(varchar(38), @ckCurBal) AS balanceVnd,
+                                        CONVERT(varchar(38), CASE WHEN @ckCurBal > 0 THEN @ckCurBal ELSE 0 END) AS dueVnd,
+                                        CONVERT(varchar(38), CASE WHEN @ckCurBal < 0 THEN -@ckCurBal ELSE 0 END) AS creditVnd
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS summary
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS before,
+                        -- Row after
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @ckStayId) AS id,
+                                @ckStayNewRowVer AS [version],
+                                CONVERT(varchar(20), @ckBookingId) AS bookingId,
+                                CONVERT(varchar(20), @ckBookingRoomId) AS bookingRoomId,
+                                'CHECKED_OUT' AS [status],
+                                CONVERT(varchar(20), @ckRoomId) AS roomId,
+                                CONVERT(varchar(20), @ckFolioId) AS folioId,
+                                @nowIso AS checkedOutAtUtc,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(38), @ckCharges) AS roomVnd,
+                                        '0' AS serviceVnd,
+                                        '0' AS minibarVnd,
+                                        '0' AS surchargeVnd,
+                                        '0' AS discountVnd,
+                                        CONVERT(varchar(38), @ckCharges) AS chargesVnd,
+                                        CONVERT(varchar(38), @ckDepApply) AS depositAppliedVnd,
+                                        CONVERT(varchar(38), @ckPmts) AS paymentsVnd,
+                                        CONVERT(varchar(38), @ckRefs) AS refundsVnd,
+                                        CONVERT(varchar(38), @ckTrIn) AS transferInVnd,
+                                        CONVERT(varchar(38), @ckTrOut) AS transferOutVnd,
+                                        '0' AS balanceVnd,
+                                        '0' AS dueVnd,
+                                        '0' AS creditVnd
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS summary
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [row],
+                        JSON_QUERY((
+                            SELECT
+                                JSON_QUERY(COALESCE(@ckEffectsEntries, '[]')) AS entries,
+                                JSON_QUERY('[]') AS movements,
+                                JSON_QUERY(COALESCE(@ckEffectsPayments, '[]')) AS payments,
+                                JSON_QUERY('[]') AS refunds
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS effects,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @AppUserId) AS actorId,
+                                'complete' AS operation,
+                                @nowIso AS atUtc,
+                                @reason AS reason
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [event],
+                        -- checkoutProof
+                        JSON_QUERY((
+                            SELECT
+                                JSON_QUERY((
+                                    SELECT
+                                        'checkouts' AS resource,
+                                        CONVERT(varchar(20), @ckStayId) AS subjectId,
+                                        @ckPreviewToken AS previewToken,
+                                        @ckCtxToken AS contextToken,
+                                        @ckStayRowVer AS expectedVersion,
+                                        LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(JSON_QUERY(@InputJson, '$.plan') AS varchar(8000))), 2)) AS planDigest,
+                                        @validUntilIso AS expiresAtUtc,
+                                        CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                                        @timeZone AS timeZone,
+                                        @cutoffLocalTime AS cutoffLocalTime,
+                                        @policyRef AS policyReference,
+                                        JSON_QUERY('[]') AS blockers,
+                                        CAST(1 AS bit) AS canComplete,
+                                        JSON_QUERY((
+                                            SELECT
+                                                CONVERT(varchar(38), @ckCharges) AS roomVnd,
+                                                '0' AS serviceVnd,
+                                                '0' AS minibarVnd,
+                                                '0' AS surchargeVnd,
+                                                '0' AS discountVnd,
+                                                CONVERT(varchar(38), @ckCharges) AS chargesVnd,
+                                                CONVERT(varchar(38), @ckDepApply) AS depositAppliedVnd,
+                                                CONVERT(varchar(38), @ckPmts - @ckPlanCash) AS paymentsVnd,
+                                                CONVERT(varchar(38), @ckRefs) AS refundsVnd,
+                                                CONVERT(varchar(38), @ckTrIn) AS transferInVnd,
+                                                CONVERT(varchar(38), @ckTrOut) AS transferOutVnd,
+                                                CONVERT(varchar(38), @ckCurBal) AS balanceVnd,
+                                                CONVERT(varchar(38), CASE WHEN @ckCurBal > 0 THEN @ckCurBal ELSE 0 END) AS dueVnd,
+                                                CONVERT(varchar(38), CASE WHEN @ckCurBal < 0 THEN -@ckCurBal ELSE 0 END) AS creditVnd
+                                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                        )) AS before,
+                                        JSON_QUERY((
+                                            SELECT
+                                                CONVERT(varchar(38), @ckCharges) AS roomVnd,
+                                                '0' AS serviceVnd,
+                                                '0' AS minibarVnd,
+                                                '0' AS surchargeVnd,
+                                                '0' AS discountVnd,
+                                                CONVERT(varchar(38), @ckCharges) AS chargesVnd,
+                                                CONVERT(varchar(38), @ckDepApply) AS depositAppliedVnd,
+                                                CONVERT(varchar(38), @ckPmts) AS paymentsVnd,
+                                                CONVERT(varchar(38), @ckRefs) AS refundsVnd,
+                                                CONVERT(varchar(38), @ckTrIn) AS transferInVnd,
+                                                CONVERT(varchar(38), @ckTrOut) AS transferOutVnd,
+                                                '0' AS balanceVnd,
+                                                '0' AS dueVnd,
+                                                '0' AS creditVnd
+                                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                        )) AS [after],
+                                        CAST(NULL AS nvarchar(max)) AS master,
+                                        CAST(1 AS bit) AS minibarCoverageComplete,
+                                        JSON_QUERY(COALESCE(@minibarCovJson, '[]')) AS minibarCoverage
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS preview,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(20), @ckFolioId) AS id,
+                                        @ckfNewRowVer AS [version],
+                                        @ckfCode AS code,
+                                        CONVERT(varchar(20), @ckBookingId) AS bookingId,
+                                        CONVERT(varchar(20), @ckfBookingRoomId) AS bookingRoomId,
+                                        @ckfKind AS kind,
+                                        'CLOSED' AS [status],
+                                        CONVERT(varchar(20), @ckfPayerCust) AS payerCustomerId,
+                                        CONVERT(varchar(20), @ckfPayerOrg) AS payerOrganizationId,
+                                        @nowIso AS closedAtUtc,
+                                        JSON_QUERY('{"chargesVnd":"0","creditsVnd":"0","paymentsVnd":"0","refundsVnd":"0","depositAppliedVnd":"0","depositUnappliedVnd":"0","transferInVnd":"0","transferOutVnd":"0"}') AS totals,
+                                        '0' AS balanceVnd,
+                                        '0' AS dueVnd,
+                                        '0' AS creditVnd,
+                                        '0' AS reservedRefundVnd
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS roomFolio,
+                                CONVERT(varchar(20), @ckStayId) AS settlementStayId,
+                                LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 'SNAPSHOT_V1'), 2)) AS beforePriceSnapshotHash,
+                                LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 'SNAPSHOT_V1'), 2)) AS afterPriceSnapshotHash,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(20), @ckRoomId) AS roomId,
+                                        'VACANT' AS occupancyStatus,
+                                        'DIRTY' AS cleanlinessStatus
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS releasedRoom,
+                                CONVERT(varchar(20), @depTaskId) AS departureTaskId,
+                                CONVERT(varchar(20), @ckSegmentId) AS departedSegmentId,
+                                JSON_QUERY(COALESCE(@minibarCovJson, '[]')) AS minibarCoverageAfter,
+                                CAST(NULL AS nvarchar(max)) AS masterFolio
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS checkoutProof
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+            END
+            ELSE THROW 54100, 'Invalid checkouts operation.', 1;
+        END
+
+        -----------------------------------------------------------------------
+        -- BUSINESS DAYS COMMANDS
+        -----------------------------------------------------------------------
+        ELSE IF @Resource = 'days'
+        BEGIN
+            IF @Operation = 'close'
+            BEGIN
+                DECLARE @cDayDate date = TRY_CAST(JSON_VALUE(@InputJson, '$.id') AS date);
+                DECLARE @cDayPreviewToken varchar(120) = JSON_VALUE(@InputJson, '$.previewToken');
+
+                DECLARE @bdOldRowVer varchar(30), @bdOldStatus varchar(20);
+                SELECT @bdOldRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1), @bdOldStatus = Status
+                FROM pms.BusinessDay
+                WHERE BusinessDate = @cDayDate;
+
+                IF @bdOldRowVer IS NULL OR @bdOldStatus <> 'OPEN'
+                BEGIN
+                    THROW 52412, 'Ngày kinh doanh không mở.', 1;
+                END;
+
+                -- Check if any shift is still OPEN
+                IF EXISTS (SELECT 1 FROM pms.CashierShift WHERE BusinessDate = @cDayDate AND ClosedAtUtc IS NULL)
+                BEGIN
+                    THROW 52304, 'Còn ca thu ngân đang mở; phải chốt tất cả ca trước khi đóng ngày.', 1;
+                END;
+
+                -- Calculate day totals
+                DECLARE @dayCollected bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE BusinessDate = @cDayDate AND Direction = 'IN' AND Status = 'SUCCEEDED'), 0);
+                DECLARE @dayRefunded bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE BusinessDate = @cDayDate AND Direction = 'OUT' AND Status = 'SUCCEEDED'), 0);
+                DECLARE @daySettledRev bigint = ISNULL((SELECT SUM(TotalAmountVnd) FROM pms.StaySettlement WHERE BusinessDate = @cDayDate), 0);
+
+                -- Close current business day
+                UPDATE pms.BusinessDay
+                SET Status = 'CLOSED',
+                    ClosedAtUtc = @nowUtc,
+                    ClosedBy = @AppUserId,
+                    CollectedVnd = @dayCollected,
+                    RefundedVnd = @dayRefunded,
+                    SettledRevenueVnd = @daySettledRev,
+                    OutstandingVnd = 0
+                WHERE BusinessDate = @cDayDate;
+
+                DECLARE @bdNewRowVer varchar(30);
+                SELECT @bdNewRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.BusinessDay WHERE BusinessDate = @cDayDate;
+
+                -- Open next business day
+                DECLARE @nextBDate date = DATEADD(day, 1, @cDayDate);
+                IF NOT EXISTS (SELECT 1 FROM pms.BusinessDay WHERE BusinessDate = @nextBDate)
+                BEGIN
+                    INSERT INTO pms.BusinessDay (BusinessDate, Status)
+                    VALUES (@nextBDate, 'OPEN');
+                END
+                ELSE
+                BEGIN
+                    UPDATE pms.BusinessDay SET Status = 'OPEN' WHERE BusinessDate = @nextBDate;
+                END;
+
+                DECLARE @nextBRowVer varchar(30);
+                SELECT @nextBRowVer = CONVERT(varchar(30), CAST(RowVer AS varbinary(8)), 1) FROM pms.BusinessDay WHERE BusinessDate = @nextBDate;
+
+                -- Update HotelSettings
+                UPDATE pms.HotelSettings SET WorkingDate = @nextBDate;
+
+                DECLARE @dCtxToken varchar(64) = LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                    'days:close:' + CONVERT(varchar(10), @cDayDate, 23) + ':' + @bdOldRowVer + ':' + CONVERT(varchar(10), @cDayDate, 23)), 2));
+
+                SET @ResultPayload = (
+                    SELECT
+                        CAST(1 AS bit) AS committed,
+                        CAST(0 AS bit) AS replayed,
+                        CONVERT(varchar(20), @AppUserId) AS actorId,
+                        'days' AS resource,
+                        'close' AS operation,
+                        @IdempotencyKey AS idempotencyKey,
+                        @IntentHash AS intentHash,
+                        JSON_QUERY((
+                            SELECT
+                                'days' AS resource,
+                                'close' AS operation,
+                                CONVERT(varchar(10), @cDayDate, 23) AS subjectId,
+                                @bdOldRowVer AS subjectVersion,
+                                @dCtxToken AS contextToken,
+                                @validUntilIso AS validUntilUtc,
+                                CONVERT(varchar(10), @cDayDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS contextBefore,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(10), @cDayDate, 23) AS id,
+                                @bdOldRowVer AS [version],
+                                CONVERT(varchar(10), @cDayDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                'OPEN' AS [status],
+                                CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                CAST(NULL AS varchar(20)) AS closedById,
+                                '0' AS collectedVnd,
+                                '0' AS refundedVnd,
+                                '0' AS netReceiptsVnd,
+                                '0' AS cashInVnd,
+                                '0' AS cashOutVnd,
+                                '0' AS settledRevenueVnd,
+                                '0' AS outstandingVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS before,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(10), @cDayDate, 23) AS id,
+                                @bdNewRowVer AS [version],
+                                CONVERT(varchar(10), @cDayDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                'CLOSED' AS [status],
+                                @nowIso AS closedAtUtc,
+                                CONVERT(varchar(20), @AppUserId) AS closedById,
+                                CONVERT(varchar(38), @dayCollected) AS collectedVnd,
+                                CONVERT(varchar(38), @dayRefunded) AS refundedVnd,
+                                CONVERT(varchar(38), @dayCollected - @dayRefunded) AS netReceiptsVnd,
+                                '0' AS cashInVnd,
+                                '0' AS cashOutVnd,
+                                CONVERT(varchar(38), @daySettledRev) AS settledRevenueVnd,
+                                '0' AS outstandingVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [row],
+                        JSON_QUERY('{"entries":[],"movements":[],"payments":[],"refunds":[]}') AS effects,
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(20), @AppUserId) AS actorId,
+                                'close' AS operation,
+                                @nowIso AS atUtc,
+                                @reason AS reason
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS [event],
+                        -- previewProof
+                        JSON_QUERY((
+                            SELECT
+                                'days' AS resource,
+                                CONVERT(varchar(10), @cDayDate, 23) AS subjectId,
+                                @cDayPreviewToken AS previewToken,
+                                @dCtxToken AS contextToken,
+                                @bdOldRowVer AS expectedVersion,
+                                LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256', 
+                                    '{"contextToken":"' + @dCtxToken + '","expectedVersion":"' + @bdOldRowVer + '","id":"' + CONVERT(varchar(10), @cDayDate, 23) + '"}'), 2)) AS planDigest,
+                                @validUntilIso AS expiresAtUtc,
+                                CONVERT(varchar(10), @cDayDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                JSON_QUERY('[]') AS blockers,
+                                CAST(1 AS bit) AS canComplete,
+                                JSON_QUERY((
+                                    SELECT
+                                        CONVERT(varchar(10), @cDayDate, 23) AS id,
+                                        @bdOldRowVer AS [version],
+                                        CONVERT(varchar(10), @cDayDate, 23) AS businessDate,
+                                        @timeZone AS timeZone,
+                                        @cutoffLocalTime AS cutoffLocalTime,
+                                        @policyRef AS policyReference,
+                                        'OPEN' AS [status],
+                                        CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                        CAST(NULL AS varchar(20)) AS closedById,
+                                        '0' AS collectedVnd,
+                                        '0' AS refundedVnd,
+                                        '0' AS netReceiptsVnd,
+                                        '0' AS cashInVnd,
+                                        '0' AS cashOutVnd,
+                                        '0' AS settledRevenueVnd,
+                                        '0' AS outstandingVnd
+                                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                                )) AS day,
+                                CONVERT(varchar(10), @nextBDate, 23) AS nextBusinessDate
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS previewProof,
+                        -- nextBusinessDay
+                        JSON_QUERY((
+                            SELECT
+                                CONVERT(varchar(10), @nextBDate, 23) AS id,
+                                @nextBRowVer AS [version],
+                                CONVERT(varchar(10), @nextBDate, 23) AS businessDate,
+                                @timeZone AS timeZone,
+                                @cutoffLocalTime AS cutoffLocalTime,
+                                @policyRef AS policyReference,
+                                'OPEN' AS [status],
+                                CAST(NULL AS varchar(30)) AS closedAtUtc,
+                                CAST(NULL AS varchar(20)) AS closedById,
+                                '0' AS collectedVnd,
+                                '0' AS refundedVnd,
+                                '0' AS netReceiptsVnd,
+                                '0' AS cashInVnd,
+                                '0' AS cashOutVnd,
+                                '0' AS settledRevenueVnd,
+                                '0' AS outstandingVnd
+                            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                        )) AS nextBusinessDay
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                );
+            END
+            ELSE THROW 54100, 'Invalid days operation.', 1;
+        END
+
+        ELSE THROW 54100, 'Invalid command resource.', 1;
+
+        -- Record AuditLog
+        INSERT INTO pms.AuditLog (ActorId, Action, EntityType, EntityKey, RequestId, BeforeJson, AfterJson, Reason, CreatedAtUtc)
+        VALUES (@AppUserId, @Resource + '.' + @Operation, @Resource, ISNULL(@id, '0'), @request, NULL, @ResultPayload, @reason, @nowUtc);
+
+        -- Update ApiRequest
+        UPDATE pms.ApiRequest
+        SET Status = 'SUCCEEDED',
+            ResponseJson = @ResultPayload
+        WHERE RequestId = @request;
+
+        DELETE FROM pms.CommandExecution
+        WHERE SessionId = @@SPID AND RequestId = @request;
+
+        COMMIT TRANSACTION;
+
+        SELECT @ResultPayload AS PayloadJson;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+-- Grant permissions to pms_web_auth_test
+GRANT EXECUTE ON pms.usp_AppFinanceCommand TO pms_web_auth_test;
+GO

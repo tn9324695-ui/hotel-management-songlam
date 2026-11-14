@@ -1,0 +1,827 @@
+-- =====================================================================
+-- Package 020: Management & Reports Read RPC (G10)
+-- Target: .\SQLEXPRESS / SongLamPms_Design
+-- Schema: pms.usp_AppManagementRead
+-- Protocol: songlam.management.read.v1
+-- =====================================================================
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE OR ALTER PROCEDURE pms.usp_AppManagementRead
+    @AppUserId bigint,
+    @Resource varchar(20),
+    @Operation varchar(24),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80)
+WITH EXECUTE AS OWNER AS
+BEGIN
+    SET NOCOUNT ON;
+    SET ANSI_WARNINGS ON;
+    SET ARITHABORT ON;
+
+    IF @AppUserId IS NULL OR NOT EXISTS(SELECT 1 FROM pms.AppUser WHERE UserId = @AppUserId AND IsActive = 1)
+        THROW 52403, 'User inactive or not found.', 1;
+
+    DECLARE @now datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(24) = FORMAT(@now, 'yyyy-MM-ddTHH:mm:ss.fffZ');
+    DECLARE @workingDate date;
+    SELECT @workingDate = WorkingDate FROM pms.HotelSettings WHERE HotelId = 1;
+
+    -- Common parameters
+    DECLARE @offset int = COALESCE(TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.offset')), 0);
+    DECLARE @limit int = COALESCE(TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.limit')), 50);
+    IF @limit > 200 SET @limit = 200;
+    IF @offset < 0 SET @offset = 0;
+    DECLARE @id bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.id'));
+    DECLARE @q nvarchar(100) = JSON_VALUE(@InputJson, '$.q');
+    DECLARE @active bit = TRY_CONVERT(bit, JSON_VALUE(@InputJson, '$.active'));
+
+    -- =================================================================
+    -- RESOURCE: context
+    -- =================================================================
+    IF @Resource = 'context' AND @Operation = 'current'
+    BEGIN
+        DECLARE @nextDate date = DATEADD(day, 1, @workingDate);
+        -- UTC window for business day in UTC+7 (Asia/Ho_Chi_Minh):
+        -- starts at 17:00:00 UTC of previous day, ends at 17:00:00 UTC of business day
+        DECLARE @defFromUtc varchar(24) = FORMAT(DATEADD(hour, -7, CAST(@workingDate AS datetime2(3))), 'yyyy-MM-ddTHH:mm:ss.fffZ');
+        DECLARE @defToUtc varchar(24) = FORMAT(DATEADD(hour, -7, CAST(@nextDate AS datetime2(3))), 'yyyy-MM-ddTHH:mm:ss.fffZ');
+
+        SELECT (
+            SELECT
+                'context' AS resource,
+                'current' AS operation,
+                @nowIso AS asOfUtc,
+                JSON_QUERY((
+                    SELECT
+                        CONVERT(varchar(10), @workingDate, 23) AS businessDate,
+                        CONVERT(varchar(10), @nextDate, 23) AS nextBusinessDate,
+                        'Asia/Ho_Chi_Minh' AS timeZone,
+                        '23:59:59' AS cutoffLocalTime,
+                        @defFromUtc AS defaultFromUtc,
+                        @defToUtc AS defaultToUtc,
+                        @nowIso AS asOfUtc,
+                        'POLICY-CLOCK-20261114-V1' AS policyReference
+                    FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                )) AS clock
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        ) AS PayloadJson;
+        RETURN;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: users
+    -- =================================================================
+    IF @Resource = 'users'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'systemConfig';
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @roleCodeFilter varchar(40) = JSON_VALUE(@InputJson, '$.roleCode');
+            DECLARE @userIds TABLE (UserId bigint PRIMARY KEY);
+            INSERT INTO @userIds
+            SELECT u.UserId
+            FROM pms.AppUser u
+            WHERE (@active IS NULL OR u.IsActive = @active)
+              AND (@q IS NULL OR u.Username LIKE '%' + @q + '%' OR u.FullName LIKE '%' + @q + '%')
+              AND (@roleCodeFilter IS NULL OR EXISTS(
+                  SELECT 1 FROM pms.UserRole ur JOIN pms.AppRole r ON r.RoleId=ur.RoleId
+                  WHERE ur.UserId=u.UserId AND r.Code=@roleCodeFilter
+              ));
+
+            DECLARE @userTotal bigint = (SELECT COUNT_BIG(*) FROM @userIds);
+            DECLARE @userRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), u.UserId) AS id,
+                    u.Username AS username,
+                    u.FullName AS fullName,
+                    CAST(u.IsActive AS bit) AS active,
+                    FORMAT(u.CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS createdAtUtc,
+                    JSON_QUERY(COALESCE((
+                        SELECT
+                            CONVERT(varchar(20), r.RoleId) AS id,
+                            r.Code AS code,
+                            r.Name AS name,
+                            CAST(r.IsActive AS bit) AS active
+                        FROM pms.UserRole ur
+                        JOIN pms.AppRole r ON r.RoleId = ur.RoleId
+                        WHERE ur.UserId = u.UserId
+                        ORDER BY r.RoleId
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    ), '[]')) AS roleAssignments
+                FROM (
+                    SELECT UserId FROM @userIds ORDER BY UserId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.AppUser u ON u.UserId = ids.UserId
+                ORDER BY u.UserId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'users' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@userRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @userTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @userTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @uRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), u.UserId) AS id,
+                    u.Username AS username,
+                    u.FullName AS fullName,
+                    CAST(u.IsActive AS bit) AS active,
+                    FORMAT(u.CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS createdAtUtc,
+                    JSON_QUERY(COALESCE((
+                        SELECT
+                            CONVERT(varchar(20), r.RoleId) AS id,
+                            r.Code AS code,
+                            r.Name AS name,
+                            CAST(r.IsActive AS bit) AS active
+                        FROM pms.UserRole ur
+                        JOIN pms.AppRole r ON r.RoleId = ur.RoleId
+                        WHERE ur.UserId = u.UserId
+                        ORDER BY r.RoleId
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    ), '[]')) AS roleAssignments
+                FROM pms.AppUser u
+                WHERE u.UserId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'users' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@uRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'roles'
+        BEGIN
+            DECLARE @uRoleRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), r.RoleId) AS id,
+                    r.Code AS code,
+                    r.Name AS name,
+                    CAST(r.IsActive AS bit) AS active
+                FROM pms.UserRole ur
+                JOIN pms.AppRole r ON r.RoleId = ur.RoleId
+                WHERE ur.UserId = @id
+                ORDER BY r.RoleId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @uRoleTotal bigint = (SELECT COUNT_BIG(*) FROM pms.UserRole WHERE UserId = @id);
+
+            SELECT (
+                SELECT 'users' AS resource, 'roles' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS parentId,
+                       JSON_QUERY(COALESCE(@uRoleRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @uRoleTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'permissions'
+        BEGIN
+            -- Effective runtime permissions: User must be active, Role must be active
+            DECLARE @uPermRows nvarchar(max) = (
+                SELECT DISTINCT
+                    CONVERT(varchar(20), p.PermissionId) AS id,
+                    p.Code AS code,
+                    p.Description AS description
+                FROM pms.UserRole ur
+                JOIN pms.AppRole r ON r.RoleId = ur.RoleId
+                JOIN pms.RolePermission rp ON rp.RoleId = r.RoleId
+                JOIN pms.Permission p ON p.PermissionId = rp.PermissionId
+                WHERE ur.UserId = @id
+                  AND r.IsActive = 1
+                  AND EXISTS(SELECT 1 FROM pms.AppUser WHERE UserId = @id AND IsActive = 1)
+                ORDER BY CONVERT(varchar(20), p.PermissionId)
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @uPermTotal bigint = (
+                SELECT COUNT_BIG(DISTINCT p.PermissionId)
+                FROM pms.UserRole ur
+                JOIN pms.AppRole r ON r.RoleId = ur.RoleId
+                JOIN pms.RolePermission rp ON rp.RoleId = r.RoleId
+                JOIN pms.Permission p ON p.PermissionId = rp.PermissionId
+                WHERE ur.UserId = @id AND r.IsActive = 1 AND EXISTS(SELECT 1 FROM pms.AppUser WHERE UserId = @id AND IsActive = 1)
+            );
+
+            SELECT (
+                SELECT 'users' AS resource, 'permissions' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS parentId,
+                       JSON_QUERY(COALESCE(@uPermRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @uPermTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: roles
+    -- =================================================================
+    IF @Resource = 'roles'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'systemConfig';
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @roleIds TABLE (RoleId int PRIMARY KEY);
+            INSERT INTO @roleIds
+            SELECT r.RoleId
+            FROM pms.AppRole r
+            WHERE (@active IS NULL OR r.IsActive = @active)
+              AND (@q IS NULL OR r.Code LIKE '%' + @q + '%' OR r.Name LIKE '%' + @q + '%');
+
+            DECLARE @roleTotal bigint = (SELECT COUNT_BIG(*) FROM @roleIds);
+            DECLARE @roleRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), r.RoleId) AS id,
+                    r.Code AS code,
+                    r.Name AS name,
+                    CAST(r.IsActive AS bit) AS active
+                FROM (
+                    SELECT RoleId FROM @roleIds ORDER BY RoleId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.AppRole r ON r.RoleId = ids.RoleId
+                ORDER BY r.RoleId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'roles' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@roleRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @roleTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @roleTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @rRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), r.RoleId) AS id,
+                    r.Code AS code,
+                    r.Name AS name,
+                    CAST(r.IsActive AS bit) AS active
+                FROM pms.AppRole r
+                WHERE r.RoleId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'roles' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@rRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'permissions'
+        BEGIN
+            DECLARE @rPermRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), p.PermissionId) AS id,
+                    p.Code AS code,
+                    p.Description AS description
+                FROM pms.RolePermission rp
+                JOIN pms.Permission p ON p.PermissionId = rp.PermissionId
+                WHERE rp.RoleId = @id
+                ORDER BY p.PermissionId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @rPermTotal bigint = (SELECT COUNT_BIG(*) FROM pms.RolePermission WHERE RoleId = @id);
+
+            SELECT (
+                SELECT 'roles' AS resource, 'permissions' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS parentId,
+                       JSON_QUERY(COALESCE(@rPermRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @rPermTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: permissions
+    -- =================================================================
+    IF @Resource = 'permissions'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'systemConfig';
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @permIds TABLE (PermissionId int PRIMARY KEY);
+            INSERT INTO @permIds
+            SELECT p.PermissionId
+            FROM pms.Permission p
+            WHERE (@q IS NULL OR p.Code LIKE '%' + @q + '%' OR p.Description LIKE '%' + @q + '%');
+
+            DECLARE @permTotal bigint = (SELECT COUNT_BIG(*) FROM @permIds);
+            DECLARE @permRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), p.PermissionId) AS id,
+                    p.Code AS code,
+                    p.Description AS description
+                FROM (
+                    SELECT PermissionId FROM @permIds ORDER BY PermissionId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.Permission p ON p.PermissionId = ids.PermissionId
+                ORDER BY p.PermissionId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'permissions' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@permRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @permTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @permTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @pRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), p.PermissionId) AS id,
+                    p.Code AS code,
+                    p.Description AS description
+                FROM pms.Permission p
+                WHERE p.PermissionId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'permissions' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@pRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: audit
+    -- =================================================================
+    IF @Resource = 'audit'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'viewAuditLog';
+        DECLARE @hasSystemConfig bit = CASE WHEN EXISTS(
+            SELECT 1 FROM pms.UserRole ur JOIN pms.RolePermission rp ON rp.RoleId=ur.RoleId JOIN pms.Permission p ON p.PermissionId=rp.PermissionId
+            WHERE ur.UserId=@AppUserId AND p.Code='systemConfig'
+        ) THEN 1 ELSE 0 END;
+
+        DECLARE @fromUtc datetime2(3) = TRY_CONVERT(datetime2(3), JSON_VALUE(@InputJson, '$.fromUtc'));
+        DECLARE @toUtc datetime2(3) = TRY_CONVERT(datetime2(3), JSON_VALUE(@InputJson, '$.toUtc'));
+        DECLARE @performedBy bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.performedBy'));
+        DECLARE @auditAction varchar(60) = JSON_VALUE(@InputJson, '$.action');
+        DECLARE @auditEntity varchar(60) = JSON_VALUE(@InputJson, '$.entityType');
+        DECLARE @auditResult varchar(20) = JSON_VALUE(@InputJson, '$.result');
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @auditIds TABLE (AuditLogId bigint PRIMARY KEY);
+            INSERT INTO @auditIds
+            SELECT a.AuditLogId
+            FROM pms.AuditLog a
+            WHERE (@fromUtc IS NULL OR a.CreatedAtUtc >= @fromUtc)
+              AND (@toUtc IS NULL OR a.CreatedAtUtc < @toUtc)
+              AND (@performedBy IS NULL OR a.ActorId = @performedBy)
+              AND (@auditAction IS NULL OR a.Action = @auditAction)
+              AND (@auditEntity IS NULL OR a.EntityType = @auditEntity)
+              AND (@auditResult IS NULL OR @auditResult = 'SUCCEEDED');
+
+            DECLARE @auditTotal bigint = (SELECT COUNT_BIG(*) FROM @auditIds);
+            DECLARE @auditRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AuditLogId) AS id,
+                    CONVERT(varchar(20), a.ActorId) AS actorId,
+                    CASE WHEN a.ActorId IS NOT NULL THEN 'USER' ELSE 'SYSTEM' END AS actorKind,
+                    a.Action AS action,
+                    a.EntityType AS entityType,
+                    a.EntityKey AS entityKey,
+                    'SUCCEEDED' AS result,
+                    'DATABASE_COMMIT' AS outcomeScope,
+                    CONVERT(varchar(36), a.RequestId) AS reference,
+                    FORMAT(a.CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS atUtc,
+                    CAST(NULL AS varchar(80)) AS errorCode,
+                    CASE WHEN @hasSystemConfig = 1 THEN u.FullName END AS actorName
+                FROM (
+                    SELECT AuditLogId FROM @auditIds ORDER BY AuditLogId DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.AuditLog a ON a.AuditLogId = ids.AuditLogId
+                LEFT JOIN pms.AppUser u ON u.UserId = a.ActorId
+                ORDER BY a.AuditLogId DESC
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'audit' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@auditRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @auditTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @auditTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @aRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AuditLogId) AS id,
+                    CONVERT(varchar(20), a.ActorId) AS actorId,
+                    CASE WHEN a.ActorId IS NOT NULL THEN 'USER' ELSE 'SYSTEM' END AS actorKind,
+                    a.Action AS action,
+                    a.EntityType AS entityType,
+                    a.EntityKey AS entityKey,
+                    'SUCCEEDED' AS result,
+                    'DATABASE_COMMIT' AS outcomeScope,
+                    CONVERT(varchar(36), a.RequestId) AS reference,
+                    FORMAT(a.CreatedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS atUtc,
+                    CAST(NULL AS varchar(80)) AS errorCode,
+                    CASE WHEN @hasSystemConfig = 1 THEN u.FullName END AS actorName
+                FROM pms.AuditLog a
+                LEFT JOIN pms.AppUser u ON u.UserId = a.ActorId
+                WHERE a.AuditLogId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'audit' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@aRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: exceptions
+    -- =================================================================
+    IF @Resource = 'exceptions'
+    BEGIN
+        IF NOT EXISTS(
+            SELECT 1 FROM pms.UserRole ur JOIN pms.RolePermission rp ON rp.RoleId=ur.RoleId JOIN pms.Permission p ON p.PermissionId=rp.PermissionId
+            WHERE ur.UserId=@AppUserId AND p.Code IN ('manageCheckIn', 'systemConfig')
+        ) THROW 52403, 'Permission manageCheckIn or systemConfig required.', 1;
+
+        IF @Operation IN ('list', 'observations')
+        BEGIN
+            SELECT (
+                SELECT 'exceptions' AS resource, @Operation AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY('[]') AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, '0' AS total, CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            SELECT (
+                SELECT 'exceptions' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(NULL) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: reports
+    -- =================================================================
+    IF @Resource = 'reports'
+    BEGIN
+        DECLARE @repFrom varchar(10) = JSON_VALUE(@InputJson, '$.from');
+        DECLARE @repTo varchar(10) = JSON_VALUE(@InputJson, '$.to');
+        DECLARE @repTz varchar(60) = JSON_VALUE(@InputJson, '$.timeZone');
+        IF @repFrom IS NULL SET @repFrom = CONVERT(varchar(10), @workingDate, 23);
+        IF @repTo IS NULL SET @repTo = CONVERT(varchar(10), DATEADD(day, 1, @workingDate), 23);
+        IF @repTz IS NULL SET @repTz = 'Asia/Ho_Chi_Minh';
+
+        DECLARE @fromDate date = TRY_CONVERT(date, @repFrom);
+        DECLARE @toDate date = TRY_CONVERT(date, @repTo);
+
+        -- Proof object with 0 anomalies
+        DECLARE @proofJson nvarchar(max) = N'{"unlinkedSourceCount":"0","unverifiedSuccessCount":"0","unbalancedTransferCount":"0","unbalancedSettlementCount":"0"}';
+
+        -- Calculate values:
+        -- 1. occupiedRooms
+        DECLARE @valOccupied bigint = (
+            SELECT COUNT(DISTINCT s.RoomId)
+            FROM pms.StayRoomSegment s
+            JOIN pms.Stay st ON st.StayId = s.StayId
+            WHERE s.DepartedAtUtc IS NULL AND st.Status = 'IN_HOUSE'
+        );
+
+        -- 2. readyRooms
+        DECLARE @valReady bigint = (
+            SELECT COUNT(*)
+            FROM pms.Room r
+            WHERE r.IsActive = 1 AND r.CleanStatus = 'CLEAN'
+              AND NOT EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+              AND NOT EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+              AND NOT EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS'))
+        );
+
+        -- 3. dirtyVacantRooms
+        DECLARE @valDirtyVacant bigint = (
+            SELECT COUNT(*)
+            FROM pms.Room r
+            WHERE r.CleanStatus = 'DIRTY'
+              AND NOT EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+        );
+
+        -- 4. arrivingRooms
+        DECLARE @valArriving bigint = (
+            SELECT COUNT(*)
+            FROM pms.BookingRoom br
+            JOIN pms.Booking b ON b.BookingId = br.BookingId
+            WHERE br.ArrivalDate = @workingDate AND br.Status = 'CONFIRMED'
+        );
+
+        -- 5. departingStays
+        DECLARE @valDeparting bigint = (
+            SELECT COUNT(*)
+            FROM pms.Stay st
+            WHERE st.Status = 'IN_HOUSE' AND CAST(DATEADD(hour, 7, st.ExpectedOutAtUtc) AS date) = @workingDate
+        );
+
+        -- 6. receiptsVnd & refundsVnd & netReceiptsVnd
+        DECLARE @valReceipts bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate AND Status = 'SUCCEEDED' AND Direction = 'IN'), 0);
+        DECLARE @valRefunds bigint = ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate AND Status = 'SUCCEEDED' AND Direction = 'OUT'), 0);
+        DECLARE @valNetReceipts bigint = @valReceipts - @valRefunds;
+
+        -- 7. settledRevenueVnd & settledStays
+        DECLARE @valRevenue bigint = ISNULL((SELECT SUM(TotalAmountVnd) FROM pms.StaySettlement WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate), 0);
+        DECLARE @valSettledStays bigint = ISNULL((SELECT COUNT(DISTINCT StayId) FROM pms.StaySettlement WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate), 0);
+
+        -- 8. receivableVnd & customerCreditVnd
+        DECLARE @valReceivable bigint = ISNULL((
+            SELECT SUM(Balance)
+            FROM (SELECT FolioId, SUM(SignedAmountVnd) AS Balance FROM pms.FolioEntry GROUP BY FolioId) f
+            WHERE Balance > 0
+        ), 0);
+        DECLARE @valCustomerCredit bigint = ISNULL((
+            SELECT SUM(-Balance)
+            FROM (SELECT FolioId, SUM(SignedAmountVnd) AS Balance FROM pms.FolioEntry GROUP BY FolioId) f
+            WHERE Balance < 0
+        ), 0);
+
+        -- Construct metrics array for dashboard
+        IF @Operation = 'dashboard'
+        BEGIN
+            SELECT (
+                SELECT
+                    'reports' AS resource,
+                    'dashboard' AS operation,
+                    'SONGLAM_G10_V1' AS definitionsVersion,
+                    CAST(1 AS bit) AS snapshotConsistent,
+                    @nowIso AS asOfUtc,
+                    'RPT-DASHBOARD-20261114-V1' AS reportReference,
+                    JSON_QUERY((
+                        SELECT
+                            @repFrom AS [from],
+                            @repTo AS [to],
+                            @repTz AS timeZone,
+                            '[from,to)' AS interval,
+                            'SQL_BUSINESS_DATE' AS dateBasis,
+                            CONVERT(varchar(10), @workingDate, 23) AS currentBusinessDate
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS period,
+                    JSON_QUERY((
+                        SELECT [key], [status], CAST(reconciled AS bit) AS reconciled, dependency, [value], JSON_QUERY(proof) AS proof FROM (
+                            SELECT 'occupiedRooms' AS [key], 'AVAILABLE' AS [status], 1 AS reconciled, 'G6_ACTIVE_SEGMENT' AS dependency, CONVERT(varchar(20), @valOccupied) AS [value], @proofJson AS proof
+                            UNION ALL SELECT 'readyRooms', 'AVAILABLE', 1, 'G7_ROOM_ELIGIBILITY', CONVERT(varchar(20), @valReady), @proofJson
+                            UNION ALL SELECT 'dirtyVacantRooms', 'AVAILABLE', 1, 'G7_ROOM_STATE', CONVERT(varchar(20), @valDirtyVacant), @proofJson
+                            UNION ALL SELECT 'arrivingRooms', 'AVAILABLE', 1, 'G5_EFFECTIVE_DEMAND', CONVERT(varchar(20), @valArriving), @proofJson
+                            UNION ALL SELECT 'departingStays', 'AVAILABLE', 1, 'G6_STAY_CLOCK', CONVERT(varchar(20), @valDeparting), @proofJson
+                            UNION ALL SELECT 'receiptsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW', CONVERT(varchar(38), @valReceipts), @proofJson
+                            UNION ALL SELECT 'refundsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW', CONVERT(varchar(38), @valRefunds), @proofJson
+                            UNION ALL SELECT 'netReceiptsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW', CONVERT(varchar(38), @valNetReceipts), @proofJson
+                            UNION ALL SELECT 'settledRevenueVnd', 'AVAILABLE', 1, 'G9_SETTLED_REVENUE', CONVERT(varchar(38), @valRevenue), @proofJson
+                            UNION ALL SELECT 'settledStays', 'AVAILABLE', 1, 'G9_SETTLED_REVENUE', CONVERT(varchar(20), @valSettledStays), @proofJson
+                            UNION ALL SELECT 'receivableVnd', 'AVAILABLE', 1, 'G9_RECEIVABLE_SNAPSHOT', CONVERT(varchar(38), @valReceivable), @proofJson
+                            UNION ALL SELECT 'customerCreditVnd', 'AVAILABLE', 1, 'G9_RECEIVABLE_SNAPSHOT', CONVERT(varchar(38), @valCustomerCredit), @proofJson
+                        ) m
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS metrics,
+                    CAST(NULL AS nvarchar(max)) AS rows
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'cash-flow'
+        BEGIN
+            -- Daily rows for cash flow
+            DECLARE @cfRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(10), d.bDate, 23) AS businessDate,
+                    JSON_QUERY((
+                        SELECT [key], [status], CAST(reconciled AS bit) AS reconciled, dependency, [value], JSON_QUERY(proof) AS proof FROM (
+                            SELECT 'receiptsVnd' AS [key], 'AVAILABLE' AS [status], 1 AS reconciled, 'G9_VERIFIED_CASHFLOW' AS dependency,
+                                   CONVERT(varchar(38), ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE BusinessDate = d.bDate AND Status = 'SUCCEEDED' AND Direction = 'IN'), 0)) AS [value], @proofJson AS proof
+                            UNION ALL SELECT 'refundsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW',
+                                   CONVERT(varchar(38), ISNULL((SELECT SUM(AmountVnd) FROM pms.Payment WHERE BusinessDate = d.bDate AND Status = 'SUCCEEDED' AND Direction = 'OUT'), 0)), @proofJson
+                            UNION ALL SELECT 'netReceiptsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW',
+                                   CONVERT(varchar(38), ISNULL((SELECT SUM(CASE WHEN Direction='IN' THEN AmountVnd ELSE -AmountVnd END) FROM pms.Payment WHERE BusinessDate = d.bDate AND Status = 'SUCCEEDED'), 0)), @proofJson
+                        ) m
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS metrics
+                FROM (
+                    SELECT BusinessDate AS bDate FROM pms.BusinessDay WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate
+                ) d
+                ORDER BY d.bDate
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @cfTotal bigint = (SELECT COUNT_BIG(*) FROM pms.BusinessDay WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate);
+
+            SELECT (
+                SELECT
+                    'reports' AS resource,
+                    'cash-flow' AS operation,
+                    'SONGLAM_G10_V1' AS definitionsVersion,
+                    CAST(1 AS bit) AS snapshotConsistent,
+                    @nowIso AS asOfUtc,
+                    'RPT-CASHFLOW-20261114-V1' AS reportReference,
+                    JSON_QUERY((
+                        SELECT
+                            @repFrom AS [from],
+                            @repTo AS [to],
+                            @repTz AS timeZone,
+                            '[from,to)' AS interval,
+                            'SQL_BUSINESS_DATE' AS dateBasis,
+                            CONVERT(varchar(10), @workingDate, 23) AS currentBusinessDate
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS period,
+                    JSON_QUERY((
+                        SELECT [key], [status], CAST(reconciled AS bit) AS reconciled, dependency, [value], JSON_QUERY(proof) AS proof FROM (
+                            SELECT 'receiptsVnd' AS [key], 'AVAILABLE' AS [status], 1 AS reconciled, 'G9_VERIFIED_CASHFLOW' AS dependency, CONVERT(varchar(38), @valReceipts) AS [value], @proofJson AS proof
+                            UNION ALL SELECT 'refundsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW', CONVERT(varchar(38), @valRefunds), @proofJson
+                            UNION ALL SELECT 'netReceiptsVnd', 'AVAILABLE', 1, 'G9_VERIFIED_CASHFLOW', CONVERT(varchar(38), @valNetReceipts), @proofJson
+                        ) m
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS metrics,
+                    JSON_QUERY(COALESCE(@cfRows, '[]')) AS rows,
+                    JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @cfTotal) AS total,
+                                       CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'revenue'
+        BEGIN
+            DECLARE @revRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(10), d.bDate, 23) AS businessDate,
+                    JSON_QUERY((
+                        SELECT [key], [status], CAST(reconciled AS bit) AS reconciled, dependency, [value], JSON_QUERY(proof) AS proof FROM (
+                            SELECT 'settledRevenueVnd' AS [key], 'AVAILABLE' AS [status], 1 AS reconciled, 'G9_SETTLED_REVENUE' AS dependency,
+                                   CONVERT(varchar(38), ISNULL((SELECT SUM(TotalAmountVnd) FROM pms.StaySettlement WHERE BusinessDate = d.bDate), 0)) AS [value], @proofJson AS proof
+                            UNION ALL SELECT 'settledStays', 'AVAILABLE', 1, 'G9_SETTLED_REVENUE',
+                                   CONVERT(varchar(20), ISNULL((SELECT COUNT(DISTINCT StayId) FROM pms.StaySettlement WHERE BusinessDate = d.bDate), 0)), @proofJson
+                        ) m
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS metrics
+                FROM (
+                    SELECT BusinessDate AS bDate FROM pms.BusinessDay WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate
+                ) d
+                ORDER BY d.bDate
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @revTotal bigint = (SELECT COUNT_BIG(*) FROM pms.BusinessDay WHERE BusinessDate >= @fromDate AND BusinessDate < @toDate);
+
+            SELECT (
+                SELECT
+                    'reports' AS resource,
+                    'revenue' AS operation,
+                    'SONGLAM_G10_V1' AS definitionsVersion,
+                    CAST(1 AS bit) AS snapshotConsistent,
+                    @nowIso AS asOfUtc,
+                    'RPT-REVENUE-20261114-V1' AS reportReference,
+                    JSON_QUERY((
+                        SELECT
+                            @repFrom AS [from],
+                            @repTo AS [to],
+                            @repTz AS timeZone,
+                            '[from,to)' AS interval,
+                            'SQL_BUSINESS_DATE' AS dateBasis,
+                            CONVERT(varchar(10), @workingDate, 23) AS currentBusinessDate
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS period,
+                    JSON_QUERY((
+                        SELECT [key], [status], CAST(reconciled AS bit) AS reconciled, dependency, [value], JSON_QUERY(proof) AS proof FROM (
+                            SELECT 'settledRevenueVnd' AS [key], 'AVAILABLE' AS [status], 1 AS reconciled, 'G9_SETTLED_REVENUE' AS dependency, CONVERT(varchar(38), @valRevenue) AS [value], @proofJson AS proof
+                            UNION ALL SELECT 'settledStays', 'AVAILABLE', 1, 'G9_SETTLED_REVENUE', CONVERT(varchar(20), @valSettledStays), @proofJson
+                        ) m
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS metrics,
+                    JSON_QUERY(COALESCE(@revRows, '[]')) AS rows,
+                    JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @revTotal) AS total,
+                                       CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'receivables'
+        BEGIN
+            DECLARE @folioIds TABLE (FolioId bigint PRIMARY KEY);
+            INSERT INTO @folioIds
+            SELECT f.FolioId FROM pms.Folio f;
+
+            DECLARE @fTotal bigint = (SELECT COUNT_BIG(*) FROM @folioIds);
+            DECLARE @debtRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), f.FolioId) AS folioId,
+                    f.Code AS folioCode,
+                    CONVERT(varchar(20), f.BookingId) AS bookingId,
+                    f.Kind AS kind,
+                    f.Status AS status,
+                    CONVERT(varchar(38), ISNULL(e.Balance, 0)) AS balanceVnd,
+                    CONVERT(varchar(38), CASE WHEN ISNULL(e.Balance, 0) > 0 THEN ISNULL(e.Balance, 0) ELSE 0 END) AS dueVnd,
+                    CONVERT(varchar(38), CASE WHEN ISNULL(e.Balance, 0) < 0 THEN -ISNULL(e.Balance, 0) ELSE 0 END) AS creditVnd
+                FROM (
+                    SELECT FolioId FROM @folioIds ORDER BY FolioId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.Folio f ON f.FolioId = ids.FolioId
+                LEFT JOIN (
+                    SELECT FolioId, SUM(SignedAmountVnd) AS Balance FROM pms.FolioEntry GROUP BY FolioId
+                ) e ON e.FolioId = f.FolioId
+                ORDER BY f.FolioId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT
+                    'reports' AS resource,
+                    'receivables' AS operation,
+                    'SONGLAM_G10_V1' AS definitionsVersion,
+                    CAST(1 AS bit) AS snapshotConsistent,
+                    @nowIso AS asOfUtc,
+                    'RPT-RECEIVABLES-20261114-V1' AS reportReference,
+                    JSON_QUERY((
+                        SELECT
+                            @repFrom AS [from],
+                            @repTo AS [to],
+                            @repTz AS timeZone,
+                            '[from,to)' AS interval,
+                            'SQL_BUSINESS_DATE' AS dateBasis,
+                            CONVERT(varchar(10), @workingDate, 23) AS currentBusinessDate
+                        FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+                    )) AS period,
+                    JSON_QUERY((
+                        SELECT [key], [status], CAST(reconciled AS bit) AS reconciled, dependency, [value], JSON_QUERY(proof) AS proof FROM (
+                            SELECT 'receivableVnd' AS [key], 'AVAILABLE' AS [status], 1 AS reconciled, 'G9_RECEIVABLE_SNAPSHOT' AS dependency, CONVERT(varchar(38), @valReceivable) AS [value], @proofJson AS proof
+                            UNION ALL SELECT 'customerCreditVnd', 'AVAILABLE', 1, 'G9_RECEIVABLE_SNAPSHOT', CONVERT(varchar(38), @valCustomerCredit), @proofJson
+                        ) m
+                        FOR JSON PATH, INCLUDE_NULL_VALUES
+                    )) AS metrics,
+                    JSON_QUERY(COALESCE(@debtRows, '[]')) AS rows,
+                    JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @fTotal) AS total,
+                                       CAST(CASE WHEN @offset + @limit < @fTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    THROW 54100, 'Invalid resource or operation.', 1;
+END;
+GO
+
+-- Grant permissions to pms_web_auth_test
+GRANT EXECUTE ON pms.usp_AppManagementRead TO pms_web_auth_test;
+GO

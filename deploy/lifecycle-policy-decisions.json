@@ -1,0 +1,33 @@
+{
+  "format": "songlam.lifecycle-decisions.v1",
+  "recordedOn": "2026-11-13",
+  "environment": "test",
+  "database": "SongLamPms_Design",
+  "sqlExecutionApproved": false,
+  "activationApproved": false,
+  "refundApproval": {
+    "businessRuleConfirmedByUser": true,
+    "separation": "DISTINCT_REQUESTER_APPROVER",
+    "requiredExistingPermission": "approveRefund",
+    "missingPermissionBehavior": "LOCK_APPROVAL_AND_PAYOUT",
+    "reference": "USER-20261113-REFUND-MAKER-CHECKER",
+    "cashPayoutApproved": false
+  },
+  "cancellationAndEarlyDeparture": {
+    "businessRuleConfirmedByUser": true,
+    "handling": "MANAGER_CASE_BY_CASE",
+    "automaticRetention": false,
+    "automaticRefund": false,
+    "preserveOriginalPayment": true,
+    "reference": "USER-20261113-PRESERVE-FUNDS-MANAGER-REVIEW"
+  },
+  "roomFolioCreation": {
+    "status": "PROPOSED_NOT_ACTIVATED",
+    "profile": "ATOMIC_ROOM_FOLIO_V1",
+    "payer": "BOOKING_CUSTOMER",
+    "groupMasterTransfer": "EXPLICIT_PAIRED_COMMAND_ONLY"
+  },
+  "bankSettlement": "PENDING_NO_PROVIDER_APPROVAL",
+  "electronicInvoice": "NOT_INTEGRATED",
+  "operationalCutover": false
+}

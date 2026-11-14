@@ -1,0 +1,136 @@
+{
+  "kind": "PRICING_SOURCE_REVIEW_NOT_A_SQL_SEED",
+  "sqlExecutionApproved": false,
+  "writesEnabled": false,
+  "source": {
+    "sha256": "2e1e523b3c0463e07a744a78b68fe9ec1c7d3dc05bacb7bb974b95f19daade5d",
+    "projectUseApproved": true,
+    "declaredClassification": "Giả định đồ án",
+    "independentlyVerifiedHotelData": false
+  },
+  "target": {
+    "server": ".\\SQLEXPRESS",
+    "database": "SongLamPms_Design",
+    "environment": "test"
+  },
+  "businessDate": "2026-10-11",
+  "timeZone": "Asia/Ho_Chi_Minh",
+  "rates": [
+    {
+      "roomTypeCode": "SUP-K",
+      "nightlyVnd": "1100000",
+      "hourlySixHourVnd": "650000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "DLX-T",
+      "nightlyVnd": "1250000",
+      "hourlySixHourVnd": "750000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "PRE-K",
+      "nightlyVnd": "1500000",
+      "hourlySixHourVnd": "900000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "PRE-T",
+      "nightlyVnd": "1500000",
+      "hourlySixHourVnd": "900000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "JRS",
+      "nightlyVnd": "1900000",
+      "hourlySixHourVnd": "1150000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "CLS",
+      "nightlyVnd": "2300000",
+      "hourlySixHourVnd": "1400000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "EXS",
+      "nightlyVnd": "2800000",
+      "hourlySixHourVnd": "1700000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "GRS",
+      "nightlyVnd": "3500000",
+      "hourlySixHourVnd": "2100000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "RYS",
+      "nightlyVnd": "5000000",
+      "hourlySixHourVnd": "3000000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    },
+    {
+      "roomTypeCode": "PRS",
+      "nightlyVnd": "15000000",
+      "hourlySixHourVnd": "9000000",
+      "validFrom": "2026-11-01",
+      "validToExclusive": "2028-01-01",
+      "sourceValidThroughInclusive": "2027-12-31",
+      "currency": "VND"
+    }
+  ],
+  "excluded": [
+    "DLX-TR",
+    "501",
+    "902",
+    "1303",
+    "1704",
+    "2105"
+  ],
+  "blockers": [
+    "NO_PRICE_2026_10_11_THROUGH_2026_10_31",
+    "PRICING_POLICY_AND_CALENDAR_APPROVAL_REQUIRED",
+    "EXTRA_GUEST_AGE_AND_BED_POLICY_CONTRACT_REQUIRED",
+    "SAME_DAY_OVER_SIX_HOURS_NIGHTLY_TRANSITION_CONTRACT_REQUIRED",
+    "CUSTOMER_RPC_REQUIRED",
+    "ATOMIC_BOOKING_RECEIPT_AND_ACTOR_CONTRACT_REQUIRED"
+  ],
+  "policyExtensionsImplementedButNotActivated": {
+    "lateDepartureInterval": "LEFT_CLOSED_RIGHT_OPEN",
+    "hourlyMaximumMinutes": 360
+  },
+  "bookingAcceptance": {
+    "requiredRoomField": "acceptedQuoteHash",
+    "from": "G4 acceptanceHash",
+    "onChange": "409 BOOKING_QUOTE_CHANGED",
+    "pricesFromBrowserAccepted": false
+  }
+}

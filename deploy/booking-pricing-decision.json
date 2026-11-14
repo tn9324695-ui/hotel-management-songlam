@@ -1,0 +1,41 @@
+{
+  "kind": "OWN_SYSTEM_TARIFF_AUTHORIZED_IMPLEMENTATION",
+  "approvalReference": "USER-20261112-REAL-PRICING-CUSTOMER-BOOKING",
+  "releaseId": "SONGLAM_BOOKING012_V1",
+  "deploymentId": "f916e0c6-20d4-477c-966f-dcd278dfb083",
+  "systemOwner": "Nhóm phát triển SongLam PMS",
+  "tariffIsOfficialMuongThanh": false,
+  "validFrom": "2026-11-01",
+  "validToExclusive": "2028-01-01",
+  "currency": "VND",
+  "rounding": "HALF_UP_TO_INTEGER_VND",
+  "conditions": {
+    "rateBasis": "ROOM_INCLUDING_GUESTS_UP_TO_ROOM_TYPE_MAX_OCCUPANCY",
+    "extraBed": "NOT_INCLUDED_NOT_SELLABLE_IN_THIS_RELEASE",
+    "ageBasedSurcharges": "NOT_APPLIED_BY_THIS_OWN_SYSTEM_PACKAGE",
+    "weekendAndHoliday": "SAME_BASE_PRICE_NO_AUTOMATIC_UPLIFT",
+    "deposit": "FRONTDESK_CONFIRMATION_NOT_A_PAYMENT_RECEIPT_NO_AUTOMATIC_DEPOSIT",
+    "hourly": "ONE_PACKAGE_AT_MOST_360_MINUTES_NO_NIGHTLY_BOUNDARY_FEES",
+    "overSixHours": "REQUIRES_EXPLICIT_NIGHTLY_QUOTE_NO_AUTOMATIC_PRICE_SWITCH",
+    "earlyLateBasis": "FIRST_OR_LAST_BOOKED_NIGHT_RATE_FROZEN_IN_SNAPSHOT",
+    "earlyArrival": "before06=100%;06inclusive_to09exclusive=50%;09inclusive_to14exclusive=30%;from14=0",
+    "lateDeparture": "through12inclusive=0;after12_to15exclusive=30%;15inclusive_to18exclusive=50%;from18inclusive=100%"
+  },
+  "publicReferences": [
+    {
+      "url": "https://booking.muongthanh.com/hotel-muong-thanh-luxury-song-lam",
+      "observedOn": "2026-11-12",
+      "publishedFromVndPerNight": "1290000",
+      "stayDates": null,
+      "status": "SEARCH_INDEX_REFERENCE_NOT_A_VERIFIED_QUOTE_FOR_SELECTED_DATES"
+    },
+    {
+      "url": "https://booking.muongthanh.com/dieu-khoan-chung-c2",
+      "observedOn": "2026-11-12",
+      "use": "EARLY_LATE_BANDS_REFERENCE_ONLY_OUR_POLICY_CLOSES_18H_BOUNDARY"
+    }
+  ],
+  "amountDecision": "Own-system amounts selected from the group's approved workbook proposal, compared with a public starting-price reference; not copied or represented as official/current hotel prices for any stay date.",
+  "roomProvenance": "420 imported project rooms from workbook, not an independently verified Muong Thanh room register",
+  "operationalCutover": false
+}

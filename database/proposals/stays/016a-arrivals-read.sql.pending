@@ -1,0 +1,31 @@
+-- PROPOSAL ONLY: not applied, not approved by the 015 authorization.
+-- Minimal G6 read contract; no check-in/folio/payment mutation.
+CREATE PROCEDURE pms.usp_AppStayArrivals
+ @AppUserId bigint,@Operation varchar(32),@InputJson nvarchar(max),@RequestId nvarchar(80)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckIn';
+ IF pms.fn_WebPermission(@AppUserId,'createBooking')=1 EXEC pms.usp_WebAuthorize @AppUserId,'createBooking';
+ ELSE EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckOut';
+ IF @Operation IS NULL OR @Operation<>'arrivals' OR ISJSON(@InputJson)<>1 OR DATALENGTH(@InputJson)>8192
+  OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL THROW 54100,'Invalid arrivals read.',1;
+ DECLARE @date date=TRY_CONVERT(date,JSON_VALUE(@InputJson,'$.date')),@booking bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingId')),
+  @offset int=TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.offset')),@limit int=TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.limit')),
+  @total bigint,@rows nvarchar(max);
+ IF @date IS NULL OR @offset IS NULL OR @offset NOT BETWEEN 0 AND 1000000 OR @limit IS NULL OR @limit NOT BETWEEN 1 AND 200
+  OR EXISTS(SELECT 1 FROM OPENJSON(@InputJson) WHERE [key] NOT IN('date','bookingId','offset','limit')) THROW 54100,'Invalid arrivals filters.',1;
+ SELECT @total=COUNT_BIG(*) FROM pms.BookingRoom r WHERE r.ArrivalDate=@date AND r.Status IN('HELD','CONFIRMED','IN_HOUSE') AND (@booking IS NULL OR r.BookingId=@booking);
+ SET @rows=COALESCE((SELECT CONVERT(varchar(20),b.BookingId) bookingId,b.Code bookingCode,CONVERT(varchar(18),CONVERT(binary(8),b.RowVer),1) bookingVersion,
+  CONVERT(varchar(20),r.BookingRoomId) bookingRoomId,CONVERT(varchar(18),CONVERT(binary(8),r.RowVer),1) bookingRoomVersion,
+  CONVERT(varchar(20),r.RoomTypeId) roomTypeId,CONVERT(varchar(23),r.StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),r.EndsAtUtc,126)+'Z' endsAtUtc,r.Status status,
+  (SELECT CASE WHEN COUNT(DISTINCT a.RoomId)=1 THEN CONVERT(varchar(20),MAX(a.RoomId)) END FROM pms.RoomAllocation a WHERE a.BookingRoomId=r.BookingRoomId AND a.IsCancelled=0) plannedRoomId
+  FROM pms.BookingRoom r JOIN pms.Booking b ON b.BookingId=r.BookingId WHERE r.ArrivalDate=@date AND r.Status IN('HELD','CONFIRMED','IN_HOUSE')
+   AND (@booking IS NULL OR r.BookingId=@booking) ORDER BY r.StartsAtUtc,r.BookingRoomId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY FOR JSON PATH,INCLUDE_NULL_VALUES),N'[]');
+ SELECT (SELECT CONVERT(char(10),@date,23) date,JSON_QUERY(@rows) arrivals,
+  JSON_QUERY((SELECT @offset offset,@limit limit,CONVERT(varchar(30),@total) total,CAST(CASE WHEN @offset+@limit<@total THEN 1 ELSE 0 END AS bit) hasMore FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) page
+  FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) PayloadJson;
+END;
+GO
+-- Proposed only; execute after target/hash/backup checks and separate approval.
+-- In package 016 this is a private child of usp_AppStayRead016; no direct grant.

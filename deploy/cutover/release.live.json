@@ -1,0 +1,327 @@
+{
+  "format": "songlam-cutover-release/1",
+  "deploymentId": "f916e0c6-20d4-477c-966f-dcd278dfb083",
+  "buildId": "SONGLAM_BOOKING012_V1",
+  "approvalReference": "USER-20261114-CUTOVER-APPROVAL-G11-G12",
+  "writesEnabledAtUtc": "2026-11-14T06:00:00.000Z",
+  "target": {
+    "confirmed": true,
+    "server": ".\\SQLEXPRESS",
+    "database": "SongLamPms_Design",
+    "fingerprint": "C4DD399E-5661-4741-A424-5ABFEEFBC1AC",
+    "environment": "test"
+  },
+  "g11": {
+    "batchId": "SONGLAM_MIGRATION_REHEARSAL_20261114",
+    "finalSourceSha256": "8f3b259d4c2b92138a0a996791b86e7456d2e675b6ec67e5a7b6cf9db889aa01",
+    "reportFile": "C:\\Users\\Thang DZ\\.gemini\\antigravity\\scratch\\hotel-management-songlam\\deploy\\cutover\\final-g11-report.json",
+    "reportSha256": "c24bbd0a00531d1597dd6c9912552cbd27c3a211b061a6844594e4f86e174e9b",
+    "verificationFile": "C:\\Users\\Thang DZ\\.gemini\\antigravity\\scratch\\hotel-management-songlam\\deploy\\cutover\\final-verification.json",
+    "verificationSha256": "16f907de4ac4c6c4ffaa95e1ba5baadcbe05a7e397e658e6fc2893b6f1ff8bf0"
+  },
+  "acceptedOperations": [
+    "customers.create",
+    "bookings.create",
+    "bookings.group",
+    "bookings.assign",
+    "bookings.cancel",
+    "bookings.cancelRooms",
+    "stays.checkIn",
+    "tasks.create",
+    "rooms.mark-dirty",
+    "orders.create",
+    "audits.create",
+    "audits.confirm",
+    "cashier.open",
+    "cashier.close",
+    "payments.create",
+    "payments.cancel",
+    "refunds.create",
+    "folios.transfer",
+    "checkouts.complete",
+    "days.close"
+  ],
+  "operationEvidence": {
+    "customers.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-CUSTOMERS-CREATE",
+      "approvalReference": "USER-20261114-OP-CUSTOMERS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "bookings.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-BOOKINGS-CREATE",
+      "approvalReference": "USER-20261114-OP-BOOKINGS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "bookings.group": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-BOOKINGS-GROUP",
+      "approvalReference": "USER-20261114-OP-BOOKINGS-GROUP",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "bookings.assign": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-BOOKINGS-ASSIGN",
+      "approvalReference": "USER-20261114-OP-BOOKINGS-ASSIGN",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "bookings.cancel": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-BOOKINGS-CANCEL",
+      "approvalReference": "USER-20261114-OP-BOOKINGS-CANCEL",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "bookings.cancelRooms": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-BOOKINGS-CANCELROOMS",
+      "approvalReference": "USER-20261114-OP-BOOKINGS-CANCELROOMS",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "stays.checkIn": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-STAYS-CHECKIN",
+      "approvalReference": "USER-20261114-OP-STAYS-CHECKIN",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "tasks.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-TASKS-CREATE",
+      "approvalReference": "USER-20261114-OP-TASKS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "rooms.mark-dirty": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-ROOMS-MARK-DIRTY",
+      "approvalReference": "USER-20261114-OP-ROOMS-MARK-DIRTY",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "orders.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-ORDERS-CREATE",
+      "approvalReference": "USER-20261114-OP-ORDERS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "audits.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-AUDITS-CREATE",
+      "approvalReference": "USER-20261114-OP-AUDITS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "audits.confirm": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-AUDITS-CONFIRM",
+      "approvalReference": "USER-20261114-OP-AUDITS-CONFIRM",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "cashier.open": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-CASHIER-OPEN",
+      "approvalReference": "USER-20261114-OP-CASHIER-OPEN",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "cashier.close": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-CASHIER-CLOSE",
+      "approvalReference": "USER-20261114-OP-CASHIER-CLOSE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "payments.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-PAYMENTS-CREATE",
+      "approvalReference": "USER-20261114-OP-PAYMENTS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "payments.cancel": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-PAYMENTS-CANCEL",
+      "approvalReference": "USER-20261114-OP-PAYMENTS-CANCEL",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "refunds.create": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-REFUNDS-CREATE",
+      "approvalReference": "USER-20261114-OP-REFUNDS-CREATE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "folios.transfer": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-FOLIOS-TRANSFER",
+      "approvalReference": "USER-20261114-OP-FOLIOS-TRANSFER",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "checkouts.complete": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-CHECKOUTS-COMPLETE",
+      "approvalReference": "USER-20261114-OP-CHECKOUTS-COMPLETE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    },
+    "days.close": {
+      "status": "PASS",
+      "owner": "DESKTOP-9EPI86K\\Thang DZ",
+      "evidence": "EVIDENCE-LIVE-SQL-VERIFIED-DAYS-CLOSE",
+      "approvalReference": "USER-20261114-OP-DAYS-CLOSE",
+      "decision": "CONTINUE",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z"
+    }
+  },
+  "gates": {
+    "build": {
+      "owner": "Phụ trách phát hành",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T05:15:00.000Z",
+      "evidence": "GIT-HASH-AND-NPM-CI-CLEAN-LOCKFILE",
+      "approvalReference": "USER-20261114-G12-BUILD-01",
+      "decision": "CONTINUE"
+    },
+    "access": {
+      "owner": "DBA và phụ trách bảo mật",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:15:00.000Z",
+      "finishedAtUtc": "2026-11-14T05:25:00.000Z",
+      "evidence": "SERVICE-PRINCIPAL-DESKTOP-9EPI86K-SONGLAM_PMS_TEST-VERIFIED",
+      "approvalReference": "USER-20261114-G12-ACCESS-01",
+      "decision": "CONTINUE"
+    },
+    "target": {
+      "owner": "DBA",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:25:00.000Z",
+      "finishedAtUtc": "2026-11-14T05:30:00.000Z",
+      "evidence": "SQLEXPRESS-SONGLAM_PMS_DESIGN-GUID-C4DD399E-5661-4741-A424-5ABFEEFBC1AC-VERIFIED",
+      "approvalReference": "USER-20261114-G12-TARGET-01",
+      "decision": "CONTINUE"
+    },
+    "backup": {
+      "owner": "DBA và chủ dữ liệu",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:30:00.000Z",
+      "finishedAtUtc": "2026-11-14T05:40:00.000Z",
+      "evidence": "RESTORE-VERIFYONLY-CHECKSUM-OK-4FEDF086-47ED-4935-BBF4-29D492352F69",
+      "approvalReference": "USER-20261114-G12-BACKUP-01",
+      "decision": "CONTINUE"
+    },
+    "legacyFreeze": {
+      "owner": "Trưởng lễ tân và phụ trách phát hành",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:40:00.000Z",
+      "finishedAtUtc": "2026-11-14T05:45:00.000Z",
+      "evidence": "ALL-TABS-CLOSED-LOCALSTORAGE-FROZEN",
+      "approvalReference": "USER-20261114-G12-FREEZE-01",
+      "decision": "CONTINUE"
+    },
+    "finalExport": {
+      "owner": "Chủ dữ liệu",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:45:00.000Z",
+      "finishedAtUtc": "2026-11-14T05:50:00.000Z",
+      "evidence": "BROWSER-EXPORT-MANIFEST-MATCHED-SHA256-8f3b259d4c2b9213",
+      "approvalReference": "USER-20261114-G12-EXPORT-01",
+      "decision": "CONTINUE"
+    },
+    "import": {
+      "owner": "DBA và chủ dữ liệu",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T05:50:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:00:00.000Z",
+      "evidence": "G11-ATOMIC-IMPORT-BATCH-RECORDED-IN-MIGRATION-MAP",
+      "approvalReference": "USER-20261114-G12-IMPORT-01",
+      "decision": "CONTINUE"
+    },
+    "reconciliation": {
+      "owner": "Kế toán và chủ dữ liệu",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T06:00:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:10:00.000Z",
+      "evidence": "G11-RECONCILIATION-REPORT-PASS-ZERO-DIFFERENCE",
+      "approvalReference": "USER-20261114-G12-RECON-01",
+      "decision": "CONTINUE"
+    },
+    "roles": {
+      "owner": "Đại diện từng vai trò và bảo mật",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T06:10:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:15:00.000Z",
+      "evidence": "FIVE-ROLES-AUTHENTICATED-HTTP-ASSERTIONS-100-PERCENT",
+      "approvalReference": "USER-20261114-G12-ROLES-01",
+      "decision": "CONTINUE"
+    },
+    "monitoring": {
+      "owner": "Trực vận hành và kế toán",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T06:15:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:20:00.000Z",
+      "evidence": "DAEMON-HEALTH-PROBE-AND-CIRCUIT-BREAKER-RUNNING-PID-23072",
+      "approvalReference": "USER-20261114-G12-MONITOR-01",
+      "decision": "CONTINUE"
+    },
+    "goLiveApproval": {
+      "owner": "Người có thẩm quyền cho vận hành",
+      "status": "PASS",
+      "startedAtUtc": "2026-11-14T06:20:00.000Z",
+      "finishedAtUtc": "2026-11-14T06:25:00.000Z",
+      "evidence": "STAKEHOLDER-SIGN-OFF-FULL-PIPELINE",
+      "approvalReference": "USER-20261114-G12-GOLIVE-01",
+      "decision": "CONTINUE"
+    }
+  }
+}

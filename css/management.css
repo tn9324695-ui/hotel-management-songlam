@@ -1,0 +1,13 @@
+.mgmt-period { color: #526477; margin-bottom: 16px; }
+.mgmt-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 16px; margin-top: 18px; }
+.mgmt-metric { padding: 18px; background: #fff; border: 1px solid #dce3ec; border-radius: 7px; }
+.mgmt-metric .mgmt-value { font-size: 25px; font-weight: 650; color: #1556a4; margin: 12px 0 8px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mgmt-metric.unavailable .mgmt-value { font-size: 16px; font-weight: 500; color: #697b8d; }
+.mgmt-metric small { display: block; color: #62748c; }
+.mgmt-detail { display: grid; grid-template-columns: minmax(145px, 1fr) 2fr; gap: 8px 16px; }
+.mgmt-detail dt, .mgmt-detail dd { margin: 0; overflow-wrap: anywhere; }
+.mgmt-money { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mgmt-definition { border-bottom: 1px solid #e1e7ef; padding: 14px 0; }
+.mgmt-definition p { margin: 7px 0; overflow-wrap: anywhere; }
+.mgmt-log-note { background: #f0f6ff; padding: 12px; border-left: 3px solid #206bc4; }
+@media (max-width: 650px) { .mgmt-metrics { grid-template-columns: 1fr; } .mgmt-detail { grid-template-columns: 1fr; } }

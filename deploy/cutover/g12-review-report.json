@@ -1,0 +1,64 @@
+{
+  "format": "songlam-cutover-review/1",
+  "generatedAtUtc": "2026-11-14T06:28:11.401Z",
+  "status": "REQUIRES_OPERATOR_APPROVAL",
+  "activationPerformed": false,
+  "releaseSha256": "d50048f9179c640f96b856f86e00ceb1a0ca7007695a94368f02fbadc20766cb",
+  "baselineSha256": "c24bbd0a00531d1597dd6c9912552cbd27c3a211b061a6844594e4f86e174e9b",
+  "baselineTargetSha256": "16f907de4ac4c6c4ffaa95e1ba5baadcbe05a7e397e658e6fc2893b6f1ff8bf0",
+  "gates": [
+    {
+      "gate": "build",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "access",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "target",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "backup",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "legacyFreeze",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "finalExport",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "import",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "reconciliation",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "roles",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "monitoring",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "gate": "goLiveApproval",
+      "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED"
+    }
+  ],
+  "delta": {
+    "status": "EVIDENCE_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED",
+    "snapshotSha256": "8e27dd4695a04d2837409399d2b0cbe6865293779c6a4a9040ff8fed9182af04",
+    "receipts": 3,
+    "scopes": 3,
+    "fromWatermark": "WATERMARK-ACTIVATION-20261114-060000",
+    "toWatermark": "WATERMARK-SETTLEMENT-20261114-062000"
+  },
+  "issues": []
+}

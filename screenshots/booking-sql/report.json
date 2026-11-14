@@ -1,0 +1,347 @@
+{
+  "source": "REAL_BROWSER_HTTP_SQL_BOOKING",
+  "startedAtUtc": "2026-11-13T12:33:21.487Z",
+  "batch": "SONGLAM_TEST_BOOKING012_20261113122015",
+  "checks": [
+    "SQL_LOGIN_RECEPTIONIST",
+    "SCOPED_REAL_SQL_WRITES_ENABLED",
+    "EXISTING_LABELLED_TEST_CUSTOMER_REUSED",
+    "SQL_OWN_TARIFF_AND_ROOM_TYPE",
+    "EXISTING_PROJECT_ROOM_SELECTED",
+    "REAL_SQL_QUOTE_2_NIGHTS",
+    "CHANGING_BOOKING_INVALIDATES_OLD_QUOTE",
+    "BOOKING_UI_SHOWS_COMMIT_AND_REAL_CODE",
+    "BOOKING_RELOADED_FROM_SQL",
+    "SQL_BOOKING_DETAIL_RENDERED",
+    "FROZEN_SQL_TOTAL_EQUALS_QUOTE",
+    "BOOKING_DETAIL_VIEWPORT_1366",
+    "BOOKING_DETAIL_VIEWPORT_1920",
+    "BOOKING_DETAIL_VIEWPORT_390",
+    "FUTURE_TIMELINE_READS_SQL_ALLOCATION",
+    "FUTURE_BOOKING_NOT_OCCUPIED_TODAY",
+    "NO_BROWSER_BUSINESS_STORE",
+    "NO_JS_OR_ASSET_ERRORS"
+  ],
+  "requests": [
+    {
+      "path": "/api/v1/auth/status",
+      "status": 200,
+      "requestId": "f7709e93-6f72-4f53-9c13-9c4d593c427c"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "35d5cf32-9d78-40aa-8b8b-87befe9114c1"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 401,
+      "requestId": "7108d9f7-ba79-4c10-9a59-52a88bbd3124"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "status": 200,
+      "requestId": "5aa2105c-3ad8-45c0-ace2-3f9b76bcfce6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "6db44661-0463-47b6-84ef-40bee2d9a4ee"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "24014ed8-9e2c-4012-9082-7510f9f69eec"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "3761e865-399d-4ed0-8329-dbe24417f68d"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "40220f00-7746-4b21-bc52-2a269dee7883"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "85cc1d07-5923-45d4-af07-a5f6d4d6e517"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "d500ba6d-c3f3-41ac-a9d0-8aa88b74420e"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "12c30e78-05d6-438d-acca-a746d403371b"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "4a4972cb-ed5a-48f3-8027-1c62e0a0200f"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "9fec77fc-0583-42b7-9eda-3791cf5f0d11"
+    },
+    {
+      "path": "/api/v1/catalog/capabilities",
+      "status": 200,
+      "requestId": "10307076-a264-4d06-af54-9c7cde686099"
+    },
+    {
+      "path": "/api/v1/connection/status",
+      "status": 200,
+      "requestId": "48b66214-aca3-44f6-b264-0a47432d237b"
+    },
+    {
+      "path": "/api/v1/customers",
+      "status": 400,
+      "requestId": "b84f7fde-fcd9-4f7e-8f66-3874cf3a3075"
+    },
+    {
+      "path": "/api/v1/rate-plans",
+      "status": 200,
+      "requestId": "c911e479-e274-464c-9c31-22f0ce80f9c7"
+    },
+    {
+      "path": "/api/v1/hotel-settings",
+      "status": 200,
+      "requestId": "c7f7ea64-ea77-4bfa-b76d-10bd12cbc053"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "67bb72a3-9c3c-4726-965d-9aca53c99795"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "ced7f35f-605e-4f0c-b07e-0b32809ee674"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "34c7cac8-64a2-4c49-99c0-c01572a5a7fe"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "63b885cc-853d-41b5-9f49-9dc1353e06cc"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "ec21ddcf-f2d4-495a-9cbc-2c83ad0a6076"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "fdb497e6-a83a-4b33-af4d-147cdce20b76"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "34c2a59b-15e7-471c-8d68-afdaeb900ed4"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "748db1b1-fa0f-4e15-86eb-398c6fac48bf"
+    },
+    {
+      "path": "/api/v1/customers",
+      "status": 200,
+      "requestId": "10aeb9d2-1e0c-4e30-9396-28246fcd547a"
+    },
+    {
+      "path": "/api/v1/room-types",
+      "status": 200,
+      "requestId": "ebf4bc10-356e-45c5-a52c-a5932aa7818e"
+    },
+    {
+      "path": "/api/v1/rate-plans",
+      "status": 200,
+      "requestId": "9215b061-8403-4e13-af9b-907c0e05e69d"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "b9fbdc10-fdbe-4742-b559-2a84b71a95bd"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "092241b7-9402-4d89-9ab3-73d70f68d069"
+    },
+    {
+      "path": "/api/v1/bookings/availability",
+      "status": 200,
+      "requestId": "e7e11d45-01f2-4473-9f6e-afefc565fa88"
+    },
+    {
+      "path": "/api/v1/bookings/timeline",
+      "status": 200,
+      "requestId": "0df26fad-ee72-466b-989e-c174a61bc3a5"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "247fa01c-7cef-4f59-bcf2-89ce0de084af"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "1b952e8d-57ad-4cbf-936a-f3ede96d3ce6"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "4a54215b-d311-4432-8a4b-213c7d0ea4a7"
+    },
+    {
+      "path": "/api/v1/pricing/quotes/nightly",
+      "status": 200,
+      "requestId": "a22494e8-1efa-4662-9516-6e9ed06007cf"
+    },
+    {
+      "path": "/api/v1/bookings/availability",
+      "status": 200,
+      "requestId": "274a2bce-68a3-42a6-93c4-9c78164dd2be"
+    },
+    {
+      "path": "/api/v1/bookings/timeline",
+      "status": 200,
+      "requestId": "dafa9505-e6e3-43d7-b4ea-8bbc4e17ef79"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "3ff5de0b-42c6-413b-8ed3-0c021bef2489"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "ca4b84a8-ae78-45b8-94e7-6841fb790698"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "627e69a1-2d2a-4a2b-96c1-1b4ef32767f9"
+    },
+    {
+      "path": "/api/v1/pricing/quotes/nightly",
+      "status": 200,
+      "requestId": "517ce397-1cc5-48bf-80db-6f71742b3b33"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "3b8e495c-dd0d-4722-90dc-50a115d89f11"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "2d7a5d0c-ca11-47f7-9c90-100ad906934c"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "9b50059f-fdd0-4d71-a3a1-a2f8157f3a50"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "22126e21-fe86-4e50-894a-698f961204d5"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "921c7de9-75c1-4669-9f1a-85a3ec5f5c72"
+    },
+    {
+      "path": "/api/v1/bookings",
+      "status": 201,
+      "requestId": "a4935c13-cc4e-4e73-95b9-2820145cc548"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "91e617f3-e008-4d59-a4bc-83e52d797013"
+    },
+    {
+      "path": "/api/v1/auth/permissions",
+      "status": 200,
+      "requestId": "0211a913-9db5-48f2-980a-77e947d99517"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "status": 200,
+      "requestId": "c0876edf-ad6b-406f-8683-15f257700059"
+    },
+    {
+      "path": "/api/v1/rooms",
+      "status": 200,
+      "requestId": "d5b58a41-5a6d-4e75-95ed-73c9f73985b1"
+    },
+    {
+      "path": "/api/v1/bookings",
+      "status": 200,
+      "requestId": "94739506-af29-4b40-9b67-e4d497ce2e81"
+    },
+    {
+      "path": "/api/v1/bookings/1",
+      "status": 200,
+      "requestId": "2b1f385c-5b60-4506-b7b0-a2c95b92ce47"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "2bed7de8-7470-46cd-9247-8bbfc25f1eb3"
+    },
+    {
+      "path": "/api/v1/bookings/1",
+      "status": 200,
+      "requestId": "e079aa28-b5c8-4df6-9c57-776d6789b1e7"
+    },
+    {
+      "path": "/api/v1/deployment",
+      "status": 200,
+      "requestId": "7145ad4b-22bf-4275-97ee-104d95c732cd"
+    },
+    {
+      "path": "/api/v1/bookings/timeline",
+      "status": 200,
+      "requestId": "bfb87d75-90d3-4952-87ba-c7f86b4b5ee9"
+    },
+    {
+      "path": "/api/v1/rooms/362",
+      "status": 200,
+      "requestId": "05443e64-169b-4b17-81ad-d8a167af31c6"
+    }
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "path": "/api/v1/bookings",
+      "requestId": "a4935c13-cc4e-4e73-95b9-2820145cc548"
+    }
+  ],
+  "status": "UI_BOOKING_SQL_COMMITTED_SQL_RECONCILIATION_REQUIRED",
+  "progress": {
+    "batch": "SONGLAM_TEST_BOOKING012_20261113122015",
+    "customerId": "1",
+    "roomId": "362",
+    "roomNumber": "502",
+    "bookingCode": "SL-A4935C13-CC4E-4E73-95B9-2820145CC548",
+    "bookingId": "1",
+    "bookingRoomIds": [
+      "1"
+    ]
+  },
+  "finishedAtUtc": "2026-11-13T12:33:27.830Z"
+}

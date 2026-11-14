@@ -14,6 +14,14 @@
 (function () {
   'use strict';
 
+  // API mode never reaches SongLamStore or the legacy demo controller below.
+  if (document.documentElement.dataset.housekeepingMode === 'api') {
+    const mount = () => window.SongLamHousekeepingPage.mount();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
+    else mount();
+    return;
+  }
+
   // Trạng thái cục bộ của giao diện Buồng phòng
   const state = {
     currentScreen: 'hk_room_board',
@@ -146,7 +154,7 @@
       </div>
 
       <!-- Thống kê chỉ số dọn dẹp ca trực -->
-      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
+      <div class="pms-stat-strip" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px;">
         <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: var(--radius-sm); padding: 10px 14px; cursor: pointer;" onclick="window.housekeepingApp.filterCleanStatus('dirty')">
           <div style="font-size: 11px; font-weight: 700; color: #b45309; text-transform: uppercase;">1. Chờ dọn (${countDirty})</div>
           <div style="font-size: 22px; font-weight: 800; color: #b45309;">${countDirty} <span style="font-size: 12px; font-weight: normal;">phòng</span></div>
@@ -994,6 +1002,7 @@
   }
 
   function renderCurrentScreen() {
+    if (!window.SongLamUI.canScreen(state.currentScreen)) { window.SongLamUI.denied(); window.SongLamUI.sync(); return; }
     updateTopbarInfo();
     // Đánh dấu active trên sidebar
     document.querySelectorAll('.sidebar .nav-item').forEach(item => {
@@ -1067,6 +1076,7 @@
   });
 
   window.housekeepingApp = {
+    getUIContext: () => ({ user: state.currentUser, screen: state.currentScreen }),
     state,
     switchStaffRole: switchHkStaffRole,
     switchScreen,

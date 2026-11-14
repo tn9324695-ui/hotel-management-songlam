@@ -1,0 +1,72 @@
+{
+  "format": "songlam-cutover-delta/1",
+  "complete": true,
+  "approvalReference": "USER-20261114-DELTA-READBACK-APPROVAL",
+  "readContractVersion": "songlam.delta-readback.v1",
+  "deploymentId": "f916e0c6-20d4-477c-966f-dcd278dfb083",
+  "databaseFingerprint": "C4DD399E-5661-4741-A424-5ABFEEFBC1AC",
+  "baselineTargetSha256": "16f907de4ac4c6c4ffaa95e1ba5baadcbe05a7e397e658e6fc2893b6f1ff8bf0",
+  "writesEnabledAtUtc": "2026-11-14T06:00:00.000Z",
+  "fromWatermark": "WATERMARK-ACTIVATION-20261114-060000",
+  "toWatermark": "WATERMARK-SETTLEMENT-20261114-062000",
+  "asOfUtc": "2026-11-14T06:25:00.000Z",
+  "coverageVerified": true,
+  "sourceLinksVerified": true,
+  "moneyLinksVerified": true,
+  "receipts": [
+    {
+      "requestId": "fd9c09e7-b0b1-4787-b365-58f3cbbb0cca",
+      "actorAppUserId": "4",
+      "operation": "payments.create",
+      "idempotencyKeySha256": "9fc6a68621be03f579e69c7a5771ab00943d9ee8d12635a44f6dca7ba79d5fdf",
+      "status": "COMMITTED",
+      "committedAtUtc": "2026-11-14T06:08:16.521Z"
+    },
+    {
+      "requestId": "2f01e42c-8ac8-4d9a-8849-d58e757fe033",
+      "actorAppUserId": "4",
+      "operation": "checkouts.complete",
+      "idempotencyKeySha256": "ed88f3386f61efcad87254d5009eb0103414531e4ce4a7beda09272058e9779d",
+      "status": "COMMITTED",
+      "committedAtUtc": "2026-11-14T06:17:19.163Z"
+    },
+    {
+      "requestId": "c442c946-3a8a-48d8-a0b1-9e5172a6c447",
+      "actorAppUserId": "4",
+      "operation": "cashier.close",
+      "idempotencyKeySha256": "0a18ef242b95e1b048ca1fd4011b4a983095a6f44cb63e1ea9321c9249be39ef",
+      "status": "COMMITTED",
+      "committedAtUtc": "2026-11-14T06:15:37.585Z"
+    }
+  ],
+  "balances": [
+    {
+      "scopeKind": "STAY",
+      "scopeReference": "1",
+      "metric": "PAYMENT",
+      "openingVnd": "0",
+      "changeVnd": "650000",
+      "closingVnd": "650000"
+    },
+    {
+      "scopeKind": "STAY",
+      "scopeReference": "1",
+      "metric": "FOLIO_BALANCE",
+      "openingVnd": "650000",
+      "changeVnd": "-650000",
+      "closingVnd": "0"
+    },
+    {
+      "scopeKind": "BOOKING",
+      "scopeReference": "10",
+      "metric": "CASH_IN",
+      "openingVnd": "500000",
+      "changeVnd": "650000",
+      "closingVnd": "1150000"
+    }
+  ],
+  "exceptions": [],
+  "moneyDifferenceCount": 0,
+  "unknownOutcomeCount": 0,
+  "dualWriteCount": 0
+}

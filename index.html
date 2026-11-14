@@ -1,140 +1,39 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <link rel="stylesheet" href="css/deployment.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quản lý khách sạn Sông Lam - Hệ thống PMS Quản trị Khách sạn</title>
   
   <!-- Google Fonts: Be Vietnam Pro & Inter (Chuẩn hóa font tiếng Việt) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Tabler Core CSS (Bản mã nguồn mở miễn phí từ E:\demo\tabler-dev) -->
   <link rel="stylesheet" href="css/tabler.min.css">
 
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="js/lucide.min.js"></script>
 
   <!-- Custom PMS Styles (Đồng bộ SaaS & KiotViet ERP Theme) -->
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/pms.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body class="layout-fluid">
 
   <!-- Topbar Cố định phía trên cùng - Chuẩn Tabler Navbar -->
-  <header class="topbar">
-    <div class="topbar-left">
-      <button class="sidebar-toggle-btn btn btn-sm btn-icon" onclick="window.app.toggleSidebar()" title="Thu gọn / Mở rộng menu">
-        <i data-lucide="menu"></i>
-      </button>
-
-      <div class="brand-wrapper" onclick="window.app.switchScreen('room_rack')">
-        <div class="brand-icon-box">SL</div>
-        <div>
-          <div class="brand-text-title">Quản lý khách sạn Sông Lam</div>
-          <span class="brand-subtext">Mường Thanh Luxury Sông Lam &bull; TP. Vinh</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="topbar-center">
-      <!-- Bộ chuyển 3 Phân hệ chính (1-click chuyển đổi nhanh) -->
-      <nav class="topbar-nav-portals" aria-label="Phân hệ vận hành">
-        <a href="index.html" class="portal-nav-pill active" title="Giao diện Tổng hợp Quản lý & Thu ngân"><i data-lucide="building"></i> Quản lý</a>
-        <a href="reception.html" class="portal-nav-pill" title="Phân hệ chuyên trách Quầy Lễ Tân"><i data-lucide="bell"></i> Lễ tân</a>
-        <a href="housekeeping.html" class="portal-nav-pill" title="Phân hệ chuyên trách Buồng Phòng"><i data-lucide="sparkles"></i> Buồng phòng</a>
-      </nav>
-
-      <div class="working-date-pill" title="Ngày nghiệp vụ khách sạn hiện tại">
-        <i data-lucide="calendar" style="width: 14px; height: 14px;"></i>
-        <span><b id="topbarWorkingDateText">25/10/2026</b></span>
-      </div>
-
-      <div class="quick-search-box">
-        <i data-lucide="search" class="search-icon" style="width: 15px; height: 15px;"></i>
-        <input type="text" placeholder="Tìm nhanh phòng, khách, SĐT (Ctrl + K)..." 
-               oninput="window.app.updateRoomFilter('search', this.value)" />
-      </div>
-    </div>
-
-    <div class="topbar-right">
-      <!-- Bộ chuyển vai trò trong Giao diện Quản trị: Quản lý vs Thu ngân vs Quản trị viên -->
-      <div class="role-switcher-box" title="Chuyển vai trò người dùng để kiểm tra phân quyền thực tế">
-        <i data-lucide="shield-check" style="width: 14px; height: 14px; color: #fef08a;"></i>
-        <span style="font-size: 11px; opacity: 0.85;">Vai trò:</span>
-        <select class="role-switcher-select" id="roleSwitcher" onchange="window.app.switchRole(this.value)">
-          <option value="manager" selected>Quản lý khách sạn</option>
-          <option value="cashier">Thu ngân / Kế toán</option>
-          <option value="admin">Quản trị viên hệ thống</option>
-        </select>
-      </div>
-
-      <!-- Chuông thông báo -->
-      <div style="position: relative;">
-        <button class="icon-btn-badge" onclick="window.app.toggleNotifications()" title="Thông báo nghiệp vụ">
-          <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
-          <span class="badge-counter" id="unreadNotificationBadge">3</span>
-        </button>
-
-        <!-- Notification Popover -->
-        <div id="notificationsPopover" style="display: none; position: absolute; right: 0; top: 44px; width: 330px; background: #fff; border: 1px solid #cbd5e1; border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 1100; color: var(--text-main);">
-          <div style="padding: 10px 14px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 700; font-size: 13px;">Thông báo nghiệp vụ Quản lý</span>
-            <span class="badge bg-blue-lt">3 chưa đọc</span>
-          </div>
-          <div style="max-height: 280px; overflow-y: auto; padding: 6px;">
-            <div style="padding: 8px 10px; border-bottom: 1px solid #f8fafc; font-size: 12px; cursor: pointer; border-radius: 4px;" onclick="window.app.switchScreen('housekeeping')">
-              <div style="font-weight: 600; color: #b45309;"><i data-lucide="spray-can" style="width:12px;height:12px;vertical-align:middle;"></i> P.403 khách vừa trả phòng</div>
-              <div style="color: var(--text-secondary); margin-top: 2px;">Cần dọn vệ sinh thay ga gối mới đón khách tối</div>
-              <span style="font-size: 10.5px; color: var(--text-muted);">11:45</span>
-            </div>
-            <div style="padding: 8px 10px; border-bottom: 1px solid #f8fafc; font-size: 12px; cursor: pointer; border-radius: 4px;" onclick="window.app.switchScreen('bookings')">
-              <div style="font-weight: 600; color: var(--primary);"><i data-lucide="calendar" style="width:12px;height:12px;vertical-align:middle;"></i> Đơn đặt phòng mới #DP-20261025-003</div>
-              <div style="color: var(--text-secondary); margin-top: 2px;">Bà Phạm Phương Thảo đặt Club Suite đã thanh toán OnePay</div>
-              <span style="font-size: 10.5px; color: var(--text-muted);">09:00</span>
-            </div>
-            <div style="padding: 8px 10px; font-size: 12px; cursor: pointer; border-radius: 4px;" onclick="window.app.switchScreen('billing')">
-              <div style="font-weight: 600; color: #0284c7;"><i data-lucide="refresh-cw" style="width:12px;height:12px;vertical-align:middle;"></i> Giao dịch VNPay QR chờ xác minh</div>
-              <div style="color: var(--text-secondary); margin-top: 2px;">GD-20261025-005 (1.200.000 VNĐ) chờ phản hồi IPN</div>
-              <span style="font-size: 10.5px; color: var(--text-muted);">15:20</span>
-            </div>
-          </div>
-          <div style="padding: 8px; text-align: center; border-top: 1px solid #f1f5f9; background: #f8fafc; font-size: 11.5px; border-radius: 0 0 6px 6px;">
-            <a href="javascript:void(0)" onclick="window.app.switchScreen('room_rack')" style="color: var(--primary); text-decoration: none; font-weight: 600;">Xem toàn bộ sơ đồ phòng</a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Menu Tài khoản Quản lý & Thu ngân -->
-      <div class="user-profile-menu">
-        <div class="user-avatar-circle">H</div>
-        <div class="user-info-text">
-          <span class="user-fullname" id="topbarUserName">Nguyễn Văn Hoàng</span>
-          <span class="user-role-tag" id="topbarRoleText">Quản lý khách sạn</span>
-        </div>
-        <i data-lucide="chevron-down" style="width: 14px; height: 14px; opacity: 0.7;"></i>
-      </div>
-    </div>
-  </header>
+  <header class="topbar" aria-label="Thanh công cụ"></header>
 
   <!-- Banner thông báo dữ liệu minh họa đồ án (Chuẩn theo yêu cầu đồ án) -->
-  <div class="demo-banner-strip" style="position: fixed; top: 58px; left: 0; right: 0; z-index: 950;">
-    <div>
-      <i data-lucide="info" style="width: 13px; height: 13px; vertical-align: middle; margin-right: 4px;"></i>
-      <b>BẢN MÔ PHÒNG ĐỒ ÁN HỌC PHẦN:</b> Hệ thống chạy trên trình duyệt phục vụ nghiên cứu & báo cáo đồ án. Dữ liệu đồng bộ qua <code>localStorage</code> và <code>BroadcastChannel</code> trên cùng local web server (chưa có máy chủ/CSDL tập trung hoặc cổng thanh toán thật).
-    </div>
-    <div style="font-size: 11.5px; font-weight: 600; display: flex; gap: 12px;">
-      <a href="reception.html" target="_blank" style="color: #0284c7; text-decoration: underline;"><i data-lucide="external-link" style="width:12px;height:12px;vertical-align:middle;"></i> Quầy Lễ Tân (reception.html)</a>
-      <a href="housekeeping.html" target="_blank" style="color: #059669; text-decoration: underline;"><i data-lucide="external-link" style="width:12px;height:12px;vertical-align:middle;"></i> Buồng Phòng (housekeeping.html)</a>
-    </div>
-  </div>
+  <div class="demo-banner-strip" role="note" style="position:fixed;left:0;right:0;z-index:950"></div>
 
-  <!-- Bố cục Chính (App Container) -->
   <div class="app-container" style="padding-top: 88px;">
 
     <!-- Thanh Menu Bên Trái: Tổ chức 7 Nhóm A - G theo đúng chuẩn Tabler PMS -->
     <aside class="sidebar navbar-vertical" id="sidebar" style="top: 88px; height: calc(100vh - 88px);">
       
+      <div class="pms-source-card"><span class="pms-source-label">BẢN TRẢI NGHIỆM</span><p>Xem và thao tác thử bằng dữ liệu trên trình duyệt.</p><a href="admin-api.html">Màn hình dữ liệu máy chủ <span aria-hidden="true">→</span></a></div>
       <!-- A. TỔNG QUAN -->
       <div class="nav-group-title">A. TỔNG QUAN</div>
       <ul class="nav-list">
@@ -154,7 +53,7 @@
         </li>
         <li class="nav-item" data-screen="timeline" onclick="window.app.switchScreen('timeline')" title="Lịch phòng ma trận Tape Chart trực quan">
           <i data-lucide="calendar-range" style="width: 17px; height: 17px;"></i>
-          <span class="nav-text">Lịch phòng (Tape Chart)</span>
+          <span class="nav-text">Lịch đặt phòng</span>
         </li>
         <li class="nav-item" data-screen="bookings" onclick="window.app.switchScreen('bookings')" title="Quản lý danh sách đặt phòng khách lẻ và khách đoàn">
           <i data-lucide="calendar-check" style="width: 17px; height: 17px;"></i>
@@ -175,7 +74,7 @@
       <ul class="nav-list">
         <li class="nav-item" data-screen="room_classes" onclick="window.app.switchScreen('room_classes')" title="10 hạng phòng tiêu chuẩn Mường Thanh Luxury Sông Lam">
           <i data-lucide="bookmark" style="width: 17px; height: 17px;"></i>
-          <span class="nav-text">Hạng phòng (10 hạng)</span>
+          <span class="nav-text">Hạng phòng</span>
         </li>
         <li class="nav-item" data-screen="rooms_catalog" onclick="window.app.switchScreen('rooms_catalog')" title="Danh sách 42 phòng vật lý theo tầng và trạng thái khai thác">
           <i data-lucide="door-closed" style="width: 17px; height: 17px;"></i>
@@ -187,7 +86,7 @@
         </li>
         <li class="nav-item" data-screen="services_catalog" onclick="window.app.switchScreen('services_catalog')" title="Danh mục dịch vụ ẩm thực, minibar, giặt là, spa">
           <i data-lucide="coffee" style="width: 17px; height: 17px;"></i>
-          <span class="nav-text">Dịch vụ F&B</span>
+          <span class="nav-text">Dịch vụ & Minibar</span>
         </li>
       </ul>
 
@@ -231,7 +130,7 @@
         </li>
         <li class="nav-item" data-screen="shifts_audit" onclick="window.app.switchScreen('shifts_audit')" title="Chốt ca thu ngân và quy trình kiểm toán đêm Night Audit">
           <i data-lucide="history" style="width: 17px; height: 17px;"></i>
-          <span class="nav-text">Chốt ca & Night Audit</span>
+          <span class="nav-text">Chốt ca & Chốt ngày</span>
         </li>
       </ul>
 
@@ -258,7 +157,7 @@
   <div id="appModal"></div>
 
   <!-- Container Thông báo Toast -->
-  <div class="toast-container" id="toastContainer"></div>
+  <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
   <!-- Vùng in ẩn Hóa đơn VAT -->
   <div id="printableArea" style="display: none;"></div>
@@ -271,6 +170,8 @@
 
   <!-- Lớp quản lý dữ liệu dùng chung & Core Business Engine -->
   <script src="js/store.js"></script>
+  <script src="js/pms-data.js"></script>
+  <script src="js/pms-ui.js"></script>
 
   <!-- Logic ứng dụng chính -->
   <script src="js/app.js"></script>

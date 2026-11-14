@@ -1,0 +1,30 @@
+-- REVIEW SCRIPT ONLY: DO NOT RUN BEFORE SEPARATE APPROVAL AND VERIFIED BACKUP.
+-- Run these checks again inside the installer transaction, before CREATE RPCs.
+IF CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS' OR DB_NAME()<>N'SongLamPms_Design'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 54200,'Wrong authorized target.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(100),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Booking014.Receipt') THROW 54200,'Test marker/current deployment missing.',1;
+IF DATABASE_PRINCIPAL_ID(N'pms_web_auth_test') IS NULL OR ISNULL(IS_ROLEMEMBER('db_owner',N'pms_web_auth_test'),-1)<>0
+ OR ISNULL(IS_SRVROLEMEMBER('sysadmin',N'DESKTOP-9EPI86K\songlam_pms_test'),-1)<>0 THROW 54200,'Invalid service identity/privileges.',1;
+IF OBJECT_ID(N'pms.usp_AppBookingMutationPrepare') IS NOT NULL OR OBJECT_ID(N'pms.usp_AppBookingMutationCommit') IS NOT NULL
+ OR OBJECT_ID(N'pms.usp_WebBookingMutationRuntime') IS NOT NULL OR OBJECT_ID(N'pms.usp_WebBookingMutationReceipt') IS NOT NULL
+ THROW 54200,'Objects already exist. Read the previous receipt; never overwrite.',1;
+-- Intentionally NULL: operator must bind the REAL verified receipt after the
+-- separately approved backup step. A chat approval is not a backup UUID.
+DECLARE @VerifiedBackupSetUuid uniqueidentifier=NULL;
+IF @VerifiedBackupSetUuid IS NULL OR NOT EXISTS(SELECT 1 FROM msdb.dbo.backupset WHERE backup_set_uuid=@VerifiedBackupSetUuid
+ AND database_name=DB_NAME() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC' AND has_backup_checksums=1 AND is_copy_only=1 AND backup_finish_date IS NOT NULL)
+ THROW 54200,'Fresh verified backup receipt required.',1;
+-- The deployment tool must also match ALL 22 definition hashes from the current
+-- private deployment receipt, verify backup UUID/media/checksum, and verify no
+-- other writer runs during installation. No receipt/approval is fabricated here.
+GO
+-- Execute only after all four reviewed CREATE PROCEDURE batches, in the SAME
+-- installer-owned transaction. No ALTER of original 012-014 or grant on helpers.
+GRANT EXECUTE ON OBJECT::pms.usp_AppBookingMutationPrepare TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_AppBookingMutationCommit TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_WebBookingMutationRuntime TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_WebBookingMutationReceipt TO [pms_web_auth_test];
+-- Do not change RolePermission, table SELECT/DML, roles, triggers, existing DENY,
+-- PrincipalBinding or generic gateways. Runtime activation is a separate step.

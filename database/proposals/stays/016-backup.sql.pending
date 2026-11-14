@@ -1,0 +1,15 @@
+-- PENDING APPROVAL: backup is a separately reviewable first step of package 016.
+-- Never restore automatically. Do not reuse an earlier backup receipt.
+IF CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS' OR DB_NAME()<>N'SongLamPms_Design'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 54200,'Wrong target.',1;
+DECLARE @path nvarchar(4000)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\SongLamPms_Design_CheckIn016_20261113_d6a7d1e0.bak';
+DECLARE @exists TABLE(FileExists int,IsDirectory int,ParentDirectoryExists int);
+INSERT @exists EXEC master.dbo.xp_fileexist @path;
+IF EXISTS(SELECT 1 FROM @exists WHERE FileExists=1 OR IsDirectory=1 OR ParentDirectoryExists<>1) THROW 54200,'Backup path unavailable or already exists. Stop; do not overwrite.',1;
+BACKUP DATABASE [SongLamPms_Design] TO DISK=@path WITH COPY_ONLY,CHECKSUM,NOFORMAT,NOINIT;
+RESTORE VERIFYONLY FROM DISK=@path WITH CHECKSUM;
+-- If BACKUP or VERIFYONLY fails, STOP: no procedure/grant/activation may follow.
+SELECT TOP(1) CONVERT(varchar(36),b.backup_set_uuid) BackupSetUuid,b.backup_finish_date,b.has_backup_checksums,b.is_copy_only,m.physical_device_name
+ FROM msdb.dbo.backupset b JOIN msdb.dbo.backupmediafamily m ON m.media_set_id=b.media_set_id
+ WHERE b.database_name=DB_NAME() AND m.physical_device_name=@path AND b.backup_finish_date IS NOT NULL ORDER BY b.backup_set_id DESC;

@@ -1,0 +1,14 @@
+{
+  "environment": "rehearsal",
+  "testOnly": true,
+  "server": "",
+  "database": "SongLamPms_Rehearsal",
+  "expectedDatabaseFingerprint": "",
+  "operatorAppUserId": "",
+  "contractApprovalReference": null,
+  "actorMappingApprovalReference": null,
+  "backupAttestation": {
+    "approvalReference": null,
+    "restoredDatabaseFingerprint": null
+  }
+}

@@ -1,0 +1,39 @@
+-- Separate approval: preserve both procedure bodies, recompile their metadata
+-- with QUOTED_IDENTIFIER ON required by the existing filtered AppUser index.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+DECLARE @ApprovalReference nvarchar(200)=N'USER-20261112-APPROVED-009-SET-OPTIONS';
+IF NULLIF(@ApprovalReference,N'') IS NULL THROW 53970,'SET-options repair approval required.',1;
+IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC')
+ THROW 53971,'Unexpected SET-options repair target.',1;
+IF @@TRANCOUNT<>0 THROW 53972,'No ambient transaction allowed.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a')
+ THROW 53973,'Test markers required.',1;
+DECLARE @seed nvarchar(max)=OBJECT_DEFINITION(OBJECT_ID(N'pms.usp_SeedTestStaffBatch')),
+ @catalog nvarchar(max)=OBJECT_DEFINITION(OBJECT_ID(N'pms.usp_AppCatalogRead'));
+IF @seed IS NULL OR @catalog IS NULL
+ OR CONVERT(varchar(64),HASHBYTES('SHA2_256',@seed),2)<>'F32BBC337ED6263FB3AFC6FB347883E400F7775B8DCC3034253C17E6C2574AF4'
+ OR CONVERT(varchar(64),HASHBYTES('SHA2_256',@catalog),2)<>'F3ED451075078CD437A7A28DAF71D5FF2E2A4BF126B45668D3266589BF1E8646'
+ THROW 53974,'Reviewed post-008 definitions differ; stop.',1;
+-- SQL Server normalizes an ALTER module header back to CREATE in metadata.
+-- Execute ALTER again; the body remains byte-for-byte unchanged.
+SET @seed=REPLACE(@seed,N'CREATE PROCEDURE pms.usp_SeedTestStaffBatch',N'ALTER PROCEDURE pms.usp_SeedTestStaffBatch');
+SET @catalog=REPLACE(@catalog,N'CREATE PROCEDURE pms.usp_AppCatalogRead',N'ALTER PROCEDURE pms.usp_AppCatalogRead');
+BEGIN TRY
+ BEGIN TRANSACTION;
+ EXEC sys.sp_executesql @seed;
+ EXEC sys.sp_executesql @catalog;
+ IF EXISTS(SELECT 1 FROM sys.sql_modules WHERE object_id IN(OBJECT_ID(N'pms.usp_SeedTestStaffBatch'),OBJECT_ID(N'pms.usp_AppCatalogRead'))
+   AND (uses_ansi_nulls<>1 OR uses_quoted_identifier<>1))
+  THROW 53975,'Required module SET options not captured.',1;
+ COMMIT;
+ SELECT N'MODULE_SET_OPTIONS_FIXED_INTEGRATION_NOT_YET_VERIFIED' AS Status;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

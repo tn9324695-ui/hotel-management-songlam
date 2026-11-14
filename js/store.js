@@ -20,6 +20,14 @@
   const STORAGE_KEY = 'songlam_hotel_pms_data_v2';
   const DATA_VERSION = '2.1.0';
   const SYNC_CHANNEL_NAME = 'songlam_hotel_sync_channel';
+  function assertLegacySource() {
+    if (typeof window === 'undefined') return; // Existing Node demo model usage.
+    if (!window.SongLamDeployment) return;
+    if (window.SongLamDeployment.snapshot()?.mode === 'sql') return;
+    window.SongLamDeployment.assertLegacy();
+  }
+  // In API/frozen modes do not even initialize/normalize a legacy snapshot.
+  assertLegacySource();
 
   // Biến lưu trữ tại chỗ và danh sách người đăng ký lắng nghe (subscribers)
   let _currentData = null;
@@ -252,6 +260,7 @@
   }
 
   function _reloadFromStorage() {
+    assertLegacySource();
     try {
       if (typeof localStorage === 'undefined') {
         _currentData = _getInitialCleanData();
@@ -295,6 +304,7 @@
   }
 
   function _commitData(actionDescription) {
+    assertLegacySource();
     try {
       if (typeof localStorage !== 'undefined' && _currentData) {
         _currentData.version = DATA_VERSION;
@@ -342,8 +352,113 @@
     }
   }
 
+  async function syncFromBackendApi() {
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+    try {
+      const healthRes = await fetch('/api/v1/auth/status', { credentials: 'same-origin' }).catch(() => null);
+      if (!healthRes || !healthRes.ok) return;
+
+      const meRes = await fetch('/api/v1/auth/me', { credentials: 'same-origin' }).catch(() => null);
+      if (meRes && meRes.ok) {
+        const me = await meRes.json();
+        if (me.data?.user) {
+          window._sqlCurrentUser = me.data.user;
+          const uName = me.data.user.fullName || me.data.user.username;
+          const userEl = document.getElementById('topbarUserName');
+          if (userEl) userEl.textContent = uName;
+          const roleEl = document.getElementById('topbarRoleText');
+          if (roleEl) roleEl.textContent = 'Nhân viên SQL (' + (me.data.user.roleCode || 'Staff') + ')';
+        }
+      }
+
+      const setRes = await fetch('/api/v1/hotel-settings', { credentials: 'same-origin' }).catch(() => null);
+      if (setRes && setRes.ok) {
+        const st = await setRes.json();
+        if (st.data?.workingDate) {
+          _currentData.workingDate = st.data.workingDate;
+          const dateEl = document.getElementById('topbarWorkingDateText');
+          if (dateEl) dateEl.textContent = formatDate(st.data.workingDate);
+        }
+      }
+
+      const typesRes = await fetch('/api/v1/room-types', { credentials: 'same-origin' }).catch(() => null);
+      if (typesRes && typesRes.ok) {
+        const types = await typesRes.json();
+        if (Array.isArray(types.data) && types.data.length > 0) {
+          const typeMap = new Map((_currentData.roomClasses || []).map(rc => [rc.code, rc]));
+          types.data.forEach(t => {
+            if (!typeMap.has(t.code)) {
+              typeMap.set(t.code, { code: t.code, name: t.name, basePrice: 1200000 });
+            }
+          });
+          _currentData.roomClasses = Array.from(typeMap.values());
+        }
+      }
+
+      const roomsRes = await fetch('/api/v1/rooms?limit=500', { credentials: 'same-origin' }).catch(() => null);
+      if (roomsRes && roomsRes.ok) {
+        const roomsData = await roomsRes.json();
+        if (Array.isArray(roomsData.data) && roomsData.data.length > 0) {
+          const classList = _currentData.roomClasses || [];
+          const currentRoomsMap = new Map((_currentData.rooms || []).map(r => [String(r.number), r]));
+          _currentData.rooms = roomsData.data.map(sr => {
+            const num = String(sr.number);
+            const existing = currentRoomsMap.get(num) || {};
+            const rType = classList.find(c => c.id === sr.roomTypeId || c.code === sr.roomTypeId) || {};
+            return {
+              id: existing.id || 'P-' + num,
+              number: num,
+              floor: parseInt(sr.floor, 10) || parseInt(num.slice(0, -2), 10) || 4,
+              classCode: sr.roomTypeCode || rType.code || existing.classCode || 'SUP-K',
+              stayStatus: (sr.occupancyStatus || 'VACANT').toLowerCase(),
+              cleanStatus: (sr.cleanlinessStatus || 'CLEAN').toLowerCase(),
+              exploitationStatus: (sr.exploitationStatus || 'ACTIVE').toLowerCase(),
+              currentStayId: existing.currentStayId || null
+            };
+          });
+        }
+      }
+
+      const bkRes = await fetch('/api/v1/bookings?limit=100', { credentials: 'same-origin' }).catch(() => null);
+      if (bkRes && bkRes.ok) {
+        const bks = await bkRes.json();
+        if (Array.isArray(bks.data) && bks.data.length > 0) {
+          const existingIds = new Set((_currentData.bookings || []).map(b => b.id || b.code));
+          bks.data.forEach(b => {
+            if (!existingIds.has(b.id) && !existingIds.has(b.code)) {
+              _currentData.bookings.push({
+                id: b.code || b.id,
+                guestName: b.contactName || 'Khách đặt qua SQL',
+                phone: b.contactPhone || '',
+                groupName: b.groupName || null,
+                roomClassCode: b.roomTypeCode || 'SUP-K',
+                roomQuantity: b.roomCount || 1,
+                bookingStatus: (b.status || 'CONFIRMED').toLowerCase(),
+                assignedRooms: b.assignedRoomNumbers || []
+              });
+            }
+          });
+        }
+      }
+
+      _notifySubscribers({ type: 'DATA_UPDATED', source: 'sql_backend' });
+      if (window.SongLamUI && typeof window.SongLamUI.sync === 'function') {
+        window.SongLamUI.sync();
+      }
+    } catch (e) {
+      console.warn('[SongLamStore] Lỗi đồng bộ Backend API:', e);
+    }
+  }
+
   // Khởi tạo ngay khi script được tải
   _reloadFromStorage();
+  if (typeof window !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(syncFromBackendApi, 100), { once: true });
+    } else {
+      setTimeout(syncFromBackendApi, 100);
+    }
+  }
 
   // =========================================================================
   // CORE BUSINESS ENGINE (SONGLAM HOTEL PMS)
@@ -4343,8 +4458,13 @@
         overstayCount: overstayCount,
         ledger: ledgerEntry
       };
-    }
+    },
+    syncFromBackendApi: syncFromBackendApi
   };
 
+  // Guard before any in-memory business mutation, as well as at persistence points.
+  for (const [name, operation] of Object.entries(SongLamStore)) if (typeof operation === 'function') {
+    SongLamStore[name] = function (...args) { assertLegacySource(); return operation.apply(this, args); };
+  }
   return SongLamStore;
 }));

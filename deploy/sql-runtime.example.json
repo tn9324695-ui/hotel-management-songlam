@@ -1,0 +1,85 @@
+{
+  "format": "songlam.sql-runtime.v1",
+  "approved": false,
+  "approvalReference": "",
+  "expectedPrincipal": "DESKTOP-9EPI86K\\songlam_pms_test",
+  "principalApprovalReference": "",
+  "odbcDriver": "ODBC Driver 17 for SQL Server",
+  "profile": {
+    "format": "songlam.sql-test-profile.v1",
+    "approved": false,
+    "approvalReference": "",
+    "environment": "test",
+    "testWritesAllowed": false,
+    "target": {
+      "confirmed": true,
+      "testOnly": true,
+      "server": ".\\SQLEXPRESS",
+      "database": "SongLamPms_Design",
+      "expectedServerIdentity": "DESKTOP-9EPI86K\\SQLEXPRESS",
+      "expectedDatabaseIdentity": "",
+      "existingDatabaseTestApprovalReference": "USER-20261111-SONGLAM-TEST-WRITES",
+      "backupReference": null
+    },
+    "auth": {
+      "mode": "windows"
+    },
+    "transport": {
+      "port": null,
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "certificateExceptionApprovalReference": null
+    },
+    "contracts": {
+      "environment": {
+        "procedure": "pms.usp_AppEnvironment",
+        "database": "SongLamPms_Design",
+        "environment": "test",
+        "approved": false,
+        "approvalReference": ""
+      },
+      "credentials": {
+        "procedure": "pms.usp_AppAuthLookup",
+        "database": "SongLamPms_Design",
+        "environment": "test",
+        "approved": false,
+        "approvalReference": ""
+      },
+      "identity": {
+        "procedure": "pms.usp_AppIdentity",
+        "database": "SongLamPms_Design",
+        "environment": "test",
+        "approved": false,
+        "approvalReference": ""
+      }
+    }
+  },
+  "sessions": {
+    "approved": false,
+    "approvalReference": "",
+    "protocol": "songlam.session.v1",
+    "environment": "test",
+    "database": "SongLamPms_Design",
+    "sessionWritesApproved": false,
+    "sessionWriteApprovalReference": "",
+    "procedures": {
+      "probe": "pms.usp_WebSessionProbe",
+      "create": "pms.usp_WebSessionCreate",
+      "get": "pms.usp_WebSessionGet",
+      "destroy": "pms.usp_WebSessionDestroy"
+    }
+  },
+  "passwordFormats": [],
+  "passwordFormatApprovalReference": "",
+  "contracts": {
+    "catalogGateway": null,
+    "pricingGateway": null,
+    "bookingsGateway": null,
+    "staysGateway": null,
+    "stayPricingGateway": null,
+    "operationsGateway": null,
+    "consumptionGateway": null,
+    "financeGateway": null,
+    "managementGateway": null
+  }
+}

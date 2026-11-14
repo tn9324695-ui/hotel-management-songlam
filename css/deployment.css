@@ -1,0 +1,4 @@
+.pms-deployment-banner { padding: 10px 16px; background: #fff3cd; color: #664d03; font: 14px/1.5 system-ui, sans-serif; position: relative; z-index: 1100; overflow-wrap: anywhere; }
+.pms-deployment-banner a { color: #084298; text-decoration: underline; }
+#pending-requests p, #deployment-status, #lookup-result { overflow-wrap: anywhere; }
+@media (max-width: 767px) { .pms-deployment-banner { padding: 8px; } .pms-status-page .ops-topbar { flex-wrap: wrap; height: auto; gap: 8px; padding: 12px; } }

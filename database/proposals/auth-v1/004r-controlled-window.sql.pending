@@ -1,0 +1,102 @@
+-- Execution approved 2026-11-12 after explicit confirmation of 004r + 001/003.
+-- This reference covers new backup/SINGLE_USER/marker/MULTI_USER only.
+-- Run only through one dedicated sqlcmd connection, -d SongLamPms_Design -b.
+-- Do not run through SSMS Object Explorer, a pool, SQL Agent or an importer.
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+SET LOCK_TIMEOUT 5000;
+DECLARE @ControlledWindowApprovalReference nvarchar(200)=N'USER-20261112-D1R-AND-AUTH-READ';
+DECLARE @ApprovedDatabase sysname=N'SongLamPms_Design';
+DECLARE @ServerIdentity nvarchar(128)=N'DESKTOP-9EPI86K\SQLEXPRESS';
+DECLARE @DatabaseGuid uniqueidentifier='C4DD399E-5661-4741-A424-5ABFEEFBC1AC';
+DECLARE @TestIdentity nvarchar(36)=N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a';
+DECLARE @BackupDirectory nvarchar(4000)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup';
+DECLARE @MediaName nvarchar(128)=N'SongLamPms_Design_D1R_20261112_b5f52bd3-8131-4193-954d-69cc81fca420';
+DECLARE @BackupPath nvarchar(4000)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\SongLamPms_Design_D1R_20261112_b5f52bd3-8131-4193-954d-69cc81fca420.bak';
+DECLARE @BackupSetUuid uniqueidentifier;
+DECLARE @ExclusiveModeSet bit=0;
+DECLARE @MarkerCommitted bit=0;
+
+-- All these checks precede the first state-changing statement.
+IF NULLIF(@ControlledWindowApprovalReference,N'') IS NULL
+ THROW 53400,'Separate approval for new backup and controlled SINGLE_USER window required.',1;
+IF DB_NAME()<>@ApprovedDatabase OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>@ServerIdentity
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid=@DatabaseGuid)
+ THROW 53401,'Target identity changed; stop and review.',1;
+IF @@TRANCOUNT<>0 THROW 53402,'Ambient transactions are not allowed.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.databases WHERE database_id=DB_ID() AND user_access_desc=N'MULTI_USER' AND state_desc=N'ONLINE' AND is_read_only=0)
+ THROW 53403,'Expected ONLINE writable MULTI_USER database; do not change an existing maintenance state.',1;
+IF EXISTS(SELECT 1 FROM sys.databases WHERE database_id=DB_ID() AND is_auto_update_stats_async_on=1)
+ THROW 53411,'Asynchronous statistics may compete for single-user access; review separately, do not change automatically.',1;
+IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name IN(N'SongLam.Environment',N'SongLam.TestIdentity'))
+ THROW 53404,'Markers already exist; inspect outcome, never retry blindly.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.dm_os_file_exists(@BackupDirectory) WHERE file_is_a_directory=1)
+ THROW 53405,'Approved backup directory is unavailable.',1;
+IF EXISTS(SELECT 1 FROM sys.dm_os_file_exists(@BackupPath) WHERE file_exists=1 OR file_is_a_directory=1)
+ THROW 53406,'New backup path already exists; never overwrite, append or delete.',1;
+
+BEGIN TRY
+ -- Current dedicated connection already uses this database and retains its slot.
+ -- NO_WAIT refuses contention; no session is killed and no transaction forced back.
+ ALTER DATABASE [SongLamPms_Design] SET SINGLE_USER WITH NO_WAIT;
+ SET @ExclusiveModeSet=1;
+ IF NOT EXISTS(SELECT 1 FROM sys.databases WHERE database_id=DB_ID() AND user_access_desc=N'SINGLE_USER')
+  THROW 53407,'Exclusive database access was not established.',1;
+
+ BACKUP DATABASE @ApprovedDatabase TO DISK=@BackupPath
+  WITH COPY_ONLY,CHECKSUM,NOFORMAT,NOINIT,NOSKIP,MEDIANAME=@MediaName,NAME=@MediaName;
+ RESTORE VERIFYONLY FROM DISK=@BackupPath WITH FILE=1,CHECKSUM;
+ IF (SELECT COUNT_BIG(*) FROM msdb.dbo.backupset bs
+  JOIN msdb.dbo.backupmediafamily mf ON mf.media_set_id=bs.media_set_id
+  WHERE bs.database_name=@ApprovedDatabase AND bs.database_guid=@DatabaseGuid
+   AND bs.name=@MediaName AND mf.physical_device_name=@BackupPath
+   AND bs.type='D' AND bs.position=1 AND bs.is_copy_only=1 AND bs.has_backup_checksums=1
+   AND bs.backup_finish_date IS NOT NULL)<>1
+  THROW 53408,'New backup receipt mismatch; marker must not be written.',1;
+ SELECT @BackupSetUuid=bs.backup_set_uuid FROM msdb.dbo.backupset bs
+ JOIN msdb.dbo.backupmediafamily mf ON mf.media_set_id=bs.media_set_id
+ WHERE bs.database_name=@ApprovedDatabase AND bs.database_guid=@DatabaseGuid
+  AND bs.name=@MediaName AND mf.physical_device_name=@BackupPath
+  AND bs.type='D' AND bs.position=1 AND bs.is_copy_only=1 AND bs.has_backup_checksums=1
+  AND bs.backup_finish_date IS NOT NULL;
+ SELECT N'NEW_BACKUP_VERIFIED_MARKER_NOT_YET_COMMITTED' AS Status,@BackupSetUuid AS BackupSetUuid,@BackupPath AS BackupPath;
+
+ -- Same marker values and atomic two-property operation as approved 004.
+ -- Old receipt and its unproven time window are not reused.
+ BEGIN TRANSACTION;
+ IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name IN(N'SongLam.Environment',N'SongLam.TestIdentity'))
+  THROW 53409,'Markers appeared; stop without overwriting.',1;
+ EXEC sys.sp_addextendedproperty @name=N'SongLam.Environment',@value=N'test';
+ EXEC sys.sp_addextendedproperty @name=N'SongLam.TestIdentity',@value=@TestIdentity;
+ COMMIT;
+ SET @MarkerCommitted=1;
+ IF (SELECT COUNT_BIG(*) FROM sys.extended_properties WHERE class=0 AND
+  ((name=N'SongLam.Environment' AND CONVERT(nvarchar(128),value)=N'test') OR
+   (name=N'SongLam.TestIdentity' AND CONVERT(nvarchar(128),value)=@TestIdentity)))<>2
+  THROW 53410,'Marker committed but readback mismatch; inspect before any retry.',1;
+
+ ALTER DATABASE [SongLamPms_Design] SET MULTI_USER WITH NO_WAIT;
+ SET @ExclusiveModeSet=0;
+ SELECT N'MARKER_COMMITTED_NEW_BACKUP_VERIFIED' AS Status,@BackupSetUuid AS BackupSetUuid,
+  @BackupPath AS BackupPath,@TestIdentity AS TestIdentity,@MarkerCommitted AS MarkerCommitted,
+  SYSUTCDATETIME() AS CompletedAtUtc;
+ SELECT name,CONVERT(nvarchar(128),value) AS Value FROM sys.extended_properties
+ WHERE class=0 AND name IN(N'SongLam.Environment',N'SongLam.TestIdentity');
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ -- Cleanup cannot undo a marker already committed. Preserve backup/history.
+ IF @ExclusiveModeSet=1
+ BEGIN
+  BEGIN TRY
+   ALTER DATABASE [SongLamPms_Design] SET MULTI_USER WITH NO_WAIT;
+  END TRY
+  BEGIN CATCH
+   SELECT N'ACCESS_MODE_RECOVERY_REQUIRED' AS Status,@MarkerCommitted AS MarkerCommitted,@BackupSetUuid AS BackupSetUuid;
+   THROW;
+  END CATCH;
+ END;
+ SELECT N'CONTROLLED_WINDOW_FAILED_INSPECT_BEFORE_RETRY' AS Status,
+  @MarkerCommitted AS MarkerCommitted,@BackupSetUuid AS BackupSetUuid;
+ THROW;
+END CATCH;

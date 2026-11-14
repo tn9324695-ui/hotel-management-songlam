@@ -1,3 +1,191 @@
+# Trạng thái hiện tại — 13/11/2026
+
+**Đã chạy luồng thật Browser → frontend → Express → SQL Server `.\SQLEXPRESS / SongLamPms_Design`: báo giá, tạo/chọn khách và đặt phòng.** Dùng `Start-SongLamPMS.cmd`, đăng nhập tại **http://127.0.0.1:8093/login.html** bằng tài khoản thử lễ tân/quản lý; tải lại trang để nạp giao diện mới. Chỉ mở ghi khách và booking, không phải mock/localStorage và chưa cắt chuyển G12.
+
+Đã áp dụng 012/013/014, mỗi gói có backup mới + VERIFYONLY; giữ nguyên hash 420 phòng dự án (không xác nhận là danh sách phòng thật của Mường Thanh). 1 policy, 2 plan, 20 giá **riêng của nhóm** có hiệu lực 01/11/2026–31/12/2027. Đã tạo 1 khách có nhãn thử và 5 đơn (6 phòng), kiểm tranh phòng/gửi lặp/đoàn/timeout sau commit. **76 kiểm tra đối chiếu SQL đạt**; audit/receipt và từng dòng tiền dự kiến khớp. Tổng dự kiến 71.750.000đ, **thực thu/cọc 0đ**, không phải doanh thu.
+
+[Bàn giao đầy đủ: API, file, migration/backup, mã đơn, kiểm tra thực tế và giới hạn](docs/booking-sql-execution-2026-11-13.md). Các dòng “chưa có giá”, “chưa mở ghi” bên dưới là lịch sử trước gói 012, không còn là trạng thái của luồng khách/đặt phòng. G6–G12 và quyết toán vẫn khóa.
+
+## Lịch sử trước gói 012
+
+**Mở hệ thống qua backend:** nhấp `Start-SongLamPMS.cmd` ở thư mục dự án. Launcher kiểm tra API/SQL và dùng tài khoản dịch vụ đã cấu hình nếu cần khởi động; không migration/seed hoặc mở ghi nghiệp vụ. URL đăng nhập: **http://127.0.0.1:8093/login.html**. Đã chạy kiểm tra launcher `-NoOpen` với backend đang hoạt động và đối chiếu lại đủ 5 vai trò qua 35 kiểm tra HTTP/SQL thật.
+
+**011 đã nhập dữ liệu nền và đối chiếu SQL thật:** 420 phòng, 11 hạng, 15 dịch vụ, cấu hình khách sạn/ngày nghiệp vụ **11/10/2026**. 5 phòng bảo trì cách ly đúng quyết định; replay không tạo trùng. **35 kiểm tra HTTP đối chiếu dữ liệu, 120 kiểm tra browser cho 5 vai trò, 153/153 fixture đạt**. Mở **http://127.0.0.1:8093/reception-api.html** hoặc **/catalog-api.html**. Chưa nhập bảng giá/chính sách và chưa mở ghi nghiệp vụ/G12. [Receipt, backup, dữ liệu đã nhập và giới hạn](docs/foundation-base420-execution.md). Các ghi nhận bảng trống/chờ gói 011 bên dưới là lịch sử trước lần nhập này.
+
+**Tiếp tục mục 7–8:** có màn hình **http://127.0.0.1:8093/catalog-api.html** đọc đủ các nguồn R1 theo quyền, bộ lọc/phân trang/chi tiết và nguồn API/SQL. Các module chưa có SQL hiển thị Chưa khả dụng, lễ tân khóa lịch/quỹ/báo giá chưa hỗ trợ. **57 kiểm tra HTTP/SQL thật, 102 kiểm tra browser thật, 142/142 fixture đạt**. Mục 7 chưa nhập vì chờ nguồn/dữ liệu và hợp đồng nhập riêng; không tạo giá/ngày giả. [Bàn giao, matrix màn hình–SQL và phần cần duyệt](docs/foundation-frontend-handoff.md).
+
+**Mục 5–6 đã chạy thử SQL thật:** 5 nhân viên thử đã nhập, replay không tạo trùng; 010 đã sửa chuyển đổi RowVer theo phê duyệt riêng. Login/me/permissions/logout và R1 đọc danh mục đạt **57 kiểm tra HTTP**, **37 kiểm tra browser** cho 5 vai trò ở 1366×768 và 1920×1080; **137/137 fixture đạt**. Mở **http://127.0.0.1:8093/login.html**. Phòng/hạng phòng hiện trống, không có dữ liệu demo thay thế; ghi nghiệp vụ vẫn frozen. [Bàn giao, tài khoản cục bộ và bằng chứng](docs/staff-catalog-execution-2026-11-12.md).
+
+Các số đếm/trạng thái AppUser=0 và các điểm chặn đăng nhập bên dưới là lịch sử trước mục 5–6; bản bàn giao trên là trạng thái mới nhất.
+
+**Mục 3–4 đã triển khai SQL và kiểm chứng pool thật:** tài khoản Windows `songlam_pms_test` thuộc Users, không Administrators; SQL user có hai role với 7 quyền EXECUTE hẹp; `WebSession` và bốn RPC đã áp dụng. Backend kiểm thử đang ở **http://127.0.0.1:8093/login.html**, dùng SQL thật và ngoại lệ chứng chỉ riêng đã duyệt, mã hóa vẫn bật. AppUser=0 nên **chưa có đăng nhập nhân viên thành công**; ghi nghiệp vụ frozen, chưa cắt chuyển vận hành. [Bằng chứng, cách chạy và giới hạn](docs/service-session-execution-2026-11-12.md).
+
+Kiểm thử mới: **134/134 fixture backend**, kiểm tra SQL/pool và HTTP thực được ghi riêng trong tài liệu trên. Các mục bên dưới là lịch sử, được giữ để truy vết; các câu “service principal/kho phiên chưa có” không còn phản ánh trạng thái hiện tại.
+
+# Lịch sử D1/D2 — Cập nhật quyết định môi trường kiểm thử, 11/11/2026
+
+**Đã hoàn tất hai mục đầu trên SQL thật:** 004r tạo backup mới/VERIFYONLY, ghi marker và trả MULTI_USER; 001/003 tạo ba RPC xác thực và role với đúng ba EXECUTE. [Receipt, hash và kiểm chứng](docs/first-two-execution-2026-11-12.md). Chưa làm mục 3–8: service principal/kho phiên/tài khoản thử vẫn chưa có, chưa mở đăng nhập website hoặc pool backend. Các trạng thái D1 bị chặn ở ghi nhận cũ bên dưới đã được thay thế bởi biên bản này.
+
+**Rà soát code mới nhất:** [báo cáo 12/11/2026](docs/repository-audit-2026-11-12.md). Đã sửa race frontend khi khôi phục phiên và trạng thái readiness; backend 131/131, frontend service 9/9, browser 67/67, demo 18/18 đạt. Đây không phải nghiệm thu SQL. Runtime vận hành/receipt/monitoring còn thiếu ngoài các phụ thuộc SQL; không đánh giá hoàn thành theo số file hoặc endpoint.
+
+**Nhóm đăng nhập được chọn:** đã viết artifact D2-P/D3-P, bootstrap nhân viên và R1, CLI chuẩn bị/import và test; bundle bí mật 5 người đã chuẩn bị, **chưa nhập SQL**. 129/129 test backend và 67/67 browser fixture/HTTP đạt; SQL nghiệp vụ chưa chạy vì D1 marker chưa có, 004r tạm dừng. [Bàn giao code, lệnh và điểm chặn](docs/login-packages-implementation.md).
+
+**Preview mới nhất:** frontend + Express chạy tại `http://127.0.0.1:8091/login.html`; pool SQL/đăng nhập thật vẫn bị chặn bởi RPC, service principal, kho phiên và bootstrap nhân viên chưa được duyệt/áp dụng. 004r tạm dừng. [Bảng kết quả, lệnh chạy, nguồn SQL thật và hợp đồng còn thiếu](docs/live-sql-preview.md). Không có tài khoản thử SQL được tạo hoặc cắt chuyển vận hành.
+
+Kết nối 12/11/2026: đã cài driver SQL Server/Windows Authentication, thêm runtime opt-in vào entrypoint và chỉ báo kết nối frontend. [Trạng thái thực tế, kiểm thử và các phê duyệt còn chờ](docs/sql-connection-status.md). Native driver nạp được; pool ứng dụng vẫn khóa vì SQL chưa có RPC/marker/principal và AppUser=0. Test backend 121/121, không phải nghiệm thu SQL thật.
+
+Frontend tiếp tục ngày 12/11/2026: [bảng bàn giao từng màn hình, API và trạng thái dữ liệu](docs/frontend-completion.md). Có màn hình `reception-api.html` cho lịch/đặt phòng/lưu trú, lớp phiên/quyền và component dùng chung với các trang API hiện có. Đọc dữ liệu bằng HTTP; SQL chưa sẵn sàng thì khóa ghi, không lấy demo thay thế. Xem thử cùng Express tại `http://127.0.0.1:8090/reception-api.html` khi chạy theo hướng dẫn trong tài liệu. Không có luồng SQL thật được đánh dấu nghiệm thu.
+
+Rà soát backend mới: [đường nối API → gateway → SQL, backlog theo thứ tự và tiêu chí nghiệm thu](docs/backend-completion-audit.md). Đã sửa kiểm tra SQL_SERVER và chẩn đoán cổng named-instance; suite **114/114 fixture/mock**, 113 tệp nguồn qua kiểm tra cú pháp. Backend chưa được coi là hoàn tất trên SQL thật.
+
+Đã tiếp tục phần code D2–D4: ghép auth/session có điều kiện, sửa RowVer binary/text, bổ sung gói duyệt S0 và actor/audit. [Bàn giao và kết quả fixture](docs/d2-d4-handoff.md), [D3](docs/d3-approval-package.md), [D4](docs/d4-approval-package.md). Chưa chạy SQL pending hoặc nối frontend ghi SQL thật.
+
+**D1 hiện tại:** dùng `SongLamPms_Design` trên `.\SQLEXPRESS` để ghi kiểm thử đã xác nhận. **000 đã chạy backup/VERIFYONLY thành công; 004 đã được duyệt riêng, chưa chạy vì thiếu bằng chứng cửa sổ ngừng ghi**. [Gói D1](docs/d1-approval-package.md), [preflight hiện tại](docs/d1-004-preflight.md). 001/002/002b/003/005 chưa duyệt/chạy. Driver đã cài; pool/đăng nhập/nghiệp vụ SQL chưa được xác minh, AppUser=0. Hai backend preview 8090/8091 đã được dừng để kiểm tra nguồn ghi. Các mục lịch sử bên dưới không thay thế trạng thái này; số test fixture không phải SQL integration.
+
+# Bảng quyết định trước SQL — 11/11/2026
+
+Đã kiểm chỉ đọc số đếm dữ liệu pms: bảng nghiệp vụ và AppUser hiện 0; dữ liệu vai trò/quyền/rule tham chiếu còn nguyên. Đã tách A3 khỏi gói đăng nhập, chuẩn bị S0 SQL/session adapter mặc định khóa và bản backup pending. Test backend **102/102 đạt với fixture/provider giả**, chưa chạy SQL pending/backup/marker/fixture hay pool thật. Xem [bảng duyệt D1–D4, điều kiện, kiểm chứng và phục hồi](docs/auth-sql-decisions.md).
+
+# Chuẩn bị kết nối database hiện có — 11/11/2026
+
+Đã xác minh chỉ đọc system catalog của `SongLamPms_Design` trên `.\SQLEXPRESS`, không tạo DB mới. Đã chuẩn bị SQL A1/A2/A3 và quyền hẹp để duyệt riêng, code profile/pool preflight và 6 test mới; backend **95/95 đạt với fixture/provider giả**. Chưa áp dụng SQL, chưa có pool SQL thật hoặc đăng nhập vận hành. Xem [bàn giao](docs/auth-sql-preparation.md), [bản SQL cần duyệt](database/proposals/auth-v1/README.md).
+
+# Rà soát sau G12 — kết quả độc lập SQL
+
+Đã sửa và chạy lại: backend **89/89**, model **8/8 assertions**, nghiệp vụ demo **18/18**, UI demo **100/100**, browser API/login **29/29**, browser auth qua Express với SQL pool fixture **8/8**. Sửa login UI nối G2 khi configured, chặn receipt PENDING bị ghi COMMITTED trong importer và điều chỉnh bootstrap/test harness G12. **SQL nghiệp vụ: 0 bài chạy**, chưa có DB test/approval; không kết luận đã nối SQL thật hoặc sẵn sàng vận hành. Xem [báo cáo/matrix và lệnh](docs/verification-g0-g12.md), [hợp đồng thiếu và môi trường cần cung cấp](docs/sql-verification-prerequisites.md).
+
+# G12 — Chuẩn bị cắt chuyển, CHƯA kích hoạt
+
+Đã bổ sung công tắc `PMS_WRITE_MODE` (demo/frozen/api-readonly/sql), chốt ghi backend/Store, metadata yêu cầu chờ và trang tra cứu receipt, trạng thái nội bộ, cấu hình mẫu và CLI review ngoại tuyến. Mặc định vẫn demo; thiếu G11 PASS, xác minh SQL/session/actor/receipt/monitor đã duyệt thì API ghi tiếp tục khóa. Không thay `.env` thật, không SQL/import/restore/cắt chuyển và chưa viết/chạy kiểm thử G12. Xem [bàn giao](docs/g12-cutover.md), [checklist và rollback](docs/g12-runbook.md), [nghiệm thu chưa kiểm tra](docs/g12-acceptance.md), [phụ thuộc cần duyệt](docs/g12-sql-proposals.md).
+
+# G10 — Dashboard, báo cáo và quản trị — 09/11/2026
+
+Đã viết reports/users/roles/audit/exceptions và màn hình `admin-api.html`, với định nghĩa chỉ số trong code, kỳ/múi giờ từ SQL, trạng thái 0/rỗng/thiếu đối soát tách biệt. Không dùng KPI demo dự phòng, không sửa quyền hoặc lộ credential/raw audit payload. Log HTTP đã lọc tách khỏi journal SQL bền vững còn chờ duyệt. **Chưa nghiệm thu SQL thật**, chưa viết/chạy kiểm thử, không thay SQL. Xem [G10 và bảng chỉ số](docs/g10-management.md), [hợp đồng cần duyệt](docs/g10-sql-proposals.md). index.html vẫn là demo riêng, có link API rõ ràng.
+
+# G9 — Tài chính và checkout — 09/11/2026
+
+Đã viết modules/API folio, cọc, payments, refunds, checkout, phiếu nội bộ, ca và ngày; form API tại `finance-api.html`, tách demo/localStorage. **Chưa nghiệm thu SQL thật**: RPC tài chính nguyên tử/receipt, policy duyệt hoàn/clock và các linkage cọc-master-minibar còn chờ duyệt. Ngân hàng chỉ PENDING, hóa đơn điện tử/điều chỉnh sau chốt không bật. Không thay SQL, chưa viết/chạy kiểm thử. Xem [bàn giao G9](docs/g9-finance.md), [SQL cần duyệt](docs/g9-sql-proposals.md).
+
+# G8 — Dịch vụ và minibar — 09/11/2026
+
+Đã viết backend service-orders/minibar-audits và form API riêng tại `services-api.html`, có nhiều dòng/giá chốt, giao dịch vụ, hủy bằng credit liên kết và biên bản minibar 0đ. **Chưa nghiệm thu SQL thật**: ngữ cảnh folio hẹp, snapshot/phạm vi kiểm/segment, hủy OPEN và policy 0đ còn chờ hợp đồng được duyệt. Không thay SQL, không viết/chạy kiểm thử trong lượt G8. Xem [bàn giao G8](docs/g8-services-minibar.md), [SQL/folio cần duyệt](docs/g8-sql-proposals.md). Demo cũ giữ riêng, không ghi kép; chưa làm G9.
+
+# G7 — Buồng phòng, bảo trì, đồ thất lạc — 08/11/2026
+
+Đã viết backend G7 và nối biểu mẫu API tại [`housekeeping-api.html`](housekeeping-api.html), tách khỏi demo/localStorage. **Chưa nghiệm thu SQL thật**: hợp đồng actor/command/event/custody/eligibility và quyền nghiệm thu còn chờ phê duyệt; giao diện báo chưa cấu hình, không giả thành công. Không thay SQL, không viết/chạy test trong lượt G7. Xem [bàn giao G7](docs/g7-operations.md), [đề xuất cần duyệt](docs/g7-sql-proposals.md) và [cách chạy backend](backend/README.md).
+
+# Backend G6 — 08/11/2026
+
+Đã viết nhận/chuyển phòng, gia hạn và shorten tại backend cùng API client riêng; chưa nối biểu mẫu hoặc nghiệm thu SQL thật. Không check-out/quyết toán G9, không tự thu/hoàn tiền/đóng folio. Xem [G6 và các phần còn chặn](docs/g6-stays.md), [hợp đồng SQL cần phê duyệt](docs/g6-sql-proposals.md). Chỉ viết code, không tạo/chạy kiểm thử trong lượt này.
+
+# Backend G5 — 08/11/2026
+
+Đã viết backend đặt/quỹ/lịch/gán/hủy và API client độc lập, tái sử dụng giá G4. **Chưa nghiệm thu G5**: chưa có hợp đồng SQL được duyệt và kiểm chứng đặt đoàn nguyên tử/xung đột đồng thời. Chưa nối giao diện, chưa check-in/out/thu cọc thật, không thay SQL hoặc dữ liệu. Xem [bàn giao G5](docs/g5-bookings.md), [đề xuất SQL G5](docs/g5-sql-proposals.md). Lượt G5 không tạo/chạy kiểm thử.
+
+# Backend G4 — 08/11/2026
+
+Đã viết module giá đêm/giờ, phụ thu theo chính sách tường minh và chênh lệch trả sớm từ snapshot đã chốt. Chưa có phê duyệt hợp đồng SQL/chính sách/lịch để bật vận hành, không dùng giá demo hoặc ghi booking/tiền/snapshot. Xem [bàn giao G4](docs/g4-pricing.md). Không tạo/chạy kiểm thử trong lượt này.
+
+# Backend G3 — 08/11/2026
+
+Đã bổ sung code API đọc danh mục, phòng với ba trạng thái độc lập, cấu hình/ngày nghiệp vụ và tra cứu khách hàng. Chưa bật SQL thật khi thiếu hợp đồng/quyền được duyệt; chưa nối frontend hoặc sửa nghiệp vụ. Lượt G3 không tạo/chạy kiểm thử. Xem [API, giới hạn và đề xuất SQL G3](docs/g3-sql-proposals.md).
+
+# Backend G2 — 08/11/2026
+
+Đã viết API xác thực, quản lý phiên/CSRF, quyền và adapter actor qua pool; kiểm thử bằng fixture. **G2 chưa nghiệm thu đăng nhập thật** vì chưa có phê duyệt A1/A2/A3, định dạng hash thực tế và kho phiên vận hành. Không thay đổi SQL hoặc nghiệp vụ demo. Xem [bàn giao G2 và phần còn chặn](docs/g2-authentication.md).
+
+# Backend G0–G1 — 08/11/2026
+
+Đã bổ sung khung Express, `/health`, `/ready`, HTTP client và `login.html`. Login hiển thị **“Chưa cấu hình đăng nhập”**, không cấp phiên hoặc xác nhận thành công giả. Backend chưa kết nối SQL và chưa thay nguồn dữ liệu demo.
+
+Xem [cách chạy backend](backend/README.md), [kiểm kê nguồn](docs/source-inventory.md), [đề xuất SQL cần duyệt cho G2](docs/sql-proposals.md) và [kết quả kiểm thử G0–G1](docs/g0-g1-validation.md). Đường chạy demo Python bên dưới vẫn được giữ. Các ghi chép trước đây là lịch sử; số lượng đối tượng SQL không được kiểm tra lại trong G0–G1.
+
+# Database SQL Server — cập nhật 08/11/2026
+
+Đã nâng cấp [database và cổng nghiệp vụ SQL](database/README.md) tới **schema 3**: 51 bảng, 108 khóa ngoại, 122 CHECK, 28 trigger; 72/72 ca kiểm thử SQL đạt. Ghi dữ liệu phải qua kiểm tra quyền, quỹ phòng, lưu trú, cọc, thu/hoàn tiền, folio và chốt ngày trong transaction. Database: `SongLamPms_Design` trên `.\SQLEXPRESS`. Giao diện vẫn dùng localStorage; HTTP backend, chuyển dữ liệu và tích hợp ngân hàng/hóa đơn thật chưa triển khai.
+
+[Kết quả nâng cấp database và hồi quy ứng dụng](database/VALIDATION_V2.md). Các thay đổi giao diện bên dưới được giữ nguyên.
+
+# Giao diện quản trị Sông Lam — cập nhật 07/11/2026
+
+Ứng dụng giữ nguyên HTML/CSS/JavaScript thuần, ba phân hệ và lớp nghiệp vụ `SongLamStore`. Không thay đổi `js/store.js` hoặc dữ liệu khởi tạo `js/data.js`. Không tìm thấy `AGENTS.md` trong checkout hoặc các thư mục cha khi bắt đầu rà soát.
+
+Thiết kế dùng [bố cục Tabler miễn phí](https://docs.tabler.io/ui/layout) và bản Tabler 1.7.3 đã có trong dự án: menu dọc, thanh công cụ, nền sáng, màu xanh dương, bảng và bộ lọc. Biểu tượng Lucide 0.468.0 được lưu cục bộ cùng giấy phép ISC; không còn phụ thuộc CDN biểu tượng hay Google Fonts khi chạy.
+
+## Chạy ứng dụng
+
+Tại thư mục dự án, chạy Python 3:
+
+```powershell
+python -m http.server 8080 --bind 127.0.0.1
+```
+
+- Quản trị: http://127.0.0.1:8080/index.html
+- Lễ tân: http://127.0.0.1:8080/reception.html
+- Buồng phòng: http://127.0.0.1:8080/housekeeping.html
+
+Dùng cùng một địa chỉ host và cổng ở cả ba phân hệ để chia sẻ dữ liệu. `localhost` và `127.0.0.1` là hai origin riêng nên không dùng chung localStorage. Không cần npm, cài framework hoặc bước build.
+
+## Các màn hình và tệp đã thay đổi
+
+| Phần | Thay đổi |
+| --- | --- |
+| Tổng quan | 8 chỉ số lấy từ dữ liệu hiện có; danh sách khách đến/trả; việc cần xử lý; tách doanh thu và dòng tiền |
+| Sơ đồ phòng | Bộ lọc lưu trú, vệ sinh, khai thác độc lập; số phòng thực tế; bộ lọc nhanh được xóa trạng thái cũ trước khi áp dụng |
+| Lịch đặt phòng ở quản trị và lễ tân | Thành phần dùng chung, cuộn ngang/dọc, cố định cột phòng và ngày, hiện đúng đêm cuối, các khoảng giao nhau ở hàng riêng, tìm phòng/khách, nút Hôm nay hoạt động |
+| Đặt phòng, khách hàng | Tìm kiếm, lọc trạng thái, trạng thái rỗng, giữ focus khi gõ; nút thao tác theo ma trận quyền |
+| Phòng, hạng phòng, giá, dịch vụ | Bảng nhất quán, tìm kiếm; sửa biểu mẫu sức chứa để đọc/ghi đúng `standardOccupancy` và `maxOccupancy` |
+| Thanh toán, hóa đơn, hoàn tiền, báo cáo | Tìm bảng; giữ các luồng thu/hoàn hiện có; ghi rõ phiếu thanh toán mô phỏng; bỏ báo cáo kênh bán dùng tỷ lệ cố định; công nợ lấy từ folio |
+| Tài khoản, vai trò, nhật ký, chốt ca | Menu và tab theo quyền; đúng tài khoản theo vai trò; đóng biểu mẫu khi đổi vai trò; nối lại nút ngoại lệ/chốt ca/chốt ngày với hàm xử lý sẵn có |
+| Lễ tân, buồng phòng | Cùng layout; menu di động; bảng cuộn; giữ các nghiệp vụ nhận/trả phòng, thuê giờ, trả sớm, minibar và khách đoàn |
+
+Các tệp chính:
+
+- `index.html`, `reception.html`, `housekeeping.html`: nạp layout/tài nguyên chung.
+- `css/pms.css`: thiết kế responsive; tiếp tục dùng `css/style.css` và `css/tabler.min.css` có sẵn.
+- `js/pms-ui.js`: layout, dashboard, lịch, báo cáo, tìm kiếm bảng và kiểm tra quyền giao diện dùng chung.
+- `js/pms-data.js`: mô hình dữ liệu chỉ đọc cho thống kê và lịch; không ghi giao dịch.
+- `js/app.js`, `js/reception.js`, `js/housekeeping.js`: tích hợp giao diện và sửa các liên kết hàm/trường dữ liệu nêu trên.
+- `js/lucide.min.js`, `js/lucide.LICENSE`, `favicon.svg`: tài nguyên cục bộ.
+- `run_suite.py`, `run_ui_checks.py`, `tests/`: bộ chạy kiểm tra và kiểm thử bổ sung.
+- `screenshots/redesign_*.png`, `screenshots/ui-checks.json`: ảnh và kết quả kiểm tra.
+
+## Định nghĩa số liệu và giới hạn hiện tại
+
+- **Ngày hôm nay** trên dashboard là ngày nghiệp vụ do hệ thống quản lý, không tự thay bằng ngày máy tính.
+- **Phòng trống sạch** phải đồng thời trống, sạch và đang khai thác. Phòng chờ dọn chỉ đếm `dirty`; đang dọn và chờ kiểm tra hiển thị riêng.
+- **Doanh thu đã quyết toán** là tổng chi phí folio của các lượt đã trả trong kỳ; ưu tiên snapshot đã lưu lúc trả phòng. Không coi tiền cọc là doanh thu.
+- **Thu/chi** chỉ lấy giao dịch thành công; loại phân bổ và khấu trừ nội bộ. Dòng tiền thuần có thể âm.
+- **Công nợ** theo số dư folio. Khoản phòng đã chuyển về Master Folio đoàn vẫn được theo dõi sau khi trả phòng; không cộng lại giá dự kiến của đơn đặt. Bảng đoàn đánh dấu đơn chưa có lưu trú là “Chưa lưu trú”.
+- Lịch tổng quan hiển thị theo ngày/đêm. Chi tiết thuê giờ tiếp tục xử lý qua biểu mẫu và folio hiện có; chưa có lịch chia ô theo giờ.
+- Chưa có backend, đăng nhập an toàn, cơ sở dữ liệu nhiều người dùng, đồng bộ nhiều thiết bị, cổng thanh toán/ngân hàng thật, hóa đơn điện tử, xuất Excel hoặc phân tích nguồn khách có dữ liệu chuẩn. Các mục chưa có được ghi rõ trên giao diện. Vai trò chuyển trong ứng dụng là mô phỏng; kiểm tra quyền ở trình duyệt không thay thế kiểm soát truy cập phía server.
+- Master Folio đang có logic chuyển tiền phòng và số dư; chưa có quy trình thu/đối soát công nợ đoàn tập trung hoàn chỉnh. Không tạo thao tác thu nợ giả.
+
+## Kiểm tra đã thực hiện
+
+Sau khi khởi động HTTP server:
+
+```powershell
+python run_suite.py
+node tests/view-data.test.js
+python run_ui_checks.py
+python run_ui_checks.py --screenshots
+```
+
+Hai bộ Python dùng Microsoft Edge tại đường dẫn cài đặt chuẩn Windows, với **hồ sơ tạm riêng** để không chạm dữ liệu khách sạn trong trình duyệt của người dùng. Cần môi trường cho phép khởi chạy Edge; bộ chạy sẽ trả mã lỗi nếu trình duyệt không chạy hoặc không có ca thử, không báo thành công `0/0`.
+
+Kết quả thực chạy:
+
+- **18/18** kiểm thử nghiệp vụ sẵn có: đặt trùng, khách đoàn, phân bổ cọc, idempotency thu tiền, hoàn cọc, chốt ngày, nhận sớm, tháng nhuận, minibar và phòng bảo trì.
+- **100/100** kiểm tra trình duyệt: 28 màn hình ở 1366×768, 1920×1080 và 390×844; menu, liên kết nội bộ, tài nguyên, bộ lọc, lịch, các tab, biểu mẫu, phân quyền và lưu khách hàng/sức chứa/vệ sinh. Không ghi nhận lỗi JavaScript trong các thao tác kiểm tra hoặc tài nguyên tải thất bại.
+- **8/8** kiểm tra đối chứng dashboard/lịch: trạng thái phòng độc lập, ngày và lượt đến, dòng tiền âm, loại giao dịch nội bộ, snapshot doanh thu, công nợ Master Folio sau trả phòng, dữ liệu rỗng và lịch giao nhau/nối tiếp.
+- Kiểm tra cú pháp JavaScript và `git diff --check` đạt. Đã mở và xem các ảnh do Edge dựng cho dashboard desktop/mobile, lịch, sơ đồ phòng, đặt phòng, thanh toán và báo cáo.
+- Công cụ điều khiển trình duyệt trực tiếp dừng vì chưa hỗ trợ kiểm soát URL trên trình duyệt Windows hiện tại. Phần xác minh giao diện sử dụng kiểm thử Edge headless và ảnh chụp, không tuyên bố đã thao tác thủ công đầy đủ.
+
+Ảnh tham khảo: [Dashboard 1366](screenshots/redesign_overview_1366.png), [Dashboard 1920](screenshots/redesign_overview_1920.png), [Mobile 390](screenshots/redesign_overview_390.png), [Lịch phòng](screenshots/redesign_timeline_1366.png).
+
+---
+
 # ĐỒ ÁN: PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG QUẢN LÝ KHÁCH SẠN
 ## PHẦN MỀM: QUẢN LÝ KHÁCH SẠN SÔNG LAM (SONG LAM HOTEL PMS v2.3.0)
 *Tham khảo mô hình nghiệp vụ & cơ cấu phòng Mường Thanh Luxury Sông Lam (TP. Vinh, Nghệ An)*

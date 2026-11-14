@@ -1,0 +1,151 @@
+-- PENDING APPROVAL: no installer/automatic activation. New narrow RPC only.
+-- The existing G5 compiler sends Changes; this procedure independently rebuilds
+-- their exact shape under the inventory lock. No dynamic mutation SQL is used.
+CREATE PROCEDURE pms.usp_AppBookingMutationCommit
+ @AppUserId bigint,@Operation varchar(32),@InputJson nvarchar(max),@RequestId nvarchar(80),
+ @IdempotencyKey varchar(120),@IntentHash varchar(64),@Changes nvarchar(max),@PreparedJson nvarchar(max),@PriceProofsJson nvarchar(max)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON;
+ SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
+ IF @@TRANCOUNT<>0 THROW 52400,'Command owns its transaction.',1;
+ IF @Operation IS NULL OR @Operation NOT IN('assign','cancel','cancel-rooms') OR ISJSON(@InputJson)<>1 OR ISJSON(@PreparedJson)<>1
+ OR ISJSON(@Changes)<>1 OR LEFT(LTRIM(@Changes),1)<>'[' OR DATALENGTH(@Changes)>4000000
+ OR ISJSON(@PriceProofsJson)<>1 OR @PriceProofsJson<>N'[]' OR DATALENGTH(@InputJson)>65536
+ OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL OR @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120
+ OR @IntentHash IS NULL OR LEN(@IntentHash)<>64 OR TRY_CONVERT(binary(32),@IntentHash,2) IS NULL
+ OR @IntentHash<>LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',CONVERT(varchar(max),@InputJson COLLATE Latin1_General_100_BIN2_UTF8)),2)) THROW 54100,'Invalid canonical command.',1;
+ DECLARE @request uniqueidentifier=CONVERT(uniqueidentifier,@RequestId),@op varchar(40)='WEB_BOOKING_'+UPPER(REPLACE(@Operation,'-','_')),
+ @saved nvarchar(max),@savedHash binary(32),@fresh nvarchar(max),@response nvarchar(max),@before nvarchar(max),@after nvarchar(max),@lock int,
+ @booking bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingId')),@target int=TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.roomId')),
+ @reason nvarchar(1000)=JSON_VALUE(@InputJson,'$.reason'),@now datetime2(3)=SYSUTCDATETIME(),@rows nvarchar(max),@newAllocation bigint;
+ DECLARE @prepared TABLE(PayloadJson nvarchar(max));
+ DECLARE @selected TABLE(id bigint PRIMARY KEY,roomTypeId int,version varchar(18),startsAtUtc datetime2(3),endsAtUtc datetime2(3));
+ DECLARE @allocations TABLE(id bigint PRIMARY KEY,roomId int,bookingRoomId bigint,version varchar(18));
+ DECLARE @expected TABLE(item nvarchar(max));
+ DECLARE @actualCanonical TABLE(value nvarchar(max)); DECLARE @expectedCanonical TABLE(value nvarchar(max));
+ BEGIN TRY
+  BEGIN TRANSACTION;
+  EXEC @lock=sys.sp_getapplock @Resource=N'SongLam:Inventory',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=10000;
+  IF @lock<0 THROW 51002,'Inventory lock unavailable.',1;
+  -- Hold authorizing rows until COMMIT, including concurrent revocations.
+  IF NOT EXISTS(SELECT 1 FROM pms.AppUser WITH(HOLDLOCK) WHERE UserId=@AppUserId AND IsActive=1) THROW 52403,'Inactive actor.',1;
+  DECLARE @rights TABLE(code varchar(100) PRIMARY KEY);
+  IF @Operation='assign' INSERT @rights VALUES('createBooking'),('viewRoomRack'); ELSE INSERT @rights VALUES('cancelBooking');
+  IF EXISTS(SELECT 1 FROM @rights need WHERE NOT EXISTS(SELECT 1 FROM pms.UserRole ur WITH(HOLDLOCK)
+    JOIN pms.AppRole ar WITH(HOLDLOCK) ON ar.RoleId=ur.RoleId JOIN pms.RolePermission rp WITH(HOLDLOCK) ON rp.RoleId=ar.RoleId
+    JOIN pms.Permission p WITH(HOLDLOCK) ON p.PermissionId=rp.PermissionId WHERE ur.UserId=@AppUserId AND ar.IsActive=1 AND p.Code=need.code))
+    THROW 52403,'Required permission was revoked.',1;
+  -- Actor permissions are checked again inside the read-only preparation RPC,
+  -- before receipt replay, under this transaction. Never use browser roles.
+  INSERT @prepared EXEC pms.usp_AppBookingMutationPrepare @AppUserId,@Operation,@InputJson,@RequestId,@IdempotencyKey,@IntentHash;
+  IF (SELECT COUNT(*) FROM @prepared)<>1 THROW 54100,'Invalid preparation envelope.',1;
+  SELECT @fresh=PayloadJson FROM @prepared;
+  IF JSON_VALUE(@fresh,'$.replayed')='true'
+  BEGIN
+   SET @response=JSON_QUERY(@fresh,'$.result'); COMMIT; SELECT @response PayloadJson; RETURN;
+  END;
+  IF ISNULL(JSON_VALUE(@PreparedJson,'$.actorId'),'')<>CONVERT(varchar(20),@AppUserId)
+   OR ISNULL(JSON_VALUE(@PreparedJson,'$.intentHash'),'')<>@IntentHash OR ISNULL(JSON_VALUE(@PreparedJson,'$.operation'),'')<>@Operation
+   OR ISNULL(JSON_QUERY(@PreparedJson,'$.rooms'),'') COLLATE Latin1_General_100_BIN2<>JSON_QUERY(@fresh,'$.rooms') COLLATE Latin1_General_100_BIN2
+   OR ISNULL(JSON_VALUE(@PreparedJson,'$.booking.version'),'')<>JSON_VALUE(@fresh,'$.booking.version')
+   THROW 54201,'Preparation/version/allocation set changed.',1;
+  INSERT @selected SELECT CONVERT(bigint,JSON_VALUE(value,'$.id')),CONVERT(int,JSON_VALUE(value,'$.roomTypeId')),JSON_VALUE(value,'$.version'),
+   CONVERT(datetime2(3),JSON_VALUE(value,'$.startsAtUtc')),CONVERT(datetime2(3),JSON_VALUE(value,'$.endsAtUtc')) FROM OPENJSON(@fresh,'$.rooms');
+  INSERT @allocations SELECT CONVERT(bigint,JSON_VALUE(a.value,'$.id')),CONVERT(int,JSON_VALUE(a.value,'$.roomId')),CONVERT(bigint,JSON_VALUE(r.value,'$.id')),JSON_VALUE(a.value,'$.version')
+   FROM OPENJSON(@fresh,'$.rooms') r CROSS APPLY OPENJSON(r.value,'$.allocations') a;
+  IF @Operation='assign'
+  BEGIN
+   IF (SELECT COUNT(*) FROM @selected)<>1 OR EXISTS(SELECT 1 FROM @selected WHERE endsAtUtc<=@now) THROW 54202,'Expired room cannot be reassigned.',1;
+   IF (SELECT COUNT(*) FROM OPENJSON(@InputJson,'$.expectedAllocationVersions'))<>(SELECT COUNT(*) FROM @allocations)
+    OR EXISTS(SELECT 1 FROM @allocations a WHERE NOT EXISTS(SELECT 1 FROM OPENJSON(@InputJson,'$.expectedAllocationVersions') x
+      WHERE JSON_VALUE(x.value,'$.id')=CONVERT(varchar(20),a.id) AND JSON_VALUE(x.value,'$.version')=a.version)) THROW 54201,'Allocation versions changed.',1;
+   IF EXISTS(SELECT 1 FROM @allocations WHERE roomId=@target) THROW 54203,'Target already assigned.',1;
+   IF EXISTS(SELECT 1 FROM pms.MaintenanceTicket WITH(HOLDLOCK) WHERE RoomId=@target AND Status IN('OPEN','IN_PROGRESS'))
+    OR EXISTS(SELECT 1 FROM pms.RoomAllocation a WITH(HOLDLOCK) CROSS JOIN @selected s LEFT JOIN pms.BookingRoom r ON r.BookingRoomId=a.BookingRoomId
+      WHERE a.RoomId=@target AND a.IsCancelled=0 AND (a.BookingRoomId IS NULL OR a.BookingRoomId<>s.id)
+       AND (a.BookingRoomId IS NULL OR r.Status IN('HELD','CONFIRMED','IN_HOUSE')) AND a.StartsAtUtc<s.endsAtUtc AND a.EndsAtUtc>s.startsAtUtc)
+    OR EXISTS(SELECT 1 FROM pms.StayRoomSegment g WITH(HOLDLOCK) JOIN pms.Stay st WITH(HOLDLOCK) ON st.StayId=g.StayId CROSS JOIN @selected s
+      WHERE g.RoomId=@target AND g.ArrivedAtUtc<s.endsAtUtc AND COALESCE(g.DepartedAtUtc,st.ExpectedOutAtUtc)>s.startsAtUtc)
+    THROW 54203,'Target conflicts with maintenance, block, booking or stay.',1;
+  END;
+  -- Rebuild precisely what G5 is allowed to write; a compromised app cannot
+  -- smuggle financial effects, another booking, extra fields or duplicate rows.
+  INSERT @expected SELECT (SELECT 'RoomAllocation' entity,'update' verb,
+   JSON_QUERY((SELECT CONVERT(varchar(20),a.id) AllocationId FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) [key],a.version version,
+   JSON_QUERY(N'{"IsCancelled":true}') data FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) FROM @allocations a;
+  IF @Operation='assign'
+   INSERT @expected SELECT (SELECT 'RoomAllocation' entity,'insert' verb,
+    JSON_QUERY((SELECT CONVERT(varchar(20),@target) RoomId,CONVERT(varchar(20),s.id) BookingRoomId,
+     CONVERT(varchar(23),s.startsAtUtc,126)+'Z' StartsAtUtc,CONVERT(varchar(23),s.endsAtUtc,126)+'Z' EndsAtUtc FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) data
+    FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) FROM @selected s;
+  ELSE
+   INSERT @expected SELECT (SELECT 'BookingRoom' entity,'update' verb,
+    JSON_QUERY((SELECT CONVERT(varchar(20),s.id) BookingRoomId FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) [key],s.version version,
+    JSON_QUERY((SELECT 'CANCELLED' Status,@reason CancellationReason FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) data FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) FROM @selected s;
+  IF (SELECT COUNT(*) FROM @expected) NOT BETWEEN 1 AND 500 OR (SELECT COUNT(*) FROM OPENJSON(@Changes))<>(SELECT COUNT(*) FROM @expected)
+   OR EXISTS(SELECT 1 FROM OPENJSON(@Changes) i CROSS APPLY OPENJSON(i.value) p WHERE p.[key] NOT IN('entity','verb','key','version','data')
+    OR (p.[key] IN('key','data') AND p.type<>5) OR (p.[key] NOT IN('key','data') AND p.type<>1)) THROW 54100,'Unexpected mutation layout.',1;
+  -- Normalize leaf paths/types/values; no dependency on JSON property order,
+  -- slash escaping, or the order of independent source rows.
+  INSERT @actualCanonical SELECT (SELECT leaf.path,leaf.type,leaf.value FROM (SELECT p.[key] path,p.type,p.value FROM OPENJSON(i.value) p WHERE p.[key] NOT IN('key','data')
+    UNION ALL SELECT p.[key]+'.'+v.[key],v.type,v.value FROM OPENJSON(i.value) p CROSS APPLY OPENJSON(CASE WHEN p.type=5 THEN p.value ELSE N'{}' END) v
+    WHERE p.[key] IN('key','data')) leaf ORDER BY leaf.path,leaf.type,leaf.value FOR JSON PATH) FROM OPENJSON(@Changes) i;
+  INSERT @expectedCanonical SELECT (SELECT leaf.path,leaf.type,leaf.value FROM (SELECT p.[key] path,p.type,p.value FROM OPENJSON(i.item) p WHERE p.[key] NOT IN('key','data')
+    UNION ALL SELECT p.[key]+'.'+v.[key],v.type,v.value FROM OPENJSON(i.item) p CROSS APPLY OPENJSON(CASE WHEN p.type=5 THEN p.value ELSE N'{}' END) v
+    WHERE p.[key] IN('key','data')) leaf ORDER BY leaf.path,leaf.type,leaf.value FOR JSON PATH) FROM @expected i;
+  IF EXISTS(SELECT value COLLATE Latin1_General_100_BIN2,COUNT(*) n FROM @actualCanonical GROUP BY value COLLATE Latin1_General_100_BIN2
+     EXCEPT SELECT value COLLATE Latin1_General_100_BIN2,COUNT(*) FROM @expectedCanonical GROUP BY value COLLATE Latin1_General_100_BIN2)
+    OR EXISTS(SELECT value COLLATE Latin1_General_100_BIN2,COUNT(*) n FROM @expectedCanonical GROUP BY value COLLATE Latin1_General_100_BIN2
+     EXCEPT SELECT value COLLATE Latin1_General_100_BIN2,COUNT(*) FROM @actualCanonical GROUP BY value COLLATE Latin1_General_100_BIN2)
+    THROW 54100,'Compiled changes differ from independently rebuilt command.',1;
+  IF EXISTS(SELECT 1 FROM pms.ApiRequest WHERE RequestId=@request) THROW 52404,'Request UUID already used.',1;
+  IF NOT EXISTS(SELECT 1 FROM pms.HotelSettings h WITH(HOLDLOCK) JOIN pms.BusinessDay d WITH(HOLDLOCK) ON d.BusinessDate=h.WorkingDate WHERE h.HotelId=1 AND d.Status='OPEN') THROW 54102,'Open business day required.',1;
+  SET @before=pms.fn_WebBookingJson(@booking,1);
+  INSERT pms.ApiRequest(RequestId,ActorId,Operation,IdempotencyKey,RequestHash,Status)
+   VALUES(@request,@AppUserId,@op,@IdempotencyKey,CONVERT(binary(32),@IntentHash,2),'PROCESSING');
+  INSERT pms.CommandExecution(SessionId,RequestId) VALUES(@@SPID,@request);
+  UPDATE a SET IsCancelled=1 FROM pms.RoomAllocation a JOIN @allocations x ON x.id=a.AllocationId;
+  IF @Operation='assign'
+  BEGIN
+   INSERT pms.RoomAllocation(RoomId,BookingRoomId,StartsAtUtc,EndsAtUtc,CreatedBy) SELECT @target,id,startsAtUtc,endsAtUtc,@AppUserId FROM @selected;
+   SET @newAllocation=SCOPE_IDENTITY();
+  END
+  ELSE UPDATE r SET Status='CANCELLED',CancellationReason=@reason FROM pms.BookingRoom r JOIN @selected x ON x.id=r.BookingRoomId;
+  -- Bump the parent version even if its visible status stays the same.
+  UPDATE pms.Booking SET Status=CASE
+   WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status='IN_HOUSE') THEN
+    CASE WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status IN('HELD','CONFIRMED')) THEN 'PARTIALLY_CHECKED_IN' ELSE 'CHECKED_IN' END
+   WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status='CONFIRMED') THEN 'CONFIRMED'
+   WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status='HELD') THEN 'PENDING'
+   WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status='COMPLETED') THEN 'COMPLETED'
+   WHEN EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingId=@booking AND Status='NO_SHOW') THEN 'NO_SHOW' ELSE 'CANCELLED' END WHERE BookingId=@booking;
+  EXEC pms.usp_AssertBusinessState;
+  IF EXISTS(SELECT 1 FROM @selected s CROSS APPLY pms.fn_WebInventoryUsage(s.roomTypeId,s.startsAtUtc,s.endsAtUtc) x WHERE x.available<0) THROW 51006,'Inventory conflict.',1;
+  SET @after=pms.fn_WebBookingJson(@booking,1);
+  INSERT pms.AuditLog(ActorId,Action,EntityType,EntityKey,RequestId,BeforeJson,AfterJson,Reason)
+   VALUES(@AppUserId,@op,'Booking',CONVERT(varchar(20),@booking),@request,@before,@after,CASE WHEN @Operation='assign' THEN N'Reassign same booked room type' ELSE @reason END);
+  SET @rows=(SELECT CONVERT(varchar(20),r.BookingRoomId) id,r.Status status,CONVERT(varchar(18),CONVERT(binary(8),r.RowVer),1) version,
+   r.CancellationReason cancellationReason FROM pms.BookingRoom r JOIN @selected x ON x.id=r.BookingRoomId ORDER BY r.BookingRoomId FOR JSON PATH,INCLUDE_NULL_VALUES);
+  SET @response=(SELECT CONVERT(varchar(20),@AppUserId) actorId,@Operation operation,@IntentHash intentHash,'SUCCEEDED' status,
+   CAST(1 AS bit) committed,CAST(1 AS bit) atomic,CAST(1 AS bit) inventoryCheckedUnderLock,CAST(0 AS bit) replayed,
+   CONVERT(varchar(36),@request) operationId,CONVERT(varchar(36),@request) originalRequestId,
+   CASE @Operation WHEN 'assign' THEN 'bookings.assign' WHEN 'cancel' THEN 'bookings.cancel' ELSE 'bookings.cancelRooms' END httpOperation,
+   CONVERT(varchar(23),@now,126)+'Z' committedAtUtc,JSON_QUERY(pms.fn_WebBookingJson(@booking,0)) booking,JSON_QUERY(@rows) rooms,
+   JSON_QUERY(CASE WHEN @Operation='assign' THEN (SELECT CONVERT(varchar(20),AllocationId) id,CONVERT(varchar(20),BookingRoomId) bookingRoomId,
+    CONVERT(varchar(20),RoomId) roomId,CONVERT(varchar(18),CONVERT(binary(8),RowVer),1) version,IsCancelled isCancelled,
+    CONVERT(varchar(23),StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),EndsAtUtc,126)+'Z' endsAtUtc
+    FROM pms.RoomAllocation WHERE AllocationId=@newAllocation FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) END) assignment,
+   JSON_QUERY(pms.fn_WebZeroDeposits()) depositSummary FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+  -- Assignment with a financial ledger may not claim zero deposits. Until a
+  -- scoped financial projection is approved, fail closed before any COMMIT.
+  IF EXISTS(SELECT 1 FROM pms.DepositAccount WHERE BookingId=@booking) OR EXISTS(SELECT 1 FROM pms.Payment WHERE BookingId=@booking)
+    OR EXISTS(SELECT 1 FROM pms.Folio WHERE BookingId=@booking) THROW 54206,'Financial projection contract required.',1;
+  UPDATE pms.ApiRequest SET Status='SUCCEEDED',ResponseJson=@response WHERE RequestId=@request;
+  DELETE pms.CommandExecution WHERE SessionId=@@SPID AND RequestId=@request;
+  COMMIT; SELECT @response PayloadJson;
+ END TRY
+ BEGIN CATCH
+  IF XACT_STATE()<>0 ROLLBACK; THROW;
+ END CATCH;
+END;

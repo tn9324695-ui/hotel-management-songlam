@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi" data-pms-mode="api">
+<head>
+  <link rel="stylesheet" href="css/deployment.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thu ngân &amp; trả phòng | Sông Lam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/finance.css">
+  <script src="js/api/http-client.js" defer></script>
+<script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script><script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script><script src="js/api/finance-api.js" defer></script><script src="js/pages/finance-api.js" defer></script>
+</head>
+<body>
+  <header class="ops-topbar"><button id="ops-menu" class="btn btn-sm" aria-controls="ops-sidebar" aria-expanded="false">☰ Menu</button>
+    <strong>SÔNG LAM PMS</strong><span class="badge bg-blue-lt">Thu ngân &amp; trả phòng qua API</span><span id="fin-user" class="ops-identity">Đang kiểm tra phiên…</span><a href="login.html" class="btn btn-sm">Đăng nhập</a></header>
+  <div class="ops-shell"><aside class="ops-sidebar" id="ops-sidebar"><div class="small text-secondary mb-3">TÀI CHÍNH KHÁCH SẠN</div><nav id="fin-nav" aria-label="Tài chính"></nav>
+    <hr><a href="services-api.html">Dịch vụ &amp; minibar</a><hr><a href="housekeeping-api.html">Buồng phòng &amp; bảo trì</a>
+    <p class="small text-secondary mt-3">Trang API tách biệt với dữ liệu demo. Không tự đồng bộ tài chính cục bộ.</p></aside>
+    <main class="ops-main"><div class="ops-heading"><div><div class="small text-secondary">THU NGÂN · ĐỐI SOÁT · CHECKOUT</div><h1 id="fin-title">Tài chính và trả phòng</h1></div>
+      <div class="ops-actions"><button id="fin-refresh" class="btn" disabled>Tải lại</button><div id="fin-create-actions" class="ops-actions"></div></div></div>
+      <div class="alert alert-info">Khoản ngân hàng chưa xác thực chỉ chờ xác nhận. Phiếu ở đây là phiếu nội bộ; hóa đơn điện tử chưa tích hợp. Điều chỉnh sau quyết toán đang khóa.</div>
+      <div id="fin-message" class="alert alert-secondary" role="status" aria-live="polite">Đang xác minh phiên và quyền…</div>
+      <form id="fin-filters" class="card card-body ops-filters" hidden><label id="fin-booking-filter">Mã đặt phòng<input name="bookingId" class="form-control" inputmode="numeric"></label>
+        <label id="fin-date-filter">Ngày kinh doanh<input name="businessDate" type="date" class="form-control"></label>
+        <label id="fin-shift-filter" hidden>Mã ca thu ngân<input name="shiftId" class="form-control" inputmode="numeric"></label><button class="btn btn-primary">Lọc</button></form>
+      <section class="card mt-3"><div id="fin-table" class="table-responsive"><p class="p-3 mb-0">Chưa có dữ liệu thật.</p></div>
+        <div class="card-footer ops-pagination"><span id="fin-page">Chưa tải</span><div class="ops-actions"><button id="fin-prev" class="btn btn-sm" disabled>Trước</button><button id="fin-next" class="btn btn-sm" disabled>Sau</button></div></div></section>
+    </main></div>
+  <dialog id="fin-dialog" aria-labelledby="fin-dialog-title"><div class="ops-dialog-heading"><h2 id="fin-dialog-title"></h2><button id="fin-close" class="btn btn-sm" type="button">Đóng</button></div><div id="fin-dialog-body"></div></dialog>
+  <noscript><p class="alert alert-warning">Cần JavaScript để dùng giao diện API.</p></noscript>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "kind": "PROPOSAL_ONLY_NOT_RUNTIME_CONFIGURATION",
+  "databaseTestUseApproved": true,
+  "testUseReference": "USER-20261111-SONGLAM-TEST-WRITES",
+  "serverAlias": ".\\SQLEXPRESS",
+  "serverIdentity": "DESKTOP-9EPI86K\\SQLEXPRESS",
+  "database": "SongLamPms_Design",
+  "databaseGuid": "c4dd399e-5661-4741-a424-5abfeefbc1ac",
+  "backupPath": "C:\\Program Files\\Microsoft SQL Server\\MSSQL16.SQLEXPRESS\\MSSQL\\Backup\\SongLamPms_Design_D1_20261111_284d423e-e6ee-428b-b4cf-67531facd064.bak",
+  "mediaName": "SongLamPms_Design_D1_20261111_284d423e-e6ee-428b-b4cf-67531facd064",
+  "proposedTestIdentity": "eb18c6f2-373d-4a83-a34f-d9809f1cbc7a",
+  "backupExecutionApproval": "USER-20261112-D1-000-BACKUP-VERIFYONLY",
+  "markerExecutionApproval": "USER-20261112-D1-004-MARKER",
+  "descriptorScope": "ORIGINAL_000_004_PLAN_NOT_LATEST_DEPLOYMENT",
+  "latestMarkerArtifact": "004r-controlled-window.sql.pending",
+  "latestMarkerStatus": "COMMITTED_VERIFIED_MULTI_USER",
+  "latestReceipt": "tools/sql/private/first-two-20261112/receipt.json"
+}

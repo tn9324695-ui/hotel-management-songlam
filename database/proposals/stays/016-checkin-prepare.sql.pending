@@ -1,0 +1,27 @@
+-- PENDING. Dedicated public read-only prepare, existing G6 signature.
+CREATE PROCEDURE pms.usp_AppCheckInPrepare
+ @AppUserId bigint,@Operation varchar(32),@InputJson nvarchar(max),@RequestId nvarchar(80),@IntentHash varchar(64),@IdempotencyKey varchar(120)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckIn';
+ IF @Operation IS NULL OR @Operation<>'check-in' OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL OR @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120
+ OR @IntentHash IS NULL OR LEN(@IntentHash)<>64 OR TRY_CONVERT(binary(32),@IntentHash,2) IS NULL OR ISJSON(@InputJson)<>1
+ OR @IntentHash<>LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',CONVERT(varchar(max),@InputJson COLLATE Latin1_General_100_BIN2_UTF8)),2)) THROW 54100,'Invalid canonical check-in intent.',1;
+ DECLARE @saved nvarchar(max),@savedHash binary(32),@result nvarchar(max),@policy nvarchar(max);
+ SELECT @saved=ResponseJson,@savedHash=RequestHash FROM pms.ApiRequest WHERE ActorId=@AppUserId AND Operation='WEB_STAY_CHECK_IN' AND IdempotencyKey=@IdempotencyKey;
+ IF @savedHash IS NOT NULL
+ BEGIN
+  IF @savedHash<>CONVERT(binary(32),@IntentHash,2) THROW 52404,'Idempotency conflict.',1;
+  IF @saved IS NULL THROW 54109,'Original check-in outcome pending.',1;
+  SELECT (SELECT CONVERT(varchar(20),@AppUserId) actorId,@Operation operation,@IntentHash intentHash,CAST(1 AS bit) replayed,JSON_QUERY(JSON_MODIFY(@saved,'$.replayed',CAST(1 AS bit))) result FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) PayloadJson; RETURN;
+ END;
+ SELECT @policy=JSON_QUERY(CONVERT(nvarchar(max),value),'$.policy') FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.CheckIn016.Release';
+ IF @policy IS NULL THROW 52431,'Approved 016 workflow receipt required.',1;
+ DECLARE @context TABLE(PayloadJson nvarchar(max)); INSERT @context EXEC pms.usp_WebCheckInContext @InputJson;
+ IF (SELECT COUNT(*) FROM @context)<>1 THROW 54100,'Invalid check-in context.',1;
+ SELECT @result=PayloadJson FROM @context;
+ SET @result=JSON_MODIFY(@result,'$.actorId',CONVERT(varchar(20),@AppUserId)); SET @result=JSON_MODIFY(@result,'$.operation',@Operation);
+ SET @result=JSON_MODIFY(@result,'$.intentHash',@IntentHash); SET @result=JSON_MODIFY(@result,'$.replayed',CAST(0 AS bit)); SET @result=JSON_MODIFY(@result,'$.policy',JSON_QUERY(@policy));
+ SELECT @result PayloadJson;
+END;

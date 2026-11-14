@@ -1,0 +1,113 @@
+-- REVIEW ONLY. Day017a fixes only sql_variant conversion. Separate approval required.
+-- Execute in SQLCMD mode after 017-backup.sql.pending VERIFYONLY succeeds.
+-- Substitution values must be supplied by the controlled runner, not guessed:
+--   $(Day017ApprovalReference), $(Day017BackupSetUuid)
+-- Fixed target date 2026-11-14. If the SQL hotel date changes, this script fails.
+SET NOCOUNT ON; SET XACT_ABORT ON; SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
+DECLARE @approval varchar(120)='$(Day017ApprovalReference)',
+ @backup uniqueidentifier=TRY_CONVERT(uniqueidentifier,'$(Day017BackupSetUuid)'),
+ @backupPath nvarchar(400)=N'C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\SongLamPms_Design_Day017_20261114_7bb2fadc.bak',
+ @oldDay date='20261011',@newDay date='20261114',@actor bigint=2,
+ @request uniqueidentifier=NEWID(),@lock int,@collected decimal(19,0),
+ @refunded decimal(19,0),@revenue decimal(19,0),@outstanding decimal(19,0),
+ @snapshot nvarchar(max),@before nvarchar(max),@after nvarchar(max),@receipt nvarchar(max),
+ @receiptProperty nvarchar(3750);
+IF DB_NAME()<>N'SongLamPms_Design'
+ OR CONVERT(varchar(36),(SELECT database_guid FROM sys.database_recovery_status WHERE database_id=DB_ID()))<>'C4DD399E-5661-4741-A424-5ABFEEFBC1AC'
+ OR CONVERT(nvarchar(128),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment'))<>N'test'
+ OR CONVERT(nvarchar(128),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.TestIdentity'))<>N'eb18c6f2-373d-4a83-a34f-d9809f1cbc7a'
+ THROW 54700,'Day017 target mismatch.',1;
+IF @approval<>'USER-20261114-DAY017A' OR @backup IS NULL
+ THROW 54702,'Exact separate approval and verified backup UUID required.',1;
+IF (SELECT COUNT_BIG(*) FROM msdb.dbo.backupset b JOIN msdb.dbo.backupmediafamily m ON m.media_set_id=b.media_set_id
+ WHERE b.backup_set_uuid=@backup AND m.physical_device_name=@backupPath AND b.is_copy_only=1 AND b.has_backup_checksums=1)<>1
+ THROW 54703,'Day017 verified backup does not match target file.',1;
+IF CONVERT(date,SYSUTCDATETIME() AT TIME ZONE 'UTC' AT TIME ZONE 'SE Asia Standard Time')<>@newDay
+ THROW 54704,'Hotel date changed; re-review package, do not auto-advance.',1;
+BEGIN TRY
+ BEGIN TRANSACTION;
+ EXEC @lock=sys.sp_getapplock @Resource=N'SongLam:Inventory',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=10000;
+ IF @lock<0 THROW 54705,'Inventory lock unavailable.',1;
+ IF (SELECT COUNT_BIG(*) FROM pms.HotelSettings WITH(UPDLOCK,HOLDLOCK))<>1
+  OR NOT EXISTS(SELECT 1 FROM pms.HotelSettings WITH(UPDLOCK,HOLDLOCK)
+   WHERE HotelId=1 AND WorkingDate=@oldDay AND TimeZoneId='SE Asia Standard Time' AND Currency='VND'
+    AND RowVer=0x0000000000014063)
+  OR (SELECT COUNT_BIG(*) FROM pms.BusinessDay WITH(UPDLOCK,HOLDLOCK))<>1
+  OR NOT EXISTS(SELECT 1 FROM pms.BusinessDay WITH(UPDLOCK,HOLDLOCK)
+   WHERE BusinessDate=@oldDay AND Status='OPEN' AND RowVer=0x0000000000014062
+    AND ClosedAtUtc IS NULL AND ClosedBy IS NULL)
+  THROW 54706,'Working day/settings changed; stop and re-review.',1;
+ IF NOT EXISTS(SELECT 1 FROM pms.AppUser u WITH(HOLDLOCK) WHERE u.UserId=@actor AND u.IsActive=1
+  AND EXISTS(SELECT 1 FROM pms.UserRole ur WITH(HOLDLOCK) JOIN pms.AppRole ar WITH(HOLDLOCK) ON ar.RoleId=ur.RoleId
+   JOIN pms.RolePermission rp WITH(HOLDLOCK) ON rp.RoleId=ar.RoleId
+   JOIN pms.Permission p WITH(HOLDLOCK) ON p.PermissionId=rp.PermissionId
+   WHERE ur.UserId=u.UserId AND ar.IsActive=1 AND p.Code='systemConfig'))
+  THROW 54707,'Maintenance actor/right changed.',1;
+ IF EXISTS(SELECT 1 FROM pms.ApiRequest WHERE ActorId=@actor AND Operation='TEST_DAY_ALIGNMENT'
+   AND IdempotencyKey='DAY017-20261114')
+  OR EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Day017.Release')
+  THROW 54708,'Day017 already applied; do not replay.',1;
+ IF EXISTS(SELECT 1 FROM pms.Stay) OR EXISTS(SELECT 1 FROM pms.StaySettlement)
+  OR EXISTS(SELECT 1 FROM pms.Folio) OR EXISTS(SELECT 1 FROM pms.FolioEntry)
+  OR EXISTS(SELECT 1 FROM pms.DepositAccount) OR EXISTS(SELECT 1 FROM pms.DepositMovement)
+  OR EXISTS(SELECT 1 FROM pms.Payment) OR EXISTS(SELECT 1 FROM pms.RefundRequest)
+  OR EXISTS(SELECT 1 FROM pms.CashierShift) OR EXISTS(SELECT 1 FROM pms.Invoice)
+  OR EXISTS(SELECT 1 FROM pms.ServiceOrder) OR EXISTS(SELECT 1 FROM pms.MinibarAudit)
+  THROW 54709,'Operational/financial rows exist; zero-activity test alignment forbidden.',1;
+ SELECT @collected=COALESCE(SUM(CollectedVnd),0),@refunded=COALESCE(SUM(RefundedVnd),0)
+  FROM pms.vCashFlowDaily WHERE BusinessDate=@oldDay;
+ SELECT @revenue=COALESCE(SUM(SettledRevenueVnd),0) FROM pms.vSettledRevenueDaily WHERE BusinessDate=@oldDay;
+ SELECT @outstanding=COALESCE(SUM(CASE WHEN BalanceVnd>0 THEN BalanceVnd ELSE 0 END),0) FROM pms.vFolioBalance;
+ IF @collected<>0 OR @refunded<>0 OR @revenue<>0 OR @outstanding<>0
+  THROW 54710,'Nonzero cash/revenue/debt; use real close-day workflow.',1;
+ SET @snapshot=(SELECT 'SONGLAM_TEST_DAY_ALIGNMENT_017' kind,@oldDay closedBusinessDate,
+  @newDay nextOpenBusinessDate,'2026-10-12..2026-11-13' skippedCalendarDates,
+  @collected collectedVnd,@refunded refundedVnd,@revenue settledRevenueVnd,
+  @outstanding outstandingVnd,CONVERT(varchar(36),@backup) verifiedBackupSetUuid,
+  CONVERT(varchar(23),SYSUTCDATETIME(),126)+'Z' recordedAtUtc
+  FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+ SET @before=(SELECT CONVERT(char(10),@oldDay,23) businessDate,'OPEN' status,
+  CONVERT(char(10),WorkingDate,23) workingDate FROM pms.HotelSettings WHERE HotelId=1
+  FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+ INSERT pms.ApiRequest(RequestId,ActorId,Operation,IdempotencyKey,RequestHash,Status)
+  VALUES(@request,@actor,'TEST_DAY_ALIGNMENT','DAY017-20261114',
+   HASHBYTES('SHA2_256',CONCAT(@approval,CONVERT(varchar(36),@backup),CONVERT(char(10),@oldDay,23),CONVERT(char(10),@newDay,23))),
+   'PROCESSING');
+ INSERT pms.CommandExecution(SessionId,RequestId) VALUES(@@SPID,@request);
+ UPDATE pms.BusinessDay SET Status='CLOSED',ClosedAtUtc=SYSUTCDATETIME(),ClosedBy=@actor,
+   CollectedVnd=@collected,RefundedVnd=@refunded,SettledRevenueVnd=@revenue,
+   OutstandingVnd=@outstanding,SnapshotJson=@snapshot
+  WHERE BusinessDate=@oldDay AND Status='OPEN' AND RowVer=0x0000000000014062;
+ IF @@ROWCOUNT<>1 THROW 54706,'Old day version changed.',1;
+ INSERT pms.BusinessDay(BusinessDate,Status) VALUES(@newDay,'OPEN');
+ UPDATE pms.HotelSettings SET WorkingDate=@newDay WHERE HotelId=1 AND WorkingDate=@oldDay
+   AND RowVer=0x0000000000014063;
+ IF @@ROWCOUNT<>1 THROW 54706,'Hotel settings version changed.',1;
+ EXEC pms.usp_AssertBusinessState;
+ SET @after=(SELECT CONVERT(char(10),@oldDay,23) closedBusinessDate,'CLOSED' closedStatus,
+  CONVERT(char(10),WorkingDate,23) workingDate FROM pms.HotelSettings WHERE HotelId=1
+  FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+ INSERT pms.AuditLog(ActorId,Action,EntityType,EntityKey,RequestId,BeforeJson,AfterJson,Reason)
+  VALUES(@actor,'TEST_DAY_ALIGNMENT','BusinessDay',CONVERT(char(10),@oldDay,23),@request,
+   @before,@after,N'Zero-activity test maintenance; skipped calendar dates are recorded in BusinessDay snapshot.'),
+   (@actor,'TEST_DAY_ALIGNMENT','HotelSettings','1',@request,@before,@after,
+   N'Advance test WorkingDate only after zero-activity validation and verified backup.');
+ SET @receipt=(SELECT @approval approvalReference,CONVERT(varchar(36),@request) requestId,
+  CONVERT(varchar(36),@backup) backupSetUuid,@actor actorId,
+  CONVERT(char(10),@oldDay,23) oldWorkingDate,CONVERT(char(10),@newDay,23) newWorkingDate,
+  CAST(1 AS bit) committed,CAST(0 AS bit) operationalCutover
+  FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);
+ UPDATE pms.ApiRequest SET Status='SUCCEEDED',ResponseJson=@receipt WHERE RequestId=@request;
+ IF DATALENGTH(@receipt)>7500 THROW 54711,'Receipt too large for extended property.',1;
+ SET @receiptProperty=CONVERT(nvarchar(3750),@receipt);
+ EXEC sys.sp_addextendedproperty @name=N'SongLam.Day017.Release',@value=@receiptProperty;
+ DELETE pms.CommandExecution WHERE SessionId=@@SPID AND RequestId=@request;
+ COMMIT;
+ SELECT @receipt ReceiptJson;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK;
+ THROW;
+END CATCH;

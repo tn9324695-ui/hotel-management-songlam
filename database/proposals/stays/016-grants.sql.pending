@@ -1,0 +1,9 @@
+-- After exact-target/backup/baseline checks and all reviewed CREATE batches, in
+-- the SAME deployment transaction. No role, table, schema or generic RPC grants.
+GRANT EXECUTE ON OBJECT::pms.usp_AppStayRead016 TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_AppCheckInPrepare TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_AppCheckInCommit TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_WebCheckInRuntime TO [pms_web_auth_test];
+GRANT EXECUTE ON OBJECT::pms.usp_WebCheckInReceipt TO [pms_web_auth_test];
+DENY EXECUTE ON OBJECT::pms.usp_WebCheckInContext TO [pms_web_auth_test];
+DENY EXECUTE ON OBJECT::pms.usp_AppStayArrivals TO [pms_web_auth_test];

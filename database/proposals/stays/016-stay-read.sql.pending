@@ -1,0 +1,45 @@
+CREATE PROCEDURE pms.usp_AppStayRead016 @AppUserId bigint,@Operation varchar(32),@InputJson nvarchar(max),@RequestId nvarchar(80)
+WITH EXECUTE AS OWNER AS
+BEGIN
+ SET NOCOUNT ON;
+ IF ISJSON(@InputJson)<>1 OR DATALENGTH(@InputJson)>8192 OR TRY_CONVERT(uniqueidentifier,@RequestId) IS NULL THROW 54100,'Invalid stay read.',1;
+ IF @Operation='arrivals' BEGIN EXEC pms.usp_AppStayArrivals @AppUserId,@Operation,@InputJson,@RequestId; RETURN; END;
+ DECLARE @stay bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.stayId')),@br bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingRoomId')),
+  @room int=TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.roomId')),@booking bigint=TRY_CONVERT(bigint,JSON_VALUE(@InputJson,'$.bookingId')),
+  @offset int=COALESCE(TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.offset')),0),@limit int=COALESCE(TRY_CONVERT(int,JSON_VALUE(@InputJson,'$.limit')),50),
+  @status varchar(12)=JSON_VALUE(@InputJson,'$.status'),@from date=TRY_CONVERT(date,JSON_VALUE(@InputJson,'$.from')),@to date=TRY_CONVERT(date,JSON_VALUE(@InputJson,'$.to')),
+  @rows nvarchar(max),@total bigint,@now datetime2(3)=SYSUTCDATETIME();
+ IF @Operation='readiness'
+ BEGIN
+  EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckIn'; EXEC pms.usp_WebAuthorize @AppUserId,'viewRoomRack';
+  IF @stay IS NOT NULL THROW 54401,'Transfer readiness is outside check-in-only 016.',1;
+  IF NOT EXISTS(SELECT 1 FROM pms.BookingRoom WHERE BookingRoomId=@br) BEGIN SELECT N'{"readiness":null}' PayloadJson; RETURN; END;
+  DECLARE @allocation bigint;
+  SELECT @allocation=CASE WHEN COUNT(*)=1 THEN MAX(AllocationId) END FROM pms.RoomAllocation WHERE BookingRoomId=@br AND IsCancelled=0 AND (@room IS NULL OR RoomId=@room);
+  IF @room IS NULL SELECT @room=RoomId FROM pms.RoomAllocation WHERE AllocationId=@allocation;
+  SELECT (SELECT CONVERT(varchar(20),b.BookingRoomId) bookingRoomId,b.Status bookingRoomStatus,CONVERT(varchar(18),CONVERT(binary(8),b.RowVer),1) bookingRoomVersion,
+   CONVERT(varchar(23),b.StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),b.EndsAtUtc,126)+'Z' endsAtUtc,CONVERT(varchar(23),@now,126)+'Z' asOfUtc,
+   JSON_QUERY((SELECT CONVERT(varchar(20),r.RoomId) id,CONVERT(varchar(20),r.RoomTypeId) roomTypeId,CONVERT(varchar(18),CONVERT(binary(8),r.RowVer),1) version,
+     v.StayStatus occupancyStatus,r.CleanStatus cleanlinessStatus,CASE WHEN EXISTS(SELECT 1 FROM pms.MaintenanceTicket WHERE RoomId=r.RoomId AND Status IN('OPEN','IN_PROGRESS')) THEN 'MAINTENANCE' ELSE v.ExploitationStatus END exploitationStatus
+    FROM pms.Room r JOIN pms.vRoomStatus v ON v.RoomId=r.RoomId WHERE r.RoomId=@room FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) room,
+   JSON_QUERY((SELECT CONVERT(varchar(20),a.AllocationId) id,CONVERT(varchar(20),a.RoomId) roomId,CONVERT(varchar(20),a.BookingRoomId) bookingRoomId,CONVERT(varchar(18),CONVERT(binary(8),a.RowVer),1) version,a.IsCancelled isCancelled,
+    CONVERT(varchar(23),a.StartsAtUtc,126)+'Z' startsAtUtc,CONVERT(varchar(23),a.EndsAtUtc,126)+'Z' endsAtUtc FROM pms.RoomAllocation a WHERE a.AllocationId=@allocation FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) allocation,
+   CAST(CASE WHEN EXISTS(SELECT 1 FROM pms.Room r WHERE r.RoomId=@room AND r.RoomTypeId=b.RoomTypeId) THEN 1 ELSE 0 END AS bit) roomTypeCompatible,
+   CAST(CASE WHEN EXISTS(SELECT 1 FROM pms.Room r JOIN pms.RoomType t ON t.RoomTypeId=r.RoomTypeId WHERE r.RoomId=@room AND t.MaxOccupancy>=b.Adults+b.Children) THEN 1 ELSE 0 END AS bit) capacityFits,
+   CAST(CASE WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation a LEFT JOIN pms.BookingRoom other ON other.BookingRoomId=a.BookingRoomId WHERE a.RoomId=@room AND a.IsCancelled=0 AND a.AllocationId<>ISNULL(@allocation,-1) AND a.StartsAtUtc<b.EndsAtUtc AND a.EndsAtUtc>@now AND (a.BookingRoomId IS NULL OR other.Status IN('HELD','CONFIRMED','IN_HOUSE'))) THEN 1 ELSE 0 END AS bit) intervalConflict
+   FROM pms.BookingRoom b WHERE b.BookingRoomId=@br FOR JSON PATH,INCLUDE_NULL_VALUES,WITHOUT_ARRAY_WRAPPER) readiness INTO #r;
+  SELECT N'{"readiness":'+readiness+N'}' PayloadJson FROM #r; RETURN;
+ END;
+ IF pms.fn_WebPermission(@AppUserId,'manageCheckIn')=1 EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckIn'; ELSE EXEC pms.usp_WebAuthorize @AppUserId,'manageCheckOut';
+ IF @Operation='detail' BEGIN SELECT N'{"stay":'+COALESCE(pms.fn_WebStay016Json(@stay),N'null')+N'}' PayloadJson; RETURN; END;
+ IF @Operation IS NULL OR @Operation<>'list' OR @offset NOT BETWEEN 0 AND 1000000 OR @limit NOT BETWEEN 1 AND 200 THROW 54100,'Unsupported stay read.',1;
+ IF @room IS NOT NULL EXEC pms.usp_WebAuthorize @AppUserId,'viewRoomRack';
+ DECLARE @ids TABLE(id bigint PRIMARY KEY);
+ INSERT @ids SELECT s.StayId FROM pms.Stay s JOIN pms.BookingRoom b ON b.BookingRoomId=s.BookingRoomId
+  WHERE (@booking IS NULL OR b.BookingId=@booking) AND (@status IS NULL OR s.Status=@status)
+   AND (@room IS NULL OR EXISTS(SELECT 1 FROM pms.StayRoomSegment g WHERE g.StayId=s.StayId AND g.RoomId=@room))
+   AND (@from IS NULL OR CONVERT(date,DATEADD(hour,7,s.CheckedInAtUtc))>=@from) AND (@to IS NULL OR CONVERT(date,DATEADD(hour,7,s.CheckedInAtUtc))<@to);
+ SELECT @total=COUNT_BIG(*) FROM @ids;
+ SELECT @rows=COALESCE(N'['+STRING_AGG(CONVERT(nvarchar(max),pms.fn_WebStay016Json(id)),N',') WITHIN GROUP(ORDER BY id)+N']',N'[]') FROM(SELECT id FROM @ids ORDER BY id OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY) x;
+ SELECT (SELECT JSON_QUERY(@rows) stays,JSON_QUERY((SELECT @offset offset,@limit limit,CONVERT(varchar(30),@total) total,CAST(CASE WHEN @offset+@limit<@total THEN 1 ELSE 0 END AS bit) hasMore FOR JSON PATH,WITHOUT_ARRAY_WRAPPER)) page FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) PayloadJson;
+END;

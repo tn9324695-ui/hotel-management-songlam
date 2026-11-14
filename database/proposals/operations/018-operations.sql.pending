@@ -1,0 +1,1228 @@
+-- =====================================================================
+-- 018-operations.sql.pending: G7 Operations Procedures & Permissions
+-- Protocol: songlam.operations.v1
+-- ActorMode: app-user-parameter
+-- Procedures: pms.usp_AppOperationsRead, pms.usp_AppOperationsCommand
+-- =====================================================================
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE OR ALTER PROCEDURE pms.usp_AppOperationsRead
+    @AppUserId bigint,
+    @Resource varchar(16),
+    @Operation varchar(32),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80)
+WITH EXECUTE AS OWNER AS
+BEGIN
+    SET NOCOUNT ON;
+    SET ANSI_WARNINGS ON;
+    SET ANSI_NULLS ON;
+
+    IF ISJSON(@InputJson) <> 1 OR DATALENGTH(@InputJson) > 16000
+        THROW 54100, 'Invalid JSON input.', 1;
+
+    DECLARE @now datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(24) = CONVERT(varchar(23), @now, 126) + 'Z';
+    DECLARE @offset int = COALESCE(TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.offset')), 0);
+    DECLARE @limit int = COALESCE(TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.limit')), 50);
+    DECLARE @id bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.id'));
+    DECLARE @roomId int = TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.roomId'));
+    DECLARE @status varchar(20) = JSON_VALUE(@InputJson, '$.status');
+    DECLARE @mine bit = CASE WHEN JSON_VALUE(@InputJson, '$.mine') = 'true' THEN 1 ELSE 0 END;
+    DECLARE @priority varchar(10) = JSON_VALUE(@InputJson, '$.priority');
+    DECLARE @state varchar(20) = JSON_VALUE(@InputJson, '$.state');
+    DECLARE @cleanlinessStatus varchar(20) = JSON_VALUE(@InputJson, '$.cleanlinessStatus');
+    DECLARE @occupancyStatus varchar(20) = JSON_VALUE(@InputJson, '$.occupancyStatus');
+    DECLARE @exploitationStatus varchar(20) = JSON_VALUE(@InputJson, '$.exploitationStatus');
+
+    IF @Operation NOT IN ('list', 'detail', 'history')
+        THROW 54100, 'Unsupported operation.', 1;
+
+    -- =================================================================
+    -- RESOURCE: rooms
+    -- =================================================================
+    IF @Resource = 'rooms'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'viewRoomRack';
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @roomRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), r.RoomId) AS id,
+                    r.Number AS number,
+                    CONVERT(varchar(18), CONVERT(binary(8), r.RowVer), 1) AS version,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE') THEN 'OCCUPIED' ELSE 'VACANT' END AS occupancyStatus,
+                    r.CleanStatus AS cleanlinessStatus,
+                    CASE WHEN r.IsActive=0 THEN 'INACTIVE'
+                         WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                           OR EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS')) THEN 'MAINTENANCE'
+                         ELSE 'ACTIVE' END AS exploitationStatus,
+                    CAST(CASE WHEN r.IsActive=1 AND r.CleanStatus='CLEAN'
+                              AND NOT EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                              AND NOT EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                              AND NOT EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS'))
+                         THEN 1 ELSE 0 END AS bit) AS eligibleForCheckIn,
+                    JSON_QUERY(COALESCE('[' + (
+                      SELECT STRING_AGG('"' + reason + '"', ',')
+                      FROM (
+                        SELECT 'INACTIVE' AS reason WHERE r.IsActive=0
+                        UNION ALL
+                        SELECT 'OCCUPIED' WHERE EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                        UNION ALL
+                        SELECT 'NOT_CLEAN' WHERE r.CleanStatus <> 'CLEAN'
+                        UNION ALL
+                        SELECT 'BLOCK' WHERE EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                        UNION ALL
+                        SELECT 'BLOCKING_REPAIR' WHERE EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS'))
+                      ) x
+                    ) + ']', '[]')) AS eligibilityReasons
+                FROM pms.Room r
+                WHERE r.RoomId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'rooms' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@roomRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @roomIds TABLE (RoomId int PRIMARY KEY);
+            INSERT INTO @roomIds
+            SELECT r.RoomId
+            FROM pms.Room r
+            WHERE (@roomId IS NULL OR r.RoomId = @roomId)
+              AND (@cleanlinessStatus IS NULL OR r.CleanStatus = @cleanlinessStatus)
+              AND (@occupancyStatus IS NULL OR (CASE WHEN EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE') THEN 'OCCUPIED' ELSE 'VACANT' END) = @occupancyStatus)
+              AND (@exploitationStatus IS NULL OR (CASE WHEN r.IsActive=0 THEN 'INACTIVE'
+                                                       WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                                                         OR EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS')) THEN 'MAINTENANCE'
+                                                       ELSE 'ACTIVE' END) = @exploitationStatus);
+
+            DECLARE @roomTotal bigint = (SELECT COUNT_BIG(*) FROM @roomIds);
+            DECLARE @roomRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), r.RoomId) AS id,
+                    r.Number AS number,
+                    CONVERT(varchar(18), CONVERT(binary(8), r.RowVer), 1) AS version,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE') THEN 'OCCUPIED' ELSE 'VACANT' END AS occupancyStatus,
+                    r.CleanStatus AS cleanlinessStatus,
+                    CASE WHEN r.IsActive=0 THEN 'INACTIVE'
+                         WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                           OR EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS')) THEN 'MAINTENANCE'
+                         ELSE 'ACTIVE' END AS exploitationStatus,
+                    CAST(CASE WHEN r.IsActive=1 AND r.CleanStatus='CLEAN'
+                              AND NOT EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                              AND NOT EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                              AND NOT EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS'))
+                         THEN 1 ELSE 0 END AS bit) AS eligibleForCheckIn,
+                    JSON_QUERY(COALESCE('[' + (
+                      SELECT STRING_AGG('"' + reason + '"', ',')
+                      FROM (
+                        SELECT 'INACTIVE' AS reason WHERE r.IsActive=0
+                        UNION ALL
+                        SELECT 'OCCUPIED' WHERE EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                        UNION ALL
+                        SELECT 'NOT_CLEAN' WHERE r.CleanStatus <> 'CLEAN'
+                        UNION ALL
+                        SELECT 'BLOCK' WHERE EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                        UNION ALL
+                        SELECT 'BLOCKING_REPAIR' WHERE EXISTS(SELECT 1 FROM pms.MaintenanceTicket t WHERE t.RoomId=r.RoomId AND t.Status IN ('OPEN','IN_PROGRESS'))
+                      ) x
+                    ) + ']', '[]')) AS eligibilityReasons
+                FROM (
+                    SELECT RoomId FROM @roomIds ORDER BY RoomId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.Room r ON r.RoomId = ids.RoomId
+                ORDER BY r.RoomId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'rooms' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@roomRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @roomTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @roomTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: tasks
+    -- =================================================================
+    IF @Resource = 'tasks'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+        IF @Operation = 'history'
+        BEGIN
+            DECLARE @taskHistRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AuditLogId) AS id,
+                    a.Action AS action,
+                    CONVERT(varchar(20), a.ActorId) AS actorId,
+                    CONVERT(varchar(23), a.CreatedAtUtc, 126) + 'Z' AS atUtc,
+                    JSON_VALUE(a.AfterJson, '$.fromState') AS fromState,
+                    JSON_VALUE(a.AfterJson, '$.toState') AS toState,
+                    a.Reason AS note,
+                    JSON_VALUE(a.AfterJson, '$.recipientEmployeeId') AS recipientEmployeeId,
+                    JSON_VALUE(a.AfterJson, '$.recipientCustomerId') AS recipientCustomerId,
+                    JSON_VALUE(a.AfterJson, '$.storageLocation') AS storageLocation
+                FROM pms.AuditLog a
+                WHERE a.EntityType = 'HousekeepingTask' AND a.EntityKey = CONVERT(varchar(20), @id)
+                ORDER BY a.AuditLogId ASC
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @taskHistTotal bigint = (SELECT COUNT_BIG(*) FROM pms.AuditLog WHERE EntityType = 'HousekeepingTask' AND EntityKey = CONVERT(varchar(20), @id));
+
+            SELECT (
+                SELECT 'tasks' AS resource, 'history' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(COALESCE(@taskHistRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @taskHistTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @taskRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), t.TaskId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), t.RowVer), 1) AS version,
+                    CONVERT(varchar(20), t.RoomId) AS roomId,
+                    CONVERT(varchar(20), t.StayId) AS stayId,
+                    t.TaskType AS taskType,
+                    t.Status AS status,
+                    CASE
+                        WHEN EXISTS(SELECT 1 FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='unable' AND AuditLogId > ISNULL((SELECT MAX(AuditLogId) FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action IN ('resume','COMPLETED')), 0)) THEN 'UNABLE'
+                        WHEN t.Status = 'PENDING' THEN CASE WHEN t.AssignedTo IS NULL THEN 'QUEUED' ELSE 'CLAIMED' END
+                        WHEN t.Status = 'IN_PROGRESS' THEN 'CLEANING'
+                        WHEN t.Status = 'INSPECTING' THEN 'AWAITING_INSPECTION'
+                        WHEN t.Status = 'COMPLETED' THEN 'COMPLETED'
+                        ELSE t.Status
+                    END AS phase,
+                    CONVERT(varchar(20), t.AssignedTo) AS assignedToId,
+                    CONVERT(varchar(20), t.InspectedBy) AS inspectedById,
+                    CONVERT(varchar(23), t.CreatedAtUtc, 126) + 'Z' AS createdAtUtc,
+                    CASE WHEN t.AssignedTo IS NOT NULL THEN (SELECT TOP 1 CONVERT(varchar(23), CreatedAtUtc, 126) + 'Z' FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action IN ('claim','assign','create') ORDER BY AuditLogId ASC) END AS claimedAtUtc,
+                    CASE WHEN t.Status IN ('IN_PROGRESS','INSPECTING','COMPLETED') THEN (SELECT TOP 1 CONVERT(varchar(23), CreatedAtUtc, 126) + 'Z' FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='start' ORDER BY AuditLogId ASC) END AS startedAtUtc,
+                    CASE WHEN t.Status IN ('INSPECTING','COMPLETED') THEN (SELECT TOP 1 CONVERT(varchar(23), CreatedAtUtc, 126) + 'Z' FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='submit' ORDER BY AuditLogId ASC) END AS submittedAtUtc,
+                    CASE WHEN t.CompletedAtUtc IS NOT NULL THEN CONVERT(varchar(23), t.CompletedAtUtc, 126) + 'Z' END AS completedAtUtc,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='unable' AND AuditLogId > ISNULL((SELECT MAX(AuditLogId) FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action IN ('resume','COMPLETED')), 0))
+                         THEN (SELECT TOP 1 JSON_QUERY((SELECT a.Reason AS reason, CONVERT(varchar(20), a.ActorId) AS actorId, CONVERT(varchar(23), a.CreatedAtUtc, 126) + 'Z' AS atUtc FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER))
+                               FROM pms.AuditLog a WHERE a.EntityType='HousekeepingTask' AND a.EntityKey=CONVERT(varchar(20), t.TaskId) AND a.Action='unable' ORDER BY a.AuditLogId DESC)
+                    END AS unable,
+                    t.Notes AS notes,
+                    CONVERT(varchar(18), CONVERT(binary(8), r.RowVer), 1) AS roomVersion,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE') THEN 'OCCUPIED' ELSE 'VACANT' END AS occupancyStatus,
+                    r.CleanStatus AS cleanlinessStatus,
+                    CASE WHEN r.IsActive=0 THEN 'INACTIVE'
+                         WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                           OR EXISTS(SELECT 1 FROM pms.MaintenanceTicket tk WHERE tk.RoomId=r.RoomId AND tk.Status IN ('OPEN','IN_PROGRESS')) THEN 'MAINTENANCE'
+                         ELSE 'ACTIVE' END AS exploitationStatus,
+                    CAST(CASE WHEN r.IsActive=1 AND r.CleanStatus='CLEAN'
+                              AND NOT EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                              AND NOT EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                              AND NOT EXISTS(SELECT 1 FROM pms.MaintenanceTicket tk WHERE tk.RoomId=r.RoomId AND tk.Status IN ('OPEN','IN_PROGRESS'))
+                         THEN 1 ELSE 0 END AS bit) AS eligibleForCheckIn,
+                    JSON_QUERY(COALESCE('[' + (
+                      SELECT STRING_AGG('"' + reason + '"', ',')
+                      FROM (
+                        SELECT 'INACTIVE' AS reason WHERE r.IsActive=0
+                        UNION ALL
+                        SELECT 'OCCUPIED' WHERE EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                        UNION ALL
+                        SELECT 'NOT_CLEAN' WHERE r.CleanStatus <> 'CLEAN'
+                        UNION ALL
+                        SELECT 'BLOCK' WHERE EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                        UNION ALL
+                        SELECT 'BLOCKING_REPAIR' WHERE EXISTS(SELECT 1 FROM pms.MaintenanceTicket tk WHERE tk.RoomId=r.RoomId AND tk.Status IN ('OPEN','IN_PROGRESS'))
+                      ) x
+                    ) + ']', '[]')) AS eligibilityReasons
+                FROM pms.HousekeepingTask t
+                JOIN pms.Room r ON r.RoomId = t.RoomId
+                WHERE t.TaskId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'tasks' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@taskRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @taskIds TABLE (TaskId bigint PRIMARY KEY);
+            INSERT INTO @taskIds
+            SELECT t.TaskId
+            FROM pms.HousekeepingTask t
+            WHERE (@roomId IS NULL OR t.RoomId = @roomId)
+              AND (@status IS NULL OR t.Status = @status)
+              AND (@mine = 0 OR t.AssignedTo = @AppUserId);
+
+            DECLARE @taskTotal bigint = (SELECT COUNT_BIG(*) FROM @taskIds);
+            DECLARE @taskRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), t.TaskId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), t.RowVer), 1) AS version,
+                    CONVERT(varchar(20), t.RoomId) AS roomId,
+                    CONVERT(varchar(20), t.StayId) AS stayId,
+                    t.TaskType AS taskType,
+                    t.Status AS status,
+                    CASE
+                        WHEN EXISTS(SELECT 1 FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='unable' AND AuditLogId > ISNULL((SELECT MAX(AuditLogId) FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action IN ('resume','COMPLETED')), 0)) THEN 'UNABLE'
+                        WHEN t.Status = 'PENDING' THEN CASE WHEN t.AssignedTo IS NULL THEN 'QUEUED' ELSE 'CLAIMED' END
+                        WHEN t.Status = 'IN_PROGRESS' THEN 'CLEANING'
+                        WHEN t.Status = 'INSPECTING' THEN 'AWAITING_INSPECTION'
+                        WHEN t.Status = 'COMPLETED' THEN 'COMPLETED'
+                        ELSE t.Status
+                    END AS phase,
+                    CONVERT(varchar(20), t.AssignedTo) AS assignedToId,
+                    CONVERT(varchar(20), t.InspectedBy) AS inspectedById,
+                    CONVERT(varchar(23), t.CreatedAtUtc, 126) + 'Z' AS createdAtUtc,
+                    CASE WHEN t.AssignedTo IS NOT NULL THEN (SELECT TOP 1 CONVERT(varchar(23), CreatedAtUtc, 126) + 'Z' FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action IN ('claim','assign','create') ORDER BY AuditLogId ASC) END AS claimedAtUtc,
+                    CASE WHEN t.Status IN ('IN_PROGRESS','INSPECTING','COMPLETED') THEN (SELECT TOP 1 CONVERT(varchar(23), CreatedAtUtc, 126) + 'Z' FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='start' ORDER BY AuditLogId ASC) END AS startedAtUtc,
+                    CASE WHEN t.Status IN ('INSPECTING','COMPLETED') THEN (SELECT TOP 1 CONVERT(varchar(23), CreatedAtUtc, 126) + 'Z' FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='submit' ORDER BY AuditLogId ASC) END AS submittedAtUtc,
+                    CASE WHEN t.CompletedAtUtc IS NOT NULL THEN CONVERT(varchar(23), t.CompletedAtUtc, 126) + 'Z' END AS completedAtUtc,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action='unable' AND AuditLogId > ISNULL((SELECT MAX(AuditLogId) FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), t.TaskId) AND Action IN ('resume','COMPLETED')), 0))
+                         THEN (SELECT TOP 1 JSON_QUERY((SELECT a.Reason AS reason, CONVERT(varchar(20), a.ActorId) AS actorId, CONVERT(varchar(23), a.CreatedAtUtc, 126) + 'Z' AS atUtc FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER))
+                               FROM pms.AuditLog a WHERE a.EntityType='HousekeepingTask' AND a.EntityKey=CONVERT(varchar(20), t.TaskId) AND a.Action='unable' ORDER BY a.AuditLogId DESC)
+                    END AS unable,
+                    t.Notes AS notes,
+                    CONVERT(varchar(18), CONVERT(binary(8), r.RowVer), 1) AS roomVersion,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE') THEN 'OCCUPIED' ELSE 'VACANT' END AS occupancyStatus,
+                    r.CleanStatus AS cleanlinessStatus,
+                    CASE WHEN r.IsActive=0 THEN 'INACTIVE'
+                         WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                           OR EXISTS(SELECT 1 FROM pms.MaintenanceTicket tk WHERE tk.RoomId=r.RoomId AND tk.Status IN ('OPEN','IN_PROGRESS')) THEN 'MAINTENANCE'
+                         ELSE 'ACTIVE' END AS exploitationStatus,
+                    CAST(CASE WHEN r.IsActive=1 AND r.CleanStatus='CLEAN'
+                              AND NOT EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                              AND NOT EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                              AND NOT EXISTS(SELECT 1 FROM pms.MaintenanceTicket tk WHERE tk.RoomId=r.RoomId AND tk.Status IN ('OPEN','IN_PROGRESS'))
+                         THEN 1 ELSE 0 END AS bit) AS eligibleForCheckIn,
+                    JSON_QUERY(COALESCE('[' + (
+                      SELECT STRING_AGG('"' + reason + '"', ',')
+                      FROM (
+                        SELECT 'INACTIVE' AS reason WHERE r.IsActive=0
+                        UNION ALL
+                        SELECT 'OCCUPIED' WHERE EXISTS(SELECT 1 FROM pms.StayRoomSegment s JOIN pms.Stay st ON st.StayId=s.StayId WHERE s.RoomId=r.RoomId AND s.DepartedAtUtc IS NULL AND st.Status='IN_HOUSE')
+                        UNION ALL
+                        SELECT 'NOT_CLEAN' WHERE r.CleanStatus <> 'CLEAN'
+                        UNION ALL
+                        SELECT 'BLOCK' WHERE EXISTS(SELECT 1 FROM pms.RoomAllocation a WHERE a.RoomId=r.RoomId AND a.BookingRoomId IS NULL AND a.IsCancelled=0 AND a.StartsAtUtc<=@now AND a.EndsAtUtc>@now)
+                        UNION ALL
+                        SELECT 'BLOCKING_REPAIR' WHERE EXISTS(SELECT 1 FROM pms.MaintenanceTicket tk WHERE tk.RoomId=r.RoomId AND tk.Status IN ('OPEN','IN_PROGRESS'))
+                      ) x
+                    ) + ']', '[]')) AS eligibilityReasons
+                FROM (
+                    SELECT TaskId FROM @taskIds ORDER BY TaskId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.HousekeepingTask t ON t.TaskId = ids.TaskId
+                JOIN pms.Room r ON r.RoomId = t.RoomId
+                ORDER BY t.TaskId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'tasks' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@taskRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @taskTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @taskTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: tickets
+    -- =================================================================
+    IF @Resource = 'tickets'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'reportMaintenance';
+
+        IF @Operation = 'history'
+        BEGIN
+            DECLARE @ticketHistRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AuditLogId) AS id,
+                    a.Action AS action,
+                    CONVERT(varchar(20), a.ActorId) AS actorId,
+                    CONVERT(varchar(23), a.CreatedAtUtc, 126) + 'Z' AS atUtc,
+                    JSON_VALUE(a.AfterJson, '$.fromState') AS fromState,
+                    JSON_VALUE(a.AfterJson, '$.toState') AS toState,
+                    a.Reason AS note
+                FROM pms.AuditLog a
+                WHERE a.EntityType = 'MaintenanceTicket' AND a.EntityKey = CONVERT(varchar(20), @id)
+                ORDER BY a.AuditLogId ASC
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @ticketHistTotal bigint = (SELECT COUNT_BIG(*) FROM pms.AuditLog WHERE EntityType = 'MaintenanceTicket' AND EntityKey = CONVERT(varchar(20), @id));
+
+            SELECT (
+                SELECT 'tickets' AS resource, 'history' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(COALESCE(@ticketHistRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @ticketHistTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @ticketRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), m.TicketId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), m.RowVer), 1) AS version,
+                    CONVERT(varchar(20), m.RoomId) AS roomId,
+                    m.Description AS description,
+                    m.Priority AS priority,
+                    m.Status AS status,
+                    CONVERT(varchar(20), m.ReportedBy) AS reportedById,
+                    CONVERT(varchar(20), m.AssignedTo) AS assignedToId,
+                    CONVERT(varchar(23), m.CreatedAtUtc, 126) + 'Z' AS createdAtUtc,
+                    CASE WHEN m.ResolvedAtUtc IS NOT NULL THEN CONVERT(varchar(23), m.ResolvedAtUtc, 126) + 'Z' END AS resolvedAtUtc,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation WHERE TicketId=m.TicketId AND IsCancelled=0) THEN 'BLOCKING'
+                         WHEN m.Status IN ('IN_PROGRESS','RESOLVED') THEN 'NONBLOCKING'
+                         ELSE 'UNDECIDED' END AS workMode,
+                    (SELECT TOP 1 a.Reason FROM pms.AuditLog a WHERE a.EntityType='MaintenanceTicket' AND a.EntityKey=CONVERT(varchar(20), m.TicketId) ORDER BY a.AuditLogId DESC) AS notes
+                FROM pms.MaintenanceTicket m
+                WHERE m.TicketId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'tickets' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@ticketRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @ticketIds TABLE (TicketId bigint PRIMARY KEY);
+            INSERT INTO @ticketIds
+            SELECT m.TicketId
+            FROM pms.MaintenanceTicket m
+            WHERE (@roomId IS NULL OR m.RoomId = @roomId)
+              AND (@status IS NULL OR m.Status = @status)
+              AND (@priority IS NULL OR m.Priority = @priority)
+              AND (@mine = 0 OR m.AssignedTo = @AppUserId);
+
+            DECLARE @ticketTotal bigint = (SELECT COUNT_BIG(*) FROM @ticketIds);
+            DECLARE @ticketRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), m.TicketId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), m.RowVer), 1) AS version,
+                    CONVERT(varchar(20), m.RoomId) AS roomId,
+                    m.Description AS description,
+                    m.Priority AS priority,
+                    m.Status AS status,
+                    CONVERT(varchar(20), m.ReportedBy) AS reportedById,
+                    CONVERT(varchar(20), m.AssignedTo) AS assignedToId,
+                    CONVERT(varchar(23), m.CreatedAtUtc, 126) + 'Z' AS createdAtUtc,
+                    CASE WHEN m.ResolvedAtUtc IS NOT NULL THEN CONVERT(varchar(23), m.ResolvedAtUtc, 126) + 'Z' END AS resolvedAtUtc,
+                    CASE WHEN EXISTS(SELECT 1 FROM pms.RoomAllocation WHERE TicketId=m.TicketId AND IsCancelled=0) THEN 'BLOCKING'
+                         WHEN m.Status IN ('IN_PROGRESS','RESOLVED') THEN 'NONBLOCKING'
+                         ELSE 'UNDECIDED' END AS workMode,
+                    (SELECT TOP 1 a.Reason FROM pms.AuditLog a WHERE a.EntityType='MaintenanceTicket' AND a.EntityKey=CONVERT(varchar(20), m.TicketId) ORDER BY a.AuditLogId DESC) AS notes
+                FROM (
+                    SELECT TicketId FROM @ticketIds ORDER BY TicketId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.MaintenanceTicket m ON m.TicketId = ids.TicketId
+                ORDER BY m.TicketId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'tickets' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@ticketRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @ticketTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @ticketTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: blocks
+    -- =================================================================
+    IF @Resource = 'blocks'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'viewRoomRack';
+
+        IF @Operation = 'history'
+        BEGIN
+            DECLARE @blockHistRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AuditLogId) AS id,
+                    a.Action AS action,
+                    CONVERT(varchar(20), a.ActorId) AS actorId,
+                    CONVERT(varchar(23), a.CreatedAtUtc, 126) + 'Z' AS atUtc,
+                    JSON_VALUE(a.AfterJson, '$.fromState') AS fromState,
+                    JSON_VALUE(a.AfterJson, '$.toState') AS toState,
+                    a.Reason AS note
+                FROM pms.AuditLog a
+                WHERE a.EntityType = 'RoomBlock' AND a.EntityKey = CONVERT(varchar(20), @id)
+                ORDER BY a.AuditLogId ASC
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @blockHistTotal bigint = (SELECT COUNT_BIG(*) FROM pms.AuditLog WHERE EntityType = 'RoomBlock' AND EntityKey = CONVERT(varchar(20), @id));
+
+            SELECT (
+                SELECT 'blocks' AS resource, 'history' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(COALESCE(@blockHistRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @blockHistTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @blockRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AllocationId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), a.RowVer), 1) AS version,
+                    CONVERT(varchar(20), a.RoomId) AS roomId,
+                    CONVERT(varchar(20), a.TicketId) AS ticketId,
+                    FORMAT(a.StartsAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS startsAtUtc,
+                    FORMAT(a.EndsAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS endsAtUtc,
+                    a.BlockReason AS reason,
+                    CASE WHEN a.IsCancelled=1 THEN 'CANCELLED'
+                         WHEN @now < a.StartsAtUtc THEN 'SCHEDULED'
+                         WHEN @now >= a.StartsAtUtc AND @now < a.EndsAtUtc THEN 'ACTIVE'
+                         ELSE 'ENDED' END AS state,
+                    CONVERT(varchar(20), a.CreatedBy) AS createdById
+                FROM pms.RoomAllocation a
+                WHERE a.AllocationId = @id AND a.BookingRoomId IS NULL
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'blocks' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@blockRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @blockIds TABLE (AllocationId bigint PRIMARY KEY);
+            INSERT INTO @blockIds
+            SELECT a.AllocationId
+            FROM pms.RoomAllocation a
+            WHERE a.BookingRoomId IS NULL
+              AND (@roomId IS NULL OR a.RoomId = @roomId)
+              AND (@state IS NULL OR (CASE WHEN a.IsCancelled=1 THEN 'CANCELLED'
+                                           WHEN @now < a.StartsAtUtc THEN 'SCHEDULED'
+                                           WHEN @now >= a.StartsAtUtc AND @now < a.EndsAtUtc THEN 'ACTIVE'
+                                           ELSE 'ENDED' END) = @state);
+
+            DECLARE @blockTotal bigint = (SELECT COUNT_BIG(*) FROM @blockIds);
+            DECLARE @blockRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AllocationId) AS id,
+                    CONVERT(varchar(18), CONVERT(binary(8), a.RowVer), 1) AS version,
+                    CONVERT(varchar(20), a.RoomId) AS roomId,
+                    CONVERT(varchar(20), a.TicketId) AS ticketId,
+                    FORMAT(a.StartsAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS startsAtUtc,
+                    FORMAT(a.EndsAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS endsAtUtc,
+                    a.BlockReason AS reason,
+                    CASE WHEN a.IsCancelled=1 THEN 'CANCELLED'
+                         WHEN @now < a.StartsAtUtc THEN 'SCHEDULED'
+                         WHEN @now >= a.StartsAtUtc AND @now < a.EndsAtUtc THEN 'ACTIVE'
+                         ELSE 'ENDED' END AS state,
+                    CONVERT(varchar(20), a.CreatedBy) AS createdById
+                FROM (
+                    SELECT AllocationId FROM @blockIds ORDER BY AllocationId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.RoomAllocation a ON a.AllocationId = ids.AllocationId
+                ORDER BY a.AllocationId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'blocks' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@blockRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @blockTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @blockTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    -- =================================================================
+    -- RESOURCE: items
+    -- =================================================================
+    IF @Resource = 'items'
+    BEGIN
+        EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+        IF @Operation = 'history'
+        BEGIN
+            DECLARE @itemHistRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), a.AuditLogId) AS id,
+                    a.Action AS action,
+                    CONVERT(varchar(20), a.ActorId) AS actorId,
+                    CONVERT(varchar(23), a.CreatedAtUtc, 126) + 'Z' AS atUtc,
+                    JSON_VALUE(a.AfterJson, '$.fromState') AS fromState,
+                    JSON_VALUE(a.AfterJson, '$.toState') AS toState,
+                    a.Reason AS note,
+                    JSON_VALUE(a.AfterJson, '$.recipientEmployeeId') AS recipientEmployeeId,
+                    JSON_VALUE(a.AfterJson, '$.recipientCustomerId') AS recipientCustomerId,
+                    JSON_VALUE(a.AfterJson, '$.storageLocation') AS storageLocation
+                FROM pms.AuditLog a
+                WHERE a.EntityType = 'LostFound' AND a.EntityKey = CONVERT(varchar(20), @id)
+                ORDER BY a.AuditLogId ASC
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+            DECLARE @itemHistTotal bigint = (SELECT COUNT_BIG(*) FROM pms.AuditLog WHERE EntityType = 'LostFound' AND EntityKey = CONVERT(varchar(20), @id));
+
+            SELECT (
+                SELECT 'items' AS resource, 'history' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(COALESCE(@itemHistRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT 0 AS offset, @limit AS limit, CONVERT(varchar(30), @itemHistTotal) AS total,
+                                          CAST(0 AS bit) AS hasMore FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'detail'
+        BEGIN
+            DECLARE @itemRow nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), l.LostFoundId) AS id,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256',
+                      CONVERT(varchar(max), l.LostFoundId) + ':' + l.Status + ':' + l.StorageLocation + ':' +
+                      CONVERT(varchar(30), l.FoundAtUtc, 126) + ':' + ISNULL(CONVERT(varchar(30), l.ResolvedAtUtc, 126), '') + ':' +
+                      ISNULL(CONVERT(varchar(20), l.ReturnedToCustomerId), '') + ':' + ISNULL(l.Notes, '') + ':' +
+                      ISNULL((SELECT TOP 1 CONVERT(varchar(20), a.ActorId) FROM pms.AuditLog a WHERE a.EntityType='LostFound' AND a.EntityKey=CONVERT(varchar(20), l.LostFoundId) ORDER BY a.AuditLogId DESC), CONVERT(varchar(20), l.FoundBy))
+                    ), 2)) AS stateToken,
+                    CONVERT(varchar(20), l.RoomId) AS roomId,
+                    CONVERT(varchar(20), l.StayId) AS stayId,
+                    l.Description AS description,
+                    ISNULL((SELECT TOP 1 JSON_VALUE(a.AfterJson, '$.foundLocation') FROM pms.AuditLog a WHERE a.EntityType='LostFound' AND a.EntityKey=CONVERT(varchar(20), l.LostFoundId) AND JSON_VALUE(a.AfterJson, '$.foundLocation') IS NOT NULL ORDER BY a.AuditLogId ASC), N'Khuôn viên khách sạn') AS foundLocation,
+                    l.StorageLocation AS storageLocation,
+                    l.Status AS status,
+                    CONVERT(varchar(20), l.FoundBy) AS foundById,
+                    FORMAT(l.FoundAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS foundAtUtc,
+                    CONVERT(varchar(20), ISNULL((SELECT TOP 1 TRY_CONVERT(bigint, JSON_VALUE(a.AfterJson, '$.custodianId')) FROM pms.AuditLog a WHERE a.EntityType='LostFound' AND a.EntityKey=CONVERT(varchar(20), l.LostFoundId) AND JSON_VALUE(a.AfterJson, '$.custodianId') IS NOT NULL ORDER BY a.AuditLogId DESC), l.FoundBy)) AS custodianId,
+                    CONVERT(varchar(20), l.ReturnedToCustomerId) AS returnedToCustomerId,
+                    CASE WHEN l.ResolvedAtUtc IS NOT NULL THEN FORMAT(l.ResolvedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') END AS resolvedAtUtc,
+                    l.Notes AS notes
+                FROM pms.LostFound l
+                WHERE l.LostFoundId = @id
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            );
+
+            SELECT (
+                SELECT 'items' AS resource, 'detail' AS operation, @nowIso AS asOfUtc,
+                       CONVERT(varchar(20), @id) AS recordId,
+                       JSON_QUERY(@itemRow) AS row
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @Operation = 'list'
+        BEGIN
+            DECLARE @itemIds TABLE (LostFoundId bigint PRIMARY KEY);
+            INSERT INTO @itemIds
+            SELECT l.LostFoundId
+            FROM pms.LostFound l
+            WHERE (@roomId IS NULL OR l.RoomId = @roomId)
+              AND (@status IS NULL OR l.Status = @status);
+
+            DECLARE @itemTotal bigint = (SELECT COUNT_BIG(*) FROM @itemIds);
+            DECLARE @itemRows nvarchar(max) = (
+                SELECT
+                    CONVERT(varchar(20), l.LostFoundId) AS id,
+                    LOWER(CONVERT(varchar(64), HASHBYTES('SHA2_256',
+                      CONVERT(varchar(max), l.LostFoundId) + ':' + l.Status + ':' + l.StorageLocation + ':' +
+                      CONVERT(varchar(30), l.FoundAtUtc, 126) + ':' + ISNULL(CONVERT(varchar(30), l.ResolvedAtUtc, 126), '') + ':' +
+                      ISNULL(CONVERT(varchar(20), l.ReturnedToCustomerId), '') + ':' + ISNULL(l.Notes, '') + ':' +
+                      ISNULL((SELECT TOP 1 CONVERT(varchar(20), a.ActorId) FROM pms.AuditLog a WHERE a.EntityType='LostFound' AND a.EntityKey=CONVERT(varchar(20), l.LostFoundId) ORDER BY a.AuditLogId DESC), CONVERT(varchar(20), l.FoundBy))
+                    ), 2)) AS stateToken,
+                    CONVERT(varchar(20), l.RoomId) AS roomId,
+                    CONVERT(varchar(20), l.StayId) AS stayId,
+                    l.Description AS description,
+                    ISNULL((SELECT TOP 1 JSON_VALUE(a.AfterJson, '$.foundLocation') FROM pms.AuditLog a WHERE a.EntityType='LostFound' AND a.EntityKey=CONVERT(varchar(20), l.LostFoundId) AND JSON_VALUE(a.AfterJson, '$.foundLocation') IS NOT NULL ORDER BY a.AuditLogId ASC), N'Khuôn viên khách sạn') AS foundLocation,
+                    l.StorageLocation AS storageLocation,
+                    l.Status AS status,
+                    CONVERT(varchar(20), l.FoundBy) AS foundById,
+                    FORMAT(l.FoundAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') AS foundAtUtc,
+                    CONVERT(varchar(20), ISNULL((SELECT TOP 1 TRY_CONVERT(bigint, JSON_VALUE(a.AfterJson, '$.custodianId')) FROM pms.AuditLog a WHERE a.EntityType='LostFound' AND a.EntityKey=CONVERT(varchar(20), l.LostFoundId) AND JSON_VALUE(a.AfterJson, '$.custodianId') IS NOT NULL ORDER BY a.AuditLogId DESC), l.FoundBy)) AS custodianId,
+                    CONVERT(varchar(20), l.ReturnedToCustomerId) AS returnedToCustomerId,
+                    CASE WHEN l.ResolvedAtUtc IS NOT NULL THEN FORMAT(l.ResolvedAtUtc, 'yyyy-MM-ddTHH:mm:ss.fffZ') END AS resolvedAtUtc,
+                    l.Notes AS notes
+                FROM (
+                    SELECT LostFoundId FROM @itemIds ORDER BY LostFoundId OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+                ) ids
+                JOIN pms.LostFound l ON l.LostFoundId = ids.LostFoundId
+                ORDER BY l.LostFoundId
+                FOR JSON PATH, INCLUDE_NULL_VALUES
+            );
+
+            SELECT (
+                SELECT 'items' AS resource, 'list' AS operation, @nowIso AS asOfUtc,
+                       JSON_QUERY(COALESCE(@itemRows, '[]')) AS rows,
+                       JSON_QUERY((SELECT @offset AS offset, @limit AS limit, CONVERT(varchar(30), @itemTotal) AS total,
+                                          CAST(CASE WHEN @offset + @limit < @itemTotal THEN 1 ELSE 0 END AS bit) AS hasMore
+                                   FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)) AS page
+                FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+            ) AS PayloadJson;
+            RETURN;
+        END;
+    END;
+
+    THROW 54100, 'Invalid resource or operation.', 1;
+END;
+GO
+
+-- =====================================================================
+-- COMMAND RPC: pms.usp_AppOperationsCommand
+-- =====================================================================
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE OR ALTER PROCEDURE pms.usp_AppOperationsCommand
+    @AppUserId bigint,
+    @Resource varchar(16),
+    @Operation varchar(32),
+    @InputJson nvarchar(max),
+    @RequestId nvarchar(80),
+    @IntentHash varchar(64),
+    @IdempotencyKey varchar(120)
+WITH EXECUTE AS OWNER AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET ANSI_WARNINGS ON;
+    SET ARITHABORT ON;
+
+    IF @@TRANCOUNT <> 0 THROW 52400, 'Operations command owns its transaction.', 1;
+
+    IF ISJSON(@InputJson) <> 1 OR DATALENGTH(@InputJson) > 16000
+       OR @IdempotencyKey IS NULL OR LEN(@IdempotencyKey) NOT BETWEEN 1 AND 120
+       OR @IntentHash IS NULL OR LEN(@IntentHash) <> 64
+        THROW 54100, 'Invalid operations command payload.', 1;
+
+    DECLARE @lock int;
+    DECLARE @now datetime2(3) = SYSUTCDATETIME();
+    DECLARE @nowIso varchar(24) = CONVERT(varchar(23), @now, 126) + 'Z';
+    DECLARE @request uniqueidentifier = TRY_CONVERT(uniqueidentifier, @RequestId);
+    DECLARE @idempotencyOp varchar(60) = 'OPS_' + UPPER(@Resource) + '_' + UPPER(REPLACE(@Operation, '-', '_'));
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- Global inventory lock
+        EXEC @lock = sys.sp_getapplock @Resource = N'SongLam:Inventory', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        IF @lock < 0 THROW 51002, 'Inventory lock unavailable.', 1;
+
+        -- Check idempotency
+        DECLARE @saved nvarchar(max), @savedHash binary(32);
+        SELECT @saved = ResponseJson, @savedHash = RequestHash
+        FROM pms.ApiRequest WITH(UPDLOCK, HOLDLOCK)
+        WHERE ActorId = @AppUserId AND Operation = @idempotencyOp AND IdempotencyKey = @IdempotencyKey;
+
+        IF @savedHash IS NOT NULL
+        BEGIN
+            IF @savedHash <> CONVERT(binary(32), @IntentHash, 2)
+                THROW 52404, 'Idempotency conflict.', 1;
+            COMMIT TRANSACTION;
+            SELECT JSON_MODIFY(@saved, '$.replayed', CAST(1 AS bit)) AS PayloadJson;
+            RETURN;
+        END;
+
+        IF @request IS NOT NULL AND EXISTS(SELECT 1 FROM pms.ApiRequest WHERE RequestId = @request)
+            THROW 52404, 'Request ID already used.', 1;
+
+        -- Verify actor is active
+        IF NOT EXISTS(SELECT 1 FROM pms.AppUser WITH(HOLDLOCK) WHERE UserId = @AppUserId AND IsActive = 1)
+            THROW 52403, 'User inactive or not found.', 1;
+
+        IF @request IS NULL SET @request = NEWID();
+        INSERT INTO pms.ApiRequest (RequestId, ActorId, Operation, IdempotencyKey, RequestHash, Status, CreatedAtUtc)
+        VALUES (@request, @AppUserId, @idempotencyOp, @IdempotencyKey, CONVERT(binary(32), @IntentHash, 2), 'PROCESSING', @now);
+        INSERT INTO pms.CommandExecution (SessionId, RequestId) VALUES (@@SPID, @request);
+
+        DECLARE @targetId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.id'));
+        DECLARE @expectedVersion binary(8) = TRY_CONVERT(binary(8), JSON_VALUE(@InputJson, '$.expectedVersion'), 1);
+        DECLARE @expectedStateToken varchar(128) = JSON_VALUE(@InputJson, '$.expectedStateToken');
+        DECLARE @note nvarchar(1000) = COALESCE(JSON_VALUE(@InputJson, '$.note'), JSON_VALUE(@InputJson, '$.reason'));
+        DECLARE @before nvarchar(max) = NULL;
+        DECLARE @row nvarchar(max) = NULL;
+        DECLARE @fromState varchar(32) = NULL;
+        DECLARE @toState varchar(32) = NULL;
+        DECLARE @recipientEmployeeId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.recipientEmployeeId'));
+        DECLARE @recipientCustomerId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.recipientCustomerId'));
+        DECLARE @storageLocation nvarchar(250) = JSON_VALUE(@InputJson, '$.storageLocation');
+
+        -- =============================================================
+        -- MUTATION: tasks
+        -- =============================================================
+        IF @Resource = 'tasks'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+            IF @Operation = 'create'
+            BEGIN
+                DECLARE @tRoomId int = TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.roomId'));
+                DECLARE @tStayId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.stayId'));
+                DECLARE @tType varchar(20) = JSON_VALUE(@InputJson, '$.taskType');
+                IF @tRoomId IS NULL OR NOT EXISTS(SELECT 1 FROM pms.Room WHERE RoomId = @tRoomId)
+                    THROW 52412, 'Room does not exist.', 1;
+
+                INSERT INTO pms.HousekeepingTask (RoomId, StayId, TaskType, Status, AssignedTo, InspectedBy, CreatedAtUtc, Notes)
+                VALUES (@tRoomId, @tStayId, @tType, 'PENDING', NULL, NULL, @now, @note);
+                SET @targetId = SCOPE_IDENTITY();
+                SET @fromState = NULL;
+                SET @toState = 'QUEUED';
+            END
+            ELSE
+            BEGIN
+                -- Existing task read before
+                DECLARE @curTaskStatus varchar(12), @curAssignedTo bigint, @curInspectedBy bigint, @curRowVer rowversion, @curRoomId int;
+                SELECT @curTaskStatus = t.Status, @curAssignedTo = t.AssignedTo, @curInspectedBy = t.InspectedBy,
+                       @curRowVer = t.RowVer, @curRoomId = t.RoomId
+                FROM pms.HousekeepingTask t WITH(UPDLOCK, HOLDLOCK)
+                WHERE t.TaskId = @targetId;
+
+                IF @curTaskStatus IS NULL THROW 52412, 'Task not found.', 1;
+                IF @expectedVersion IS NOT NULL AND @curRowVer <> @expectedVersion THROW 52412, 'Task version conflict.', 1;
+
+                -- Read before row
+                DECLARE @tblBefore TABLE (p nvarchar(max));
+                INSERT INTO @tblBefore EXEC pms.usp_AppOperationsRead @AppUserId, 'tasks', 'detail', @InputJson, @RequestId;
+                SELECT @before = JSON_QUERY(p, '$.row') FROM @tblBefore;
+                SET @fromState = COALESCE(JSON_VALUE(@before, '$.phase'),
+                    CASE
+                        WHEN EXISTS(SELECT 1 FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), @targetId) AND Action='unable' AND AuditLogId > ISNULL((SELECT MAX(AuditLogId) FROM pms.AuditLog WHERE EntityType='HousekeepingTask' AND EntityKey=CONVERT(varchar(20), @targetId) AND Action IN ('resume','COMPLETED')), 0)) THEN 'UNABLE'
+                        WHEN @curTaskStatus = 'PENDING' THEN CASE WHEN @curAssignedTo IS NULL THEN 'QUEUED' ELSE 'CLAIMED' END
+                        WHEN @curTaskStatus = 'IN_PROGRESS' THEN 'CLEANING'
+                        WHEN @curTaskStatus = 'INSPECTING' THEN 'AWAITING_INSPECTION'
+                        WHEN @curTaskStatus = 'COMPLETED' THEN 'COMPLETED'
+                        ELSE @curTaskStatus
+                    END);
+
+                IF @Operation = 'claim'
+                BEGIN
+                    IF @curTaskStatus <> 'PENDING' OR @curAssignedTo IS NOT NULL
+                        THROW 52412, 'Task cannot be claimed.', 1;
+                    UPDATE pms.HousekeepingTask SET AssignedTo = @AppUserId WHERE TaskId = @targetId;
+                    SET @toState = 'CLAIMED';
+                END
+                ELSE IF @Operation = 'assign'
+                BEGIN
+                    DECLARE @assigneeId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.assigneeId'));
+                    IF @curTaskStatus <> 'PENDING' OR @assigneeId IS NULL
+                        THROW 52412, 'Task cannot be assigned.', 1;
+                    UPDATE pms.HousekeepingTask SET AssignedTo = @assigneeId WHERE TaskId = @targetId;
+                    SET @toState = 'CLAIMED';
+                END
+                ELSE IF @Operation = 'start'
+                BEGIN
+                    EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+                    IF @curTaskStatus <> 'PENDING' OR @curAssignedTo <> @AppUserId
+                        THROW 52412, 'Task cannot be started.', 1;
+                    UPDATE pms.HousekeepingTask SET Status = 'IN_PROGRESS' WHERE TaskId = @targetId;
+                    UPDATE pms.Room SET CleanStatus = 'CLEANING' WHERE RoomId = @curRoomId;
+                    SET @toState = 'CLEANING';
+                END
+                ELSE IF @Operation = 'submit'
+                BEGIN
+                    EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+                    IF @curTaskStatus <> 'IN_PROGRESS' OR @curAssignedTo <> @AppUserId
+                        THROW 52412, 'Task cannot be submitted.', 1;
+                    UPDATE pms.HousekeepingTask SET Status = 'INSPECTING' WHERE TaskId = @targetId;
+                    UPDATE pms.Room SET CleanStatus = 'INSPECTING' WHERE RoomId = @curRoomId;
+                    SET @toState = 'AWAITING_INSPECTION';
+                END
+                ELSE IF @Operation = 'unable'
+                BEGIN
+                    EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+                    IF @curAssignedTo <> @AppUserId OR @curTaskStatus NOT IN ('PENDING', 'IN_PROGRESS')
+                        THROW 52412, 'Task cannot record unable.', 1;
+                    SET @toState = 'UNABLE';
+                END
+                ELSE IF @Operation = 'resume'
+                BEGIN
+                    EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+                    IF @curAssignedTo <> @AppUserId
+                        THROW 52412, 'Task cannot resume.', 1;
+                    SET @toState = CASE WHEN @curTaskStatus = 'IN_PROGRESS' THEN 'CLEANING' ELSE 'CLAIMED' END;
+                END
+                ELSE IF @Operation = 'inspect-approve'
+                BEGIN
+                    EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+                    IF @curTaskStatus <> 'INSPECTING' OR @curAssignedTo = @AppUserId
+                        THROW 52412, 'Cleaner cannot inspect their own task.', 1;
+                    UPDATE pms.HousekeepingTask SET Status = 'COMPLETED', InspectedBy = @AppUserId, CompletedAtUtc = @now WHERE TaskId = @targetId;
+                    UPDATE pms.Room SET CleanStatus = 'CLEAN' WHERE RoomId = @curRoomId;
+                    SET @toState = 'COMPLETED';
+                END
+                ELSE IF @Operation = 'inspect-reject'
+                BEGIN
+                    EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+                    IF @curTaskStatus <> 'INSPECTING' OR @curAssignedTo = @AppUserId
+                        THROW 52412, 'Cleaner cannot inspect their own task.', 1;
+                    UPDATE pms.HousekeepingTask SET Status = 'IN_PROGRESS' WHERE TaskId = @targetId;
+                    UPDATE pms.Room SET CleanStatus = 'CLEANING' WHERE RoomId = @curRoomId;
+                    SET @toState = 'CLEANING';
+                END
+                ELSE THROW 54100, 'Unsupported task operation.', 1;
+            END;
+
+            -- Read after row
+            DECLARE @tblAfter TABLE (p nvarchar(max));
+            DECLARE @detailInput nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+            INSERT INTO @tblAfter EXEC pms.usp_AppOperationsRead @AppUserId, 'tasks', 'detail', @detailInput, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblAfter;
+        END
+
+        -- =============================================================
+        -- MUTATION: rooms
+        -- =============================================================
+        ELSE IF @Resource = 'rooms'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'updateCleanStatus';
+            IF @Operation <> 'mark-dirty' THROW 54100, 'Unsupported room operation.', 1;
+
+            DECLARE @rRoomId int = TRY_CONVERT(int, @targetId);
+            DECLARE @rClean varchar(12), @rRowVer rowversion;
+            SELECT @rClean = CleanStatus, @rRowVer = RowVer FROM pms.Room WITH(UPDLOCK, HOLDLOCK) WHERE RoomId = @rRoomId;
+            IF @rClean IS NULL THROW 52412, 'Room not found.', 1;
+            IF @expectedVersion IS NOT NULL AND @rRowVer <> @expectedVersion THROW 52412, 'Room version conflict.', 1;
+
+            DECLARE @tblRoomBefore TABLE (p nvarchar(max));
+            INSERT INTO @tblRoomBefore EXEC pms.usp_AppOperationsRead @AppUserId, 'rooms', 'detail', @InputJson, @RequestId;
+            SELECT @before = JSON_QUERY(p, '$.row') FROM @tblRoomBefore;
+            SET @fromState = @rClean;
+
+            UPDATE pms.Room SET CleanStatus = 'DIRTY' WHERE RoomId = @rRoomId;
+            SET @toState = 'DIRTY';
+
+            DECLARE @tblRoomAfter TABLE (p nvarchar(max));
+            INSERT INTO @tblRoomAfter EXEC pms.usp_AppOperationsRead @AppUserId, 'rooms', 'detail', @InputJson, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblRoomAfter;
+        END
+
+        -- =============================================================
+        -- MUTATION: tickets
+        -- =============================================================
+        ELSE IF @Resource = 'tickets'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'reportMaintenance';
+
+            IF @Operation = 'create'
+            BEGIN
+                DECLARE @tkRoomId int = TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.roomId'));
+                DECLARE @tkDesc nvarchar(2000) = JSON_VALUE(@InputJson, '$.description');
+                DECLARE @tkPrio varchar(10) = JSON_VALUE(@InputJson, '$.priority');
+                IF @tkRoomId IS NULL OR NOT EXISTS(SELECT 1 FROM pms.Room WHERE RoomId = @tkRoomId)
+                    THROW 52412, 'Room does not exist.', 1;
+
+                INSERT INTO pms.MaintenanceTicket (RoomId, Description, Priority, Status, ReportedBy, CreatedAtUtc)
+                VALUES (@tkRoomId, @tkDesc, @tkPrio, 'OPEN', @AppUserId, @now);
+                SET @targetId = SCOPE_IDENTITY();
+                SET @fromState = NULL;
+                SET @toState = 'OPEN';
+            END
+            ELSE
+            BEGIN
+                DECLARE @curTkStatus varchar(12), @curTkAssignedTo bigint, @curTkRowVer rowversion, @curTkRoomId int;
+                SELECT @curTkStatus = Status, @curTkAssignedTo = AssignedTo, @curTkRowVer = RowVer, @curTkRoomId = RoomId
+                FROM pms.MaintenanceTicket WITH(UPDLOCK, HOLDLOCK) WHERE TicketId = @targetId;
+                IF @curTkStatus IS NULL THROW 52412, 'Ticket not found.', 1;
+                IF @expectedVersion IS NOT NULL AND @curTkRowVer <> @expectedVersion THROW 52412, 'Ticket version conflict.', 1;
+
+                DECLARE @tblTkBefore TABLE (p nvarchar(max));
+                INSERT INTO @tblTkBefore EXEC pms.usp_AppOperationsRead @AppUserId, 'tickets', 'detail', @InputJson, @RequestId;
+                SELECT @before = JSON_QUERY(p, '$.row') FROM @tblTkBefore;
+                SET @fromState = @curTkStatus;
+
+                IF @Operation = 'claim'
+                BEGIN
+                    IF @curTkStatus <> 'OPEN' OR @curTkAssignedTo IS NOT NULL THROW 52412, 'Ticket cannot be claimed.', 1;
+                    UPDATE pms.MaintenanceTicket SET AssignedTo = @AppUserId WHERE TicketId = @targetId;
+                    SET @toState = 'OPEN';
+                END
+                ELSE IF @Operation = 'assign'
+                BEGIN
+                    DECLARE @tkAssigneeId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.assigneeId'));
+                    IF @curTkStatus <> 'OPEN' OR @tkAssigneeId IS NULL THROW 52412, 'Ticket cannot be assigned.', 1;
+                    UPDATE pms.MaintenanceTicket SET AssignedTo = @tkAssigneeId WHERE TicketId = @targetId;
+                    SET @toState = 'OPEN';
+                END
+                ELSE IF @Operation = 'start'
+                BEGIN
+                    IF @curTkStatus <> 'OPEN' OR @curTkAssignedTo <> @AppUserId THROW 52412, 'Ticket cannot be started.', 1;
+                    UPDATE pms.MaintenanceTicket SET Status = 'IN_PROGRESS' WHERE TicketId = @targetId;
+                    SET @toState = 'IN_PROGRESS';
+                END
+                ELSE IF @Operation = 'progress'
+                BEGIN
+                    IF @curTkStatus <> 'IN_PROGRESS' OR @curTkAssignedTo <> @AppUserId THROW 52412, 'Ticket not in progress.', 1;
+                    SET @toState = 'IN_PROGRESS';
+                END
+                ELSE IF @Operation = 'resolve'
+                BEGIN
+                    IF @curTkStatus <> 'IN_PROGRESS' OR @curTkAssignedTo <> @AppUserId THROW 52412, 'Ticket cannot be resolved.', 1;
+                    UPDATE pms.MaintenanceTicket SET Status = 'RESOLVED', ResolvedAtUtc = @now WHERE TicketId = @targetId;
+                    UPDATE pms.Room SET CleanStatus = 'DIRTY' WHERE RoomId = @curTkRoomId;
+                    SET @toState = 'RESOLVED';
+                END
+                ELSE THROW 54100, 'Unsupported ticket operation.', 1;
+            END;
+
+            DECLARE @tblTkAfter TABLE (p nvarchar(max));
+            DECLARE @tkDetailInput nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+            INSERT INTO @tblTkAfter EXEC pms.usp_AppOperationsRead @AppUserId, 'tickets', 'detail', @tkDetailInput, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblTkAfter;
+        END
+
+        -- =============================================================
+        -- MUTATION: blocks
+        -- =============================================================
+        ELSE IF @Resource = 'blocks'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'systemConfig';
+
+            IF @Operation = 'create'
+            BEGIN
+                DECLARE @bkRoomId int = TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.roomId'));
+                DECLARE @bkTicketId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.ticketId'));
+                DECLARE @bkStart datetime2(3) = TRY_CONVERT(datetime2(3), JSON_VALUE(@InputJson, '$.startsAt'));
+                DECLARE @bkEnd datetime2(3) = TRY_CONVERT(datetime2(3), JSON_VALUE(@InputJson, '$.endsAt'));
+                DECLARE @bkReason nvarchar(500) = JSON_VALUE(@InputJson, '$.reason');
+
+                IF @bkRoomId IS NULL OR @bkStart IS NULL OR @bkEnd IS NULL OR @bkEnd <= @bkStart
+                    THROW 54100, 'Invalid block parameters.', 1;
+
+                -- Check conflicts with active allocations
+                IF EXISTS(SELECT 1 FROM pms.RoomAllocation WHERE RoomId = @bkRoomId AND IsCancelled = 0 AND StartsAtUtc < @bkEnd AND EndsAtUtc > @bkStart)
+                    THROW 52108, 'Block conflicts with existing booking or block interval.', 1;
+
+                INSERT INTO pms.RoomAllocation (RoomId, BookingRoomId, TicketId, BlockReason, StartsAtUtc, EndsAtUtc, IsCancelled, CreatedBy)
+                VALUES (@bkRoomId, NULL, @bkTicketId, @bkReason, @bkStart, @bkEnd, 0, @AppUserId);
+                SET @targetId = SCOPE_IDENTITY();
+                SET @fromState = NULL;
+                SET @toState = CASE WHEN @now < @bkStart THEN 'SCHEDULED' WHEN @now >= @bkStart AND @now < @bkEnd THEN 'ACTIVE' ELSE 'ENDED' END;
+            END
+            ELSE
+            BEGIN
+                DECLARE @curBkIsCancelled bit, @curBkStarts datetime2(3), @curBkEnds datetime2(3), @curBkRowVer rowversion;
+                SELECT @curBkIsCancelled = IsCancelled, @curBkStarts = StartsAtUtc, @curBkEnds = EndsAtUtc, @curBkRowVer = RowVer
+                FROM pms.RoomAllocation WITH(UPDLOCK, HOLDLOCK) WHERE AllocationId = @targetId AND BookingRoomId IS NULL;
+                IF @curBkIsCancelled IS NULL THROW 52412, 'Block not found.', 1;
+                IF @expectedVersion IS NOT NULL AND @curBkRowVer <> @expectedVersion THROW 52412, 'Block version conflict.', 1;
+
+                DECLARE @tblBkBefore TABLE (p nvarchar(max));
+                INSERT INTO @tblBkBefore EXEC pms.usp_AppOperationsRead @AppUserId, 'blocks', 'detail', @InputJson, @RequestId;
+                SELECT @before = JSON_QUERY(p, '$.row') FROM @tblBkBefore;
+                SET @fromState = JSON_VALUE(@before, '$.state');
+
+                IF @Operation = 'cancel'
+                BEGIN
+                    IF @curBkIsCancelled = 1 OR @now >= @curBkStarts THROW 52412, 'Only scheduled blocks can be cancelled.', 1;
+                    UPDATE pms.RoomAllocation SET IsCancelled = 1 WHERE AllocationId = @targetId;
+                    SET @toState = 'CANCELLED';
+                END
+                ELSE IF @Operation = 'end'
+                BEGIN
+                    IF @curBkIsCancelled = 1 OR @now < @curBkStarts OR @now >= @curBkEnds THROW 52412, 'Only active blocks can be ended.', 1;
+                    UPDATE pms.RoomAllocation SET EndsAtUtc = @now WHERE AllocationId = @targetId;
+                    SET @toState = 'ENDED';
+                END
+                ELSE THROW 54100, 'Unsupported block operation.', 1;
+            END;
+
+            DECLARE @tblBkAfter TABLE (p nvarchar(max));
+            DECLARE @bkDetailInput nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+            INSERT INTO @tblBkAfter EXEC pms.usp_AppOperationsRead @AppUserId, 'blocks', 'detail', @bkDetailInput, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblBkAfter;
+        END
+
+        -- =============================================================
+        -- MUTATION: items (Lost & Found)
+        -- =============================================================
+        ELSE IF @Resource = 'items'
+        BEGIN
+            EXEC pms.usp_WebAuthorize @AppUserId, 'manageHousekeepingTasks';
+
+            IF @Operation = 'create'
+            BEGIN
+                DECLARE @lfRoomId int = TRY_CONVERT(int, JSON_VALUE(@InputJson, '$.roomId'));
+                DECLARE @lfStayId bigint = TRY_CONVERT(bigint, JSON_VALUE(@InputJson, '$.stayId'));
+                DECLARE @lfDesc nvarchar(1000) = JSON_VALUE(@InputJson, '$.description');
+                DECLARE @lfLoc nvarchar(250) = JSON_VALUE(@InputJson, '$.foundLocation');
+                DECLARE @lfStorage nvarchar(250) = JSON_VALUE(@InputJson, '$.storageLocation');
+                DECLARE @lfFoundAt datetime2(3) = TRY_CONVERT(datetime2(3), JSON_VALUE(@InputJson, '$.foundAt'));
+
+                INSERT INTO pms.LostFound (RoomId, StayId, Description, StorageLocation, Status, FoundBy, FoundAtUtc, Notes)
+                VALUES (@lfRoomId, @lfStayId, @lfDesc, @lfStorage, 'STORED', @AppUserId, COALESCE(@lfFoundAt, @now), @note);
+                SET @targetId = SCOPE_IDENTITY();
+                SET @fromState = NULL;
+                SET @toState = 'STORED';
+                SET @storageLocation = @lfStorage;
+            END
+            ELSE
+            BEGIN
+                DECLARE @tblItemBefore TABLE (p nvarchar(max));
+                INSERT INTO @tblItemBefore EXEC pms.usp_AppOperationsRead @AppUserId, 'items', 'detail', @InputJson, @RequestId;
+                SELECT @before = JSON_QUERY(p, '$.row') FROM @tblItemBefore;
+                IF @before IS NULL THROW 52412, 'Item not found.', 1;
+                IF @expectedStateToken IS NOT NULL AND JSON_VALUE(@before, '$.stateToken') <> @expectedStateToken
+                    THROW 52412, 'Item state token conflict.', 1;
+
+                SET @fromState = JSON_VALUE(@before, '$.status');
+
+                IF @Operation = 'handoff'
+                BEGIN
+                    IF @fromState <> 'STORED' OR JSON_VALUE(@before, '$.custodianId') <> CONVERT(varchar(20), @AppUserId)
+                        THROW 52412, 'Only current custodian can hand off stored item.', 1;
+                    IF @recipientEmployeeId IS NULL OR @recipientEmployeeId = @AppUserId
+                        THROW 54100, 'Invalid recipient employee.', 1;
+
+                    UPDATE pms.LostFound SET StorageLocation = @storageLocation, Notes = COALESCE(@note, Notes) WHERE LostFoundId = @targetId;
+                    SET @toState = 'STORED';
+                END
+                ELSE IF @Operation = 'return'
+                BEGIN
+                    IF @fromState <> 'STORED' OR JSON_VALUE(@before, '$.custodianId') <> CONVERT(varchar(20), @AppUserId)
+                        THROW 52412, 'Only current custodian can return stored item.', 1;
+                    IF @recipientCustomerId IS NULL THROW 54100, 'Recipient customer required.', 1;
+
+                    UPDATE pms.LostFound SET Status = 'RETURNED', ReturnedToCustomerId = @recipientCustomerId, ResolvedAtUtc = @now, Notes = COALESCE(@note, Notes) WHERE LostFoundId = @targetId;
+                    SET @toState = 'RETURNED';
+                END
+                ELSE THROW 54100, 'Unsupported item operation.', 1;
+            END;
+
+            DECLARE @tblItemAfter TABLE (p nvarchar(max));
+            DECLARE @lfDetailInput nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+            INSERT INTO @tblItemAfter EXEC pms.usp_AppOperationsRead @AppUserId, 'items', 'detail', @lfDetailInput, @RequestId;
+            SELECT @row = JSON_QUERY(p, '$.row') FROM @tblItemAfter;
+        END
+        ELSE THROW 54100, 'Invalid resource.', 1;
+
+        -- Record AuditLog
+        DECLARE @entityTypeName varchar(60) = CASE @Resource WHEN 'tasks' THEN 'HousekeepingTask' WHEN 'rooms' THEN 'Room' WHEN 'tickets' THEN 'MaintenanceTicket' WHEN 'blocks' THEN 'RoomBlock' ELSE 'LostFound' END;
+        DECLARE @auditId bigint;
+        DECLARE @afterJson nvarchar(max) = (
+            SELECT
+                CONVERT(varchar(20), @targetId) AS id,
+                @Operation AS action,
+                CONVERT(varchar(20), @AppUserId) AS actorId,
+                @nowIso AS atUtc,
+                @fromState AS fromState,
+                @toState AS toState,
+                @note AS note,
+                CONVERT(varchar(20), @recipientEmployeeId) AS recipientEmployeeId,
+                CONVERT(varchar(20), @recipientCustomerId) AS recipientCustomerId,
+                @storageLocation AS storageLocation,
+                CONVERT(varchar(20), CASE WHEN @Operation = 'handoff' THEN @recipientEmployeeId WHEN @Operation = 'create' THEN @AppUserId ELSE NULL END) AS custodianId,
+                JSON_VALUE(@InputJson, '$.foundLocation') AS foundLocation
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        );
+
+        INSERT INTO pms.AuditLog (ActorId, Action, EntityType, EntityKey, RequestId, AfterJson, Reason, CreatedAtUtc)
+        VALUES (@AppUserId, @Operation, @entityTypeName, CONVERT(varchar(20), @targetId), @request, @afterJson, @note, @now);
+        SET @auditId = SCOPE_IDENTITY();
+
+        -- Read after row (after audit log recorded)
+        DECLARE @tblAfterRow TABLE (p nvarchar(max));
+        DECLARE @detailInputAfter nvarchar(max) = (SELECT CONVERT(varchar(20), @targetId) AS id FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER);
+        INSERT INTO @tblAfterRow EXEC pms.usp_AppOperationsRead @AppUserId, @Resource, 'detail', @detailInputAfter, @RequestId;
+        SELECT @row = JSON_QUERY(p, '$.row') FROM @tblAfterRow;
+
+        -- Event object for receipt
+        DECLARE @eventJson nvarchar(max) = (
+            SELECT
+                CONVERT(varchar(20), @auditId) AS id,
+                @Operation AS action,
+                CONVERT(varchar(20), @AppUserId) AS actorId,
+                @nowIso AS atUtc,
+                @fromState AS fromState,
+                @toState AS toState,
+                @note AS note,
+                CONVERT(varchar(20), @recipientEmployeeId) AS recipientEmployeeId,
+                CONVERT(varchar(20), @recipientCustomerId) AS recipientCustomerId,
+                @storageLocation AS storageLocation
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        );
+
+        -- Build final response JSON
+        DECLARE @responseJson nvarchar(max) = (
+            SELECT
+                CAST(1 AS bit) AS committed,
+                CAST(0 AS bit) AS replayed,
+                CONVERT(varchar(20), @AppUserId) AS actorId,
+                @Resource AS resource,
+                @Operation AS action,
+                @IntentHash AS intentHash,
+                @IdempotencyKey AS idempotencyKey,
+                JSON_QUERY(@before) AS before,
+                JSON_QUERY(@row) AS row,
+                JSON_QUERY(@eventJson) AS event
+            FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+        );
+
+        -- Update ApiRequest and clean up CommandExecution
+        DELETE FROM pms.CommandExecution WHERE SessionId = @@SPID AND RequestId = @request;
+        UPDATE pms.ApiRequest SET Status = 'SUCCEEDED', ResponseJson = @responseJson WHERE RequestId = @request;
+
+        COMMIT TRANSACTION;
+        SELECT @responseJson AS PayloadJson;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+-- Grant permissions to pms_web_auth_test
+GRANT EXECUTE ON pms.usp_AppOperationsRead TO pms_web_auth_test;
+GRANT EXECUTE ON pms.usp_AppOperationsCommand TO pms_web_auth_test;
+GO

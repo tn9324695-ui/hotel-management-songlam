@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="vi" data-pms-mode="api">
+<head>
+  <link rel="stylesheet" href="css/deployment.css">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trạng thái vận hành | Sông Lam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/operations.css">
+  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
+  <script src="js/api/http-client.js" defer></script><script src="js/pages/operations-status.js" defer></script>
+</head>
+<body class="pms-status-page">
+  <header class="ops-topbar"><strong>SÔNG LAM PMS</strong><a href="reception-api.html">Lễ tân</a><a href="admin-api.html">Quản trị</a><a href="finance-api.html">Thu ngân</a><a href="housekeeping-api.html">Buồng phòng</a><a href="login.html">Đăng nhập</a></header>
+  <main class="container-xl py-4">
+    <h1 class="h2">Trạng thái và đối chiếu yêu cầu</h1>
+    <p class="alert alert-warning">Màn hình lễ tân đặt/nhận/chuyển phòng qua API chưa được nghiệm thu. Không dùng dữ liệu demo thay thế. Nếu kết quả ghi chưa rõ, giữ mã yêu cầu; không tạo khóa mới hoặc thu/chi lại.</p>
+    <p id="deployment-status" role="status">Đang tải trạng thái…</p>
+    <button id="reload-status" type="button" class="btn btn-primary mb-3">Tải lại trạng thái</button>
+    <section class="card mb-3"><div class="card-body"><h2 class="h3">Yêu cầu đang chờ trong tab này</h2><div id="pending-requests" class="table-responsive">Đang đọc mã yêu cầu…</div></div></section>
+    <section class="card"><div class="card-body"><h2 class="h3">Tra cứu bằng mã đã lưu</h2>
+      <p>Chỉ tra cứu; không gửi lại nghiệp vụ. Khi mất tab, lấy mã từ hồ sơ sự cố được bảo quản nội bộ. Không nhập mật khẩu, token hoặc dữ liệu khách.</p>
+      <form id="lookup-request" class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="request-operation">Mã thao tác</label><input id="request-operation" class="form-control" required maxlength="100" placeholder="payments.create"></div>
+        <div class="col-md-4"><label class="form-label" for="request-id">Mã yêu cầu gốc</label><input id="request-id" class="form-control" required maxlength="80"></div>
+        <div class="col-md-4"><label class="form-label" for="request-key">Khóa chống gửi lặp gốc</label><input id="request-key" class="form-control" required maxlength="120" autocomplete="off"></div>
+        <div><button type="submit" class="btn btn-primary">Tra cứu kết quả</button></div>
+      </form><p id="lookup-result" class="mt-3" role="status">Chưa tra cứu.</p>
+    </div></section>
+  </main>
+</body></html>

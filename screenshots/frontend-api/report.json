@@ -1,0 +1,277 @@
+{
+  "generatedAtUtc": "2026-11-14T06:36:06.917Z",
+  "checks": [
+    {
+      "name": "reception-api.html renders blocked state against actual HTTP backend",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html has no demo Store or false successful login",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html blocked layout 1366x768",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html blocked layout 1920x1080",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html blocked layout 390x844",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html mobile menu opens",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html mobile drawer close button is not covered by topbar",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "reception-api.html mobile Escape resets menu and aria",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html renders blocked state against actual HTTP backend",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html has no demo Store or false successful login",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html blocked layout 1366x768",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html blocked layout 1920x1080",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html blocked layout 390x844",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html mobile menu opens",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html mobile drawer close button is not covered by topbar",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "housekeeping-api.html mobile Escape resets menu and aria",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html renders blocked state against actual HTTP backend",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html has no demo Store or false successful login",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html blocked layout 1366x768",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html blocked layout 1920x1080",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html blocked layout 390x844",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html mobile menu opens",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html mobile drawer close button is not covered by topbar",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "services-api.html mobile Escape resets menu and aria",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html renders blocked state against actual HTTP backend",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html has no demo Store or false successful login",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html blocked layout 1366x768",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html blocked layout 1920x1080",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html blocked layout 390x844",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html mobile menu opens",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html mobile drawer close button is not covered by topbar",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "finance-api.html mobile Escape resets menu and aria",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html renders blocked state against actual HTTP backend",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html has no demo Store or false successful login",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html blocked layout 1366x768",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html blocked layout 1920x1080",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html blocked layout 390x844",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html mobile menu opens",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html mobile drawer close button is not covered by topbar",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "admin-api.html mobile Escape resets menu and aria",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "login.html renders blocked state against actual HTTP backend",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "login.html has no demo Store or false successful login",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "login.html blocked layout 1366x768",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "login.html blocked layout 1920x1080",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "login.html blocked layout 390x844",
+      "source": "real-unconfigured"
+    },
+    {
+      "name": "rooms show independent occupancy / cleaning / exploitation",
+      "source": "fixture-read"
+    },
+    {
+      "name": "room screen fits 1366x768",
+      "source": "fixture-read"
+    },
+    {
+      "name": "room screen fits 1920x1080",
+      "source": "fixture-read"
+    },
+    {
+      "name": "room screen fits 390x844",
+      "source": "fixture-read"
+    },
+    {
+      "name": "status-only room read warns that check-in eligibility remains unverified",
+      "source": "fixture-status-only"
+    },
+    {
+      "name": "future booking timeline uses requested interval with exclusive departure",
+      "source": "fixture-read"
+    },
+    {
+      "name": "booking details preserve price and unapproved cancellation stays disabled",
+      "source": "fixture-read"
+    },
+    {
+      "name": "group/individual form is present, preview cannot submit",
+      "source": "fixture-read"
+    },
+    {
+      "name": "booking form finds customers beyond its initially loaded choices",
+      "source": "fixture-read"
+    },
+    {
+      "name": "hourly quote renders server breakdown and sends hotel offset without client price or actor",
+      "source": "fixture-read"
+    },
+    {
+      "name": "a quote arriving after edited input is rejected as stale",
+      "source": "fixture-read"
+    },
+    {
+      "name": "empty API list renders empty state, no demo rows",
+      "source": "fixture-empty"
+    },
+    {
+      "name": "due-out list filters hotel-local departure date and excludes the next day",
+      "source": "fixture-read"
+    },
+    {
+      "name": "double click creates one command and success waits for matching commit receipt (fixture)",
+      "source": "fixture-write"
+    },
+    {
+      "name": "ambiguous server response retains original journal and disables another submission (fixture)",
+      "source": "fixture-write-unknown"
+    },
+    {
+      "name": "receipt lookup resolves the original unknown request without resubmitting booking (fixture)",
+      "source": "fixture-write-unknown"
+    },
+    {
+      "name": "housekeeping-api.html renders fixture records through shared table/pagination",
+      "source": "fixture-read"
+    },
+    {
+      "name": "services-api.html renders fixture records through shared table/pagination",
+      "source": "fixture-read"
+    },
+    {
+      "name": "finance-api.html renders fixture records through shared table/pagination",
+      "source": "fixture-read"
+    },
+    {
+      "name": "admin-api.html renders fixture records through shared table/pagination",
+      "source": "fixture-read"
+    },
+    {
+      "name": "server permission removal blocks access and hides workspace links",
+      "source": "fixture-forbidden"
+    },
+    {
+      "name": "business commands occur only in explicit private write fixtures; no SQL or unhandled errors",
+      "source": "fixture-forbidden"
+    }
+  ],
+  "errors": [],
+  "sqlTestCount": 0,
+  "passed": 67,
+  "failed": 0
+}

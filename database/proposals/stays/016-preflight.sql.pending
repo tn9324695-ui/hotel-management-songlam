@@ -1,0 +1,16 @@
+-- REVIEW ONLY. Run INSIDE the deployment transaction after verified backup.
+IF DB_NAME()<>N'SongLamPms_Design' OR CONVERT(nvarchar(128),SERVERPROPERTY('ServerName'))<>N'DESKTOP-9EPI86K\SQLEXPRESS'
+ OR NOT EXISTS(SELECT 1 FROM sys.database_recovery_status WHERE database_id=DB_ID() AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC') THROW 54200,'Wrong target.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Environment' AND CONVERT(nvarchar(100),value)=N'test')
+ OR NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.Booking015.Release') THROW 54200,'Test/015 receipt missing.',1;
+IF EXISTS(SELECT 1 FROM sys.objects WHERE schema_id=SCHEMA_ID('pms') AND name IN('fn_WebStay016Json','usp_WebCheckInContext','usp_AppStayArrivals','usp_AppCheckInPrepare','usp_AppCheckInCommit','usp_AppStayRead016','usp_WebCheckInRuntime','usp_WebCheckInReceipt'))
+ OR EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'SongLam.CheckIn016.Release') THROW 54200,'016 objects/receipt already exist; never overwrite.',1;
+IF DATABASE_PRINCIPAL_ID(N'pms_web_auth_test') IS NULL OR ISNULL(IS_ROLEMEMBER('db_owner',N'pms_web_auth_test'),-1)<>0
+ OR ISNULL(IS_SRVROLEMEMBER('sysadmin',N'DESKTOP-9EPI86K\songlam_pms_test'),-1)<>0 THROW 54200,'Unsafe service identity.',1;
+DECLARE @VerifiedBackupSetUuid uniqueidentifier=NULL;
+IF @VerifiedBackupSetUuid IS NULL OR NOT EXISTS(SELECT 1 FROM msdb.dbo.backupset WHERE backup_set_uuid=@VerifiedBackupSetUuid AND database_name=DB_NAME()
+ AND database_guid='C4DD399E-5661-4741-A424-5ABFEEFBC1AC' AND is_copy_only=1 AND has_backup_checksums=1 AND backup_finish_date IS NOT NULL) THROW 54200,'Actual new verified backup receipt required.',1;
+-- Installer MUST additionally compare all 26 approved baseline module hashes,
+-- verify no other database sessions, and hold SongLam:Inventory through COMMIT.
+-- This script never claims a writer-stop confirmation, inserts a fixture, edits
+-- WorkingDate or grants broad permissions. A real receipt follows commit only.

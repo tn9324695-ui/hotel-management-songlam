@@ -1,0 +1,21 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+__pycache__/
+backend/coverage/
+
+# G11: customer snapshots, evidence, crosswalks, receipts and target readbacks are private.
+tools/migration/private/
+tools/migration/artifacts/
+tools/migration/*.local.json
+*.bak
+*.trn
+
+# G12 operational approvals/status snapshots contain internal identifiers.
+deploy/cutover/*.local.json
+tools/cutover/private/
+tools/cutover/artifacts/
+deploy/*.local.json
+tools/sql/private/

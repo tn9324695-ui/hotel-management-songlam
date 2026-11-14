@@ -1,0 +1,24 @@
+{
+  "format": "songlam.sql-test-profile.v1",
+  "approved": false,
+  "approvalReference": "",
+  "environment": "test",
+  "testWritesAllowed": false,
+  "target": {
+    "confirmed": false,
+    "testOnly": true,
+    "server": "",
+    "database": "",
+    "expectedServerIdentity": "",
+    "expectedDatabaseIdentity": "",
+    "existingDatabaseTestApprovalReference": null,
+    "backupReference": null
+  },
+  "auth": { "mode": "windows" },
+  "transport": { "port": null, "encrypt": true, "trustServerCertificate": false, "certificateExceptionApprovalReference": null },
+  "contracts": {
+    "environment": { "procedure": "pms.usp_AppEnvironment", "database": "", "environment": "test", "approved": false, "approvalReference": "" },
+    "credentials": { "procedure": "pms.usp_AppAuthLookup", "database": "", "environment": "test", "approved": false, "approvalReference": "" },
+    "identity": { "procedure": "pms.usp_AppIdentity", "database": "", "environment": "test", "approved": false, "approvalReference": "" }
+  }
+}

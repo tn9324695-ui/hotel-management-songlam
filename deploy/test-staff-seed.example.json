@@ -1,0 +1,18 @@
+{
+  "approved": false,
+  "approvalReference": "",
+  "environment": "test",
+  "server": ".\\SQLEXPRESS",
+  "database": "SongLamPms_Design",
+  "databaseGuid": "C4DD399E-5661-4741-A424-5ABFEEFBC1AC",
+  "testIdentity": "eb18c6f2-373d-4a83-a34f-d9809f1cbc7a",
+  "procedure": "pms.usp_SeedTestStaffBatch",
+  "batchCode": "B20261112_UI01",
+  "seedWritesApproved": false,
+  "seedWriteApprovalReference": "",
+  "maintenancePrincipal": "",
+  "maintenancePrincipalApprovalReference": "",
+  "odbcDriver": "ODBC Driver 17 for SQL Server",
+  "trustServerCertificate": false,
+  "certificateExceptionApprovalReference": null
+}

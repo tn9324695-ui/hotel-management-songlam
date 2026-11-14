@@ -1,0 +1,57 @@
+﻿ M README.md
+ M housekeeping.html
+ M index.html
+ M js/app.js
+ M js/housekeeping.js
+ M js/reception.js
+ M js/store.js
+ M reception.html
+ M run_suite.py
+ M test_runner.html
+?? .gitignore
+?? admin-api.html
+?? backend/
+?? css/consumption.css
+?? css/deployment.css
+?? css/finance.css
+?? css/login.css
+?? css/management.css
+?? css/operations.css
+?? css/pms.css
+?? database/
+?? deploy/
+?? docs/
+?? favicon.svg
+?? finance-api.html
+?? housekeeping-api.html
+?? js/api/
+?? js/components/
+?? js/deployment-config.js
+?? js/deployment.js
+?? js/lucide.LICENSE
+?? js/lucide.min.js
+?? js/pages/
+?? js/pms-data.js
+?? js/pms-ui.js
+?? js/services/
+?? login.html
+?? operations-status.html
+?? reception-api.html
+?? run_ui_checks.py
+?? screenshots/audit/
+?? screenshots/frontend-api/
+?? screenshots/g1/
+?? screenshots/redesign_billing_1366.png
+?? screenshots/redesign_bookings_1366.png
+?? screenshots/redesign_overview_1366.png
+?? screenshots/redesign_overview_1920.png
+?? screenshots/redesign_overview_390.png
+?? screenshots/redesign_reports_1366.png
+?? screenshots/redesign_room_rack_1366.png
+?? screenshots/redesign_timeline_1366.png
+?? screenshots/sql-preview/
+?? screenshots/ui-checks.json
+?? screenshots/verification/
+?? services-api.html
+?? tests/
+?? tools/
