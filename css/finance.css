@@ -1,11 +1,100 @@
-.fin-values { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr); gap: 6px 16px; margin: 12px 0 20px; }
-.fin-values dt, .fin-values dd { margin: 0; padding: 6px 0; overflow-wrap: anywhere; }
-.fin-values dd { text-align: right; font-variant-numeric: tabular-nums; }
-.fin-group { padding: 14px; border: 1px solid #dce3ec; border-radius: 6px; margin: 10px 0; }
-.fin-group h3 { font-size: 16px; }
-.fin-allocation { display: grid; grid-template-columns: 130px minmax(110px, 1fr) minmax(120px, 1fr) auto; gap: 8px; margin: 10px 0; }
-.fin-note { white-space: pre-wrap; overflow-wrap: anywhere; }
-.fin-preview { border: 2px solid #80b9f2; background: #f4f9ff; padding: 16px; border-radius: 6px; }
-.fin-preview h3 { margin-top: 10px; }
-.fin-money { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-@media (max-width: 650px) { .fin-allocation { grid-template-columns: 1fr; } .fin-values { grid-template-columns: minmax(130px, 1fr) 1fr; font-size: 13px; } }
+/* ==========================================================================
+   SongLam PMS — Finance, Cashier & Checkout Styling
+   Theme: Modern & Elegant 5-Star Hotel
+   ========================================================================== */
+
+.fin-values {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr);
+  gap: 8px 20px;
+  margin: 14px 0 24px;
+}
+
+.fin-values dt,
+.fin-values dd {
+  margin: 0;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.fin-values dt {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.fin-values dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.fin-group {
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin: 14px 0;
+  background: #ffffff;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.03);
+}
+
+.fin-group h3 {
+  font-size: 16px;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 0 0 12px;
+}
+
+.fin-allocation {
+  display: grid;
+  grid-template-columns: 130px minmax(110px, 1fr) minmax(120px, 1fr) auto;
+  gap: 10px;
+  margin: 12px 0;
+  align-items: center;
+}
+
+.fin-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.fin-preview {
+  border: 1.5px solid #c5a059;
+  background: linear-gradient(135deg, #fdfbf7 0%, #faf6eb 100%);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.12);
+  margin: 16px 0;
+}
+
+.fin-preview h3 {
+  margin-top: 10px;
+  font-size: 17px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.fin-money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+@media (max-width: 650px) {
+  .fin-allocation {
+    grid-template-columns: 1fr;
+  }
+  .fin-values {
+    grid-template-columns: minmax(130px, 1fr) 1fr;
+    font-size: 12.5px;
+  }
+}

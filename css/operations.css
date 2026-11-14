@@ -1,47 +1,418 @@
-:root { color-scheme: light; }
-body { margin: 0; background: #f4f6fa; color: #182433; }
-.ops-topbar { min-height: 60px; padding: 10px 20px; display: flex; align-items: center; gap: 16px; background: #fff; border-bottom: 1px solid #dce3ec; position: sticky; top: 0; z-index: 20; }
-.ops-identity { margin-left: auto; color: #526477; }
-.ops-shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: calc(100vh - 60px); }
-.ops-sidebar { padding: 24px 16px; border-right: 1px solid #dce3ec; background: #fff; }
-.ops-sidebar nav { display: grid; gap: 6px; }
-.ops-sidebar nav button { text-align: left; border: 0; border-radius: 5px; background: none; color: #354d65; padding: 11px 12px; }
-.ops-sidebar nav button[aria-current="page"] { color: #1467c5; background: #eaf3ff; font-weight: 600; }
-.ops-main { padding: 24px; min-width: 0; }
-.ops-heading, .ops-actions, .ops-pagination, .ops-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.ops-heading { margin-bottom: 16px; }
-.ops-heading h1 { font-size: 24px; margin: 4px 0 0; }
-.ops-actions { justify-content: flex-start; flex-wrap: wrap; }
-.ops-filters { display: flex; flex-direction: row; align-items: flex-end; flex-wrap: wrap; gap: 16px; }
-.ops-filters label { display: grid; gap: 5px; margin: 0; }
-.ops-filters label:has([type="checkbox"]) { display: flex; align-self: center; }
-.ops-table { min-width: 760px; margin-bottom: 0; }
-.ops-table th { white-space: nowrap; }
-.ops-table td { vertical-align: top; max-width: 360px; overflow-wrap: anywhere; }
-.ops-table .badge { margin: 2px 4px 2px 0; white-space: normal; text-align: left; line-height: 1.5; }
-.ops-state { display: grid; gap: 3px; }
-.ops-state small { color: #62748c; }
-dialog { width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; border: 1px solid #dce3ec; border-radius: 8px; padding: 24px; color: #182433; background: #fff; }
-dialog::backdrop { background: #18243380; }
-.ops-dialog-heading { margin-bottom: 16px; }
-.ops-dialog-heading h2 { font-size: 20px; margin: 0; }
-.ops-form { display: grid; gap: 14px; }
-.ops-form label { display: grid; gap: 5px; }
-.ops-form textarea { min-height: 90px; }
-.ops-detail { display: grid; grid-template-columns: minmax(150px, 1fr) 2fr; gap: 8px 16px; }
-.ops-detail dd { overflow-wrap: anywhere; }
-[hidden] { display: none !important; }
-#ops-menu { display: none; }
-@media (min-width: 1700px) { .ops-main { padding: 28px 36px; } }
+/* ==========================================================================
+   SongLam PMS — Operations & Shell Styling
+   Theme: Luxury 5-Star Hotel (Modern & Elegant Obsidian Navy + Champagne Gold)
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+  --ops-bg-canvas: #f8fafc;
+  --ops-bg-card: #ffffff;
+  --ops-border: #e2e8f0;
+  --ops-border-focus: #c5a059;
+  --ops-text-main: #0f172a;
+  --ops-text-muted: #64748b;
+  --ops-sidebar-bg: #090f1f;
+  --ops-sidebar-border: #1a2644;
+  --ops-gold-primary: #c5a059;
+  --ops-gold-glow: #dfba73;
+  --ops-gold-bg: rgba(197, 160, 89, 0.12);
+}
+
+body {
+  margin: 0;
+  background: var(--ops-bg-canvas);
+  color: var(--ops-text-main);
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow-x: clip;
+}
+
+/* --- Top Navigation Bar --- */
+.ops-topbar {
+  min-height: 64px;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--ops-border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+}
+
+.ops-identity {
+  margin-left: auto;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: #f1f5f9;
+  border-radius: 9999px;
+  border: 1px solid #e2e8f0;
+}
+
+.ops-identity::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+/* --- Workspace Layout Shell --- */
+.ops-shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: calc(100vh - 64px);
+}
+
+/* --- Dark Obsidian Navy Sidebar --- */
+.ops-sidebar {
+  padding: 24px 16px;
+  border-right: 1px solid var(--ops-sidebar-border);
+  background: linear-gradient(180deg, #090f1f 0%, #0d1527 100%);
+  color: #94a3b8;
+  position: relative;
+  z-index: 30;
+}
+
+.ops-sidebar nav {
+  display: grid;
+  gap: 4px;
+}
+
+.ops-sidebar nav button {
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.ops-sidebar nav button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.ops-sidebar nav button[aria-current="page"] {
+  color: #fef08a;
+  background: linear-gradient(90deg, rgba(197, 160, 89, 0.22) 0%, rgba(197, 160, 89, 0.04) 100%);
+  border-left: 3px solid var(--ops-gold-glow);
+  font-weight: 700;
+  box-shadow: inset 1px 0 0 var(--ops-gold-glow);
+}
+
+.ops-sidebar nav button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Main Content Area --- */
+.ops-main {
+  padding: 28px 32px;
+  min-width: 0;
+}
+
+.ops-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ops-heading h1 {
+  font-size: 26px;
+  font-weight: 750;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  margin: 4px 0 0;
+}
+
+.ops-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ops-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* --- Filter Toolbar --- */
+.ops-filters {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid var(--ops-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+}
+
+.ops-filters label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: #475569;
+  letter-spacing: 0.2px;
+}
+
+.ops-filters .form-control,
+.ops-filters .form-select {
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  font-size: 13px;
+  min-height: 38px;
+  transition: all 0.15s ease;
+}
+
+.ops-filters .form-control:focus,
+.ops-filters .form-select:focus {
+  border-color: var(--ops-border-focus);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.2);
+  outline: none;
+}
+
+/* --- Table System --- */
+.ops-table {
+  min-width: 760px;
+  margin-bottom: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.ops-table th {
+  white-space: nowrap;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 12px 16px;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+.ops-table td {
+  vertical-align: middle;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  font-size: 13px;
+  max-width: 360px;
+  overflow-wrap: anywhere;
+}
+
+.ops-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.ops-table tbody tr:hover {
+  background-color: rgba(197, 160, 89, 0.04);
+}
+
+.ops-table .badge {
+  margin: 2px 4px 2px 0;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.4;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ops-state {
+  display: grid;
+  gap: 3px;
+}
+
+.ops-state small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+/* --- Luxury Dialogs & Modals --- */
+dialog {
+  width: min(840px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-top: 4px solid var(--ops-gold-primary);
+  border-radius: 16px;
+  padding: 28px 32px;
+  color: #0f172a;
+  background: #ffffff;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.05);
+}
+
+dialog::backdrop {
+  background: rgba(10, 17, 36, 0.7);
+  backdrop-filter: blur(6px);
+}
+
+.ops-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ops-dialog-heading h2 {
+  font-size: 21px;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 0;
+}
+
+.ops-form {
+  display: grid;
+  gap: 16px;
+}
+
+.ops-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #334155;
+}
+
+.ops-form textarea {
+  min-height: 96px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.ops-detail {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 2fr;
+  gap: 10px 20px;
+}
+
+.ops-detail dt {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.ops-detail dd {
+  margin: 0;
+  font-size: 13.5px;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+#ops-menu {
+  display: none;
+}
+
+/* --- Responsive Layout & Mobile Drawer --- */
+@media (min-width: 1700px) {
+  .ops-main {
+    padding: 32px 48px;
+  }
+}
+
 @media (max-width: 850px) {
-  #ops-menu { display: block; }
-  .ops-shell { grid-template-columns: minmax(0, 1fr); }
-  .ops-sidebar { display: none; position: fixed; left: 0; top: 60px; bottom: 0; width: 250px; z-index: 15; overflow: auto; box-shadow: 4px 0 12px #18243320; }
-  .ops-sidebar.open { display: block; }
-  .ops-topbar { padding: 10px; gap: 8px; flex-wrap: wrap; }
-  .ops-identity { font-size: 12px; }
-  .ops-main { padding: 16px 12px; }
-  .ops-heading { flex-wrap: wrap; }
-  .ops-detail { grid-template-columns: 1fr; }
-  .ops-detail dd { margin-bottom: 10px; }
+  #ops-menu,
+  #desk-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 8px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .ops-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ops-sidebar {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 64px;
+    bottom: 0;
+    width: min(290px, 85vw);
+    z-index: 1300;
+    overflow-y: auto;
+    box-shadow: 10px 0 30px rgba(10, 17, 36, 0.4);
+  }
+
+  .ops-sidebar.open {
+    display: block;
+  }
+
+  .ops-topbar {
+    padding: 10px 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .ops-identity {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .ops-main {
+    padding: 18px 14px;
+  }
+
+  .ops-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .ops-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-detail dd {
+    margin-bottom: 12px;
+  }
 }
