@@ -293,9 +293,33 @@
             statusBar.append(p);
           }
         }
-        const grid = el('div', null, 'sl-room-grid kiot-room-grid');
-        rows.forEach(row => grid.append(roomCard(row)));
-        $('desk-results').append(rows.length ? grid : el('div', 'Không có phòng phù hợp bộ lọc.', 'sl-empty'));
+        const container = el('div', null, 'kiot-room-rack-container');
+        const floors = new Map();
+        rows.forEach(row => {
+          const fl = row.floor || '1';
+          if (!floors.has(fl)) floors.set(fl, []);
+          floors.get(fl).push(row);
+        });
+        const sortedFloors = [...floors.keys()].sort((a, b) => Number(a) - Number(b));
+        for (const fl of sortedFloors) {
+          const floorGroup = el('div', null, 'kiot-floor-group');
+          const floorTitle = el('div', null, 'kiot-floor-title');
+          const flRooms = floors.get(fl);
+          const flVacant = flRooms.filter(r => r.occupancyStatus === 'VACANT').length;
+          const flOcc = flRooms.filter(r => r.occupancyStatus === 'OCCUPIED').length;
+          floorTitle.innerHTML = `
+            <span>🏢 TẦNG ${fl}</span>
+            <span class="badge bg-blue-lt">${flRooms.length} phòng</span>
+            <span class="tw-text-xs tw-text-secondary tw-font-normal">(${flVacant} trống · ${flOcc} có khách)</span>
+          `;
+          floorGroup.append(floorTitle);
+
+          const grid = el('div', null, 'sl-room-grid kiot-room-grid');
+          flRooms.forEach(row => grid.append(roomCard(row)));
+          floorGroup.append(grid);
+          container.append(floorGroup);
+        }
+        $('desk-results').append(rows.length ? container : el('div', 'Không có phòng phù hợp bộ lọc.', 'sl-empty'));
       }
       else if (screen === 'timeline') {
         const missing=[...new Set(result.data.segments.map(row=>row.roomId).filter(Boolean))].filter(id=>!roomRows.some(room=>room.id===id));
