@@ -170,7 +170,7 @@ export function createApp({ config, logger = nullLogger, registerRoutes, authRun
     const initial = { mode: cutover.mode, buildId: config.cutover?.buildId || null, managed: true, issuedAtMs: Date.now() };
     res.send('globalThis.SongLamDeploymentConfig = Object.freeze(' + JSON.stringify(initial).replaceAll('<', '\\u003c') + ');');
   });
-  for (const name of ['login.html', 'index.html', 'reception.html', 'reception-api.html', 'catalog-api.html', 'housekeeping.html', 'housekeeping-api.html', 'services-api.html', 'finance-api.html', 'admin-api.html', 'operations-status.html', 'favicon.svg']) {
+  for (const name of ['login.html', 'index.html', 'reception.html', 'reception-api.html', 'catalog-api.html', 'housekeeping.html', 'housekeeping-api.html', 'services-api.html', 'finance-api.html', 'admin-api.html', 'operations-status.html', 'portal.html', 'favicon.svg']) {
     app.get('/' + name, (_req, res, next) => {
       res.setHeader('Cache-Control', 'no-store');
       // Managed SQL/test workspaces must never expose the legacy localStorage
