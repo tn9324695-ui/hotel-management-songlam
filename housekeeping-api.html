@@ -8,6 +8,7 @@
   <title>Buồng phòng &amp; bảo trì | Sông Lam PMS</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/tabler.min.css">
+  <link rel="stylesheet" href="css/tailwind.css">
   <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css">
   <script src="js/api/http-client.js" defer></script>
 <script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script><script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script>
@@ -43,6 +44,9 @@
         <label id="ops-mine-label"><input type="checkbox" class="form-check-input" name="mine"> Chỉ việc của tôi</label>
         <button class="btn btn-primary" type="submit">Lọc</button>
       </form>
+      <!-- Kanban Progress Board for Tasks (4 Cột Tiến Độ) -->
+      <div id="ops-kanban" class="hk-kanban-board tw-mb-4" hidden></div>
+
       <section class="card mt-3" aria-label="Danh sách công việc">
         <div class="table-responsive" id="ops-table"><p class="p-3 mb-0 text-secondary">Chưa tải dữ liệu. Không sử dụng dữ liệu mẫu.</p></div>
         <div class="card-footer ops-pagination"><span id="ops-page">Chưa có dữ liệu</span><div class="ops-actions"><button class="btn btn-sm" id="ops-prev" disabled>Trước</button><button class="btn btn-sm" id="ops-next" disabled>Sau</button></div></div>

@@ -1,0 +1,775 @@
+/* ==========================================================================
+   SongLam PMS — Modern SaaS & Tailwind CSS Hotel System
+   Inspired by KiotViet Hotel PMS & 5-Star International Standards
+   ========================================================================== */
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  /* Light Theme Palette */
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #090f1f;
+  --bg-header: rgba(255, 255, 255, 0.95);
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  /* Accents */
+  --accent-gold: #c5a059;
+  --accent-gold-dark: #9e7d3b;
+  --accent-blue: #2563eb;
+  --accent-teal: #0d9488;
+  --accent-emerald: #10b981;
+  --accent-rose: #e11d48;
+  
+  /* Hotel Statuses (KiotViet Standards) */
+  --room-vacant-bg: #f8fafc;
+  --room-vacant-border: #cbd5e1;
+  --room-vacant-text: #475569;
+  
+  --room-occupied-bg: #eff6ff;
+  --room-occupied-border: #93c5fd;
+  --room-occupied-text: #1e40af;
+  
+  --room-arrival-bg: #fefce8;
+  --room-arrival-border: #fde047;
+  --room-arrival-text: #854d0e;
+  
+  --room-departure-bg: #fff7ed;
+  --room-departure-border: #fdba74;
+  --room-departure-text: #9a3412;
+  
+  --room-overdue-bg: #fef2f2;
+  --room-overdue-border: #fca5a5;
+  --room-overdue-text: #991b1b;
+  
+  --room-maint-bg: #f3f4f6;
+  --room-maint-border: #9ca3af;
+  --room-maint-text: #374151;
+  
+  /* Cleanliness Statuses */
+  --clean-clean-bg: #ecfdf5;
+  --clean-clean-text: #065f46;
+  --clean-dirty-bg: #fff1f2;
+  --clean-dirty-text: #9f1239;
+  --clean-cleaning-bg: #f0fdfa;
+  --clean-cleaning-text: #115e59;
+  --clean-inspect-bg: #f5f3ff;
+  --clean-inspect-text: #5b21b6;
+}
+
+/* Dark Mode Variables */
+html.dark, body.dark {
+  --bg-app: #0b1120;
+  --bg-surface: #1e293b;
+  --bg-sidebar: #050811;
+  --bg-header: rgba(15, 23, 42, 0.95);
+  --border-color: #334155;
+  --border-light: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  
+  --room-vacant-bg: #1e293b;
+  --room-vacant-border: #475569;
+  --room-vacant-text: #cbd5e1;
+  
+  --room-occupied-bg: #172554;
+  --room-occupied-border: #1d4ed8;
+  --room-occupied-text: #93c5fd;
+  
+  --room-arrival-bg: #422006;
+  --room-arrival-border: #a16207;
+  --room-arrival-text: #fef08a;
+  
+  --room-departure-bg: #431407;
+  --room-departure-border: #c2410c;
+  --room-departure-text: #fed7aa;
+  
+  --room-overdue-bg: #450a0a;
+  --room-overdue-border: #b91c1c;
+  --room-overdue-text: #fecaca;
+  
+  --room-maint-bg: #1f2937;
+  --room-maint-border: #4b5563;
+  --room-maint-text: #9ca3af;
+  
+  --clean-clean-bg: #064e3b;
+  --clean-clean-text: #a7f3d0;
+  --clean-dirty-bg: #881337;
+  --clean-dirty-text: #fecdd3;
+  --clean-cleaning-bg: #134e4a;
+  --clean-cleaning-text: #99f6e4;
+  --clean-inspect-bg: #4c1d95;
+  --clean-inspect-text: #ddd6fe;
+}
+
+/* ==========================================================================
+   Utility Classes (Tailwind Compatible)
+   ========================================================================== */
+
+/* Layout & Flex/Grid */
+.tw-flex { display: flex; }
+.tw-inline-flex { display: inline-flex; }
+.tw-grid { display: grid; }
+.tw-hidden { display: none !important; }
+.tw-flex-col { flex-direction: column; }
+.tw-flex-wrap { flex-wrap: wrap; }
+.tw-items-center { align-items: center; }
+.tw-items-start { align-items: flex-start; }
+.tw-items-end { align-items: flex-end; }
+.tw-justify-between { justify-content: space-between; }
+.tw-justify-center { justify-content: center; }
+.tw-justify-end { justify-content: flex-end; }
+.tw-flex-1 { flex: 1 1 0%; }
+.tw-shrink-0 { flex-shrink: 0; }
+
+/* Spacing */
+.tw-gap-1 { gap: 4px; }
+.tw-gap-2 { gap: 8px; }
+.tw-gap-3 { gap: 12px; }
+.tw-gap-4 { gap: 16px; }
+.tw-gap-6 { gap: 24px; }
+.tw-gap-8 { gap: 32px; }
+
+.tw-p-1 { padding: 4px; }
+.tw-p-2 { padding: 8px; }
+.tw-p-3 { padding: 12px; }
+.tw-p-4 { padding: 16px; }
+.tw-p-6 { padding: 24px; }
+.tw-px-3 { padding-left: 12px; padding-right: 12px; }
+.tw-py-2 { padding-top: 8px; padding-bottom: 8px; }
+.tw-px-4 { padding-left: 16px; padding-right: 16px; }
+.tw-py-3 { padding-top: 12px; padding-bottom: 12px; }
+
+.tw-m-0 { margin: 0; }
+.tw-mb-1 { margin-bottom: 4px; }
+.tw-mb-2 { margin-bottom: 8px; }
+.tw-mb-3 { margin-bottom: 12px; }
+.tw-mb-4 { margin-bottom: 16px; }
+.tw-mb-6 { margin-bottom: 24px; }
+.tw-mt-2 { margin-top: 8px; }
+.tw-mt-4 { margin-top: 16px; }
+.tw-mt-6 { margin-top: 24px; }
+.tw-ml-auto { margin-left: auto; }
+
+/* Typography */
+.tw-font-sans { font-family: var(--font-sans); }
+.tw-text-xs { font-size: 11px; line-height: 1.35; }
+.tw-text-sm { font-size: 13px; line-height: 1.45; }
+.tw-text-base { font-size: 14.5px; line-height: 1.5; }
+.tw-text-lg { font-size: 17px; line-height: 1.35; }
+.tw-text-xl { font-size: 20px; line-height: 1.3; }
+.tw-text-2xl { font-size: 24px; line-height: 1.25; }
+.tw-font-medium { font-weight: 500; }
+.tw-font-semibold { font-weight: 600; }
+.tw-font-bold { font-weight: 700; }
+.tw-font-extrabold { font-weight: 800; }
+.tw-uppercase { text-transform: uppercase; }
+.tw-tracking-wide { letter-spacing: 0.5px; }
+.tw-tracking-wider { letter-spacing: 1px; }
+.tw-text-center { text-align: center; }
+.tw-text-right { text-align: right; }
+
+/* Colors */
+.tw-text-primary { color: var(--text-primary); }
+.tw-text-secondary { color: var(--text-secondary); }
+.tw-text-muted { color: var(--text-muted); }
+.tw-text-gold { color: var(--accent-gold); }
+.tw-text-blue { color: var(--accent-blue); }
+.tw-text-emerald { color: var(--accent-emerald); }
+.tw-text-rose { color: var(--accent-rose); }
+
+.tw-bg-surface { background-color: var(--bg-surface); }
+.tw-bg-app { background-color: var(--bg-app); }
+.tw-border { border: 1px solid var(--border-color); }
+.tw-border-b { border-bottom: 1px solid var(--border-color); }
+.tw-border-t { border-top: 1px solid var(--border-color); }
+.tw-rounded { border-radius: 6px; }
+.tw-rounded-lg { border-radius: 10px; }
+.tw-rounded-xl { border-radius: 14px; }
+.tw-rounded-full { border-radius: 9999px; }
+
+.tw-shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+.tw-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05); }
+.tw-shadow-md { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04); }
+
+/* Transitions */
+.tw-transition { transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* ==========================================================================
+   Header Component (SaaS & KiotViet Layout)
+   ========================================================================== */
+.sl-saas-header {
+  min-height: 62px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(10px);
+}
+
+.sl-header-search {
+  position: relative;
+  width: min(320px, 100%);
+}
+
+.sl-header-search input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.sl-header-search input:focus {
+  border-color: var(--accent-gold);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.18);
+}
+
+.sl-header-search .search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.sl-header-search .search-shortcut {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+html.dark .sl-header-search .search-shortcut {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sl-theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 15px;
+  transition: all 0.15s ease;
+}
+
+.sl-theme-toggle:hover {
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   Room Status Counter Pills Toolbar (KiotViet Hotel PMS)
+   ========================================================================== */
+.sl-status-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.sl-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sl-status-pill .pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.sl-status-pill .pill-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+
+html.dark .sl-status-pill .pill-count {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sl-status-pill:hover, .sl-status-pill.active {
+  background: var(--bg-app);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.sl-status-pill[data-filter="VACANT"].active {
+  background: var(--room-vacant-bg);
+  border-color: var(--room-vacant-border);
+  color: var(--room-vacant-text);
+}
+
+.sl-status-pill[data-filter="OCCUPIED"].active {
+  background: var(--room-occupied-bg);
+  border-color: var(--room-occupied-border);
+  color: var(--room-occupied-text);
+}
+
+.sl-status-pill[data-filter="ARRIVALS"].active {
+  background: var(--room-arrival-bg);
+  border-color: var(--room-arrival-border);
+  color: var(--room-arrival-text);
+}
+
+.sl-status-pill[data-filter="DEPARTURES"].active {
+  background: var(--room-departure-bg);
+  border-color: var(--room-departure-border);
+  color: var(--room-departure-text);
+}
+
+.sl-status-pill[data-filter="MAINTENANCE"].active {
+  background: var(--room-maint-bg);
+  border-color: var(--room-maint-border);
+  color: var(--room-maint-text);
+}
+
+/* ==========================================================================
+   Room Card Component (KiotViet Hotel PMS Pattern)
+   ========================================================================== */
+.kiot-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.kiot-floor-group {
+  margin-bottom: 24px;
+}
+
+.kiot-floor-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.kiot-room-card {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.kiot-room-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.08);
+  border-color: var(--accent-gold);
+}
+
+.kiot-room-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+/* Room Status Top Accent */
+.kiot-room-card[data-occupancy="VACANT"]::before { background: #94a3b8; }
+.kiot-room-card[data-occupancy="OCCUPIED"]::before { background: #2563eb; }
+.kiot-room-card[data-occupancy="ARRIVALS"]::before { background: #eab308; }
+.kiot-room-card[data-occupancy="DEPARTURES"]::before { background: #f97316; }
+.kiot-room-card[data-occupancy="MAINTENANCE"]::before { background: #64748b; }
+
+.kiot-room-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kiot-room-num {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.kiot-room-class {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  text-transform: uppercase;
+}
+
+.kiot-guest-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kiot-room-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kiot-room-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+}
+
+.kiot-clean-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kiot-clean-CLEAN { background: var(--clean-clean-bg); color: var(--clean-clean-text); }
+.kiot-clean-DIRTY { background: var(--clean-dirty-bg); color: var(--clean-dirty-text); }
+.kiot-clean-CLEANING { background: var(--clean-cleaning-bg); color: var(--clean-cleaning-text); }
+.kiot-clean-INSPECTING { background: var(--clean-inspect-bg); color: var(--clean-inspect-text); }
+
+.kiot-alert-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+html.dark .kiot-alert-badge {
+  background: #450a0a;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+/* ==========================================================================
+   Management Overview Stat Cards & Dashboard (KiotViet / Modern SaaS)
+   ========================================================================== */
+.mgmt-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .mgmt-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .mgmt-kpi-grid { grid-template-columns: 1fr; }
+}
+
+.saas-stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.saas-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.06);
+}
+
+.saas-stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border-color);
+}
+
+.saas-stat-card.stat-gold::after { background: var(--accent-gold); }
+.saas-stat-card.stat-blue::after { background: var(--accent-blue); }
+.saas-stat-card.stat-teal::after { background: var(--accent-teal); }
+.saas-stat-card.stat-emerald::after { background: var(--accent-emerald); }
+
+.saas-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.saas-stat-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+}
+
+.saas-stat-icon {
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-app);
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent-gold);
+}
+
+.saas-stat-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
+.saas-stat-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Action Required Queue */
+.saas-action-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saas-action-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-color);
+  font-size: 12.5px;
+  transition: all 0.15s;
+}
+
+.saas-action-item:hover {
+  background: var(--bg-surface);
+  border-color: var(--accent-gold);
+}
+
+/* ==========================================================================
+   Kanban Task Board for Housekeeping
+   ========================================================================== */
+.hk-kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1100px) {
+  .hk-kanban-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .hk-kanban-board { grid-template-columns: 1fr; }
+}
+
+.hk-kanban-col {
+  background: var(--bg-app);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 480px;
+}
+
+.hk-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.hk-col-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.2px;
+}
+
+.hk-col-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.hk-task-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.18s ease;
+}
+
+.hk-task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.08);
+  border-color: var(--accent-emerald);
+}
+
+.hk-task-room {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.hk-task-type {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+}
+
+.hk-task-priority {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.hk-priority-URGENT { background: #fee2e2; color: #991b1b; }
+.hk-priority-HIGH { background: #ffedd5; color: #9a3412; }
+.hk-priority-NORMAL { background: #ecfdf5; color: #065f46; }
+.hk-priority-LOW { background: #f1f5f9; color: #475569; }
+
+.hk-task-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light);
+}
+
+/* ==========================================================================
+   Chart SVG Component
+   ========================================================================== */
+.saas-chart-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.saas-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.saas-chart-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+}

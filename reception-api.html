@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Lễ tân · SongLam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/deployment.css">
+  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/tailwind.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/deployment.css">
   <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
   <script src="js/api/http-client.js" defer></script><script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script>
   <script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script>
@@ -15,6 +15,16 @@
   <main class="ops-main">
     <div class="ops-heading"><div><div class="sl-section-label">SONGLAM PMS / LỄ TÂN</div><h1 id="desk-title">Sơ đồ phòng</h1><p class="text-secondary mb-0" id="desk-period">Chưa xác minh ngày nghiệp vụ và múi giờ khách sạn.</p></div><div class="ops-actions"><button class="btn" id="desk-refresh">Tải lại</button><button class="btn" id="desk-quote">Báo giá</button><button class="btn btn-primary" id="desk-create" disabled>Đặt phòng</button><button class="btn" id="desk-preview">Xem biểu mẫu</button></div></div>
     <div id="desk-message" class="alert alert-info" role="status" aria-live="polite">Đang kiểm tra phiên đăng nhập và nguồn dữ liệu…</div>
+    
+    <!-- KiotViet Hotel PMS: View Modes (Sơ đồ tầng / Timeline / Danh sách) & Status Counters -->
+    <div class="tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2 tw-mb-3">
+      <div class="btn-group" role="group" aria-label="Kiểu xem phòng">
+        <button type="button" class="btn btn-sm" id="view-mode-rack">🏢 Sơ đồ tầng</button>
+        <button type="button" class="btn btn-sm" id="view-mode-timeline">📅 Lịch timeline</button>
+        <button type="button" class="btn btn-sm" id="view-mode-list">📋 Danh sách</button>
+      </div>
+      <div id="desk-status-bar" class="tw-flex tw-items-center tw-gap-2 tw-flex-wrap tw-text-xs"></div>
+    </div>
     <button id="desk-filter-toggle" class="btn mb-3 sl-filter-toggle" type="button" aria-expanded="false" aria-controls="desk-filters">Bộ lọc tìm kiếm</button>
     <form id="desk-filters" class="card card-body ops-filters mb-3">
       <label>Từ ngày<input type="date" name="from" class="form-control"></label><label>Đến trước ngày<input type="date" name="to" class="form-control"></label>

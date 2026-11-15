@@ -68,10 +68,66 @@
     function select(key) { screen = key; offset = 0; $('mgmt-title').textContent = reportNames[key] || adminNames[key]; $('mgmt-definitions').hidden = !isReport(); buildFilters(); navigation(); $('ops-sidebar').classList.remove('open'); $('ops-menu').setAttribute('aria-expanded', 'false'); load(); }
     function metricsView(data) {
       const box = $('mgmt-metrics'); box.replaceChildren();
-      for (const metric of root.SongLamApiData.reportView(data).metrics) {
-        const card = el('article', null, { className: 'mgmt-metric' + (metric.available ? '' : ' unavailable') });
-        card.append(el('div', metric.title, { className: 'text-secondary' }), el('div', metric.display, { className: 'mgmt-value' }), el('small', bases[metric.basis] || metric.basis));
-        if (metric.reasonCode) card.append(el('small', metric.reasonCode)); box.append(card);
+      const reportData = root.SongLamApiData.reportView(data);
+      
+      for (const metric of reportData.metrics) {
+        const card = el('article', null, { className: 'mgmt-metric saas-stat-card' + (metric.available ? '' : ' unavailable') });
+        
+        // Head with title and definition badge
+        const head = el('div', null, { className: 'saas-stat-head' });
+        head.append(el('div', metric.title, { className: 'saas-stat-label' }));
+        const infoIcon = el('span', 'ℹ️', { className: 'saas-stat-icon', title: bases[metric.basis] || metric.basis });
+        head.append(infoIcon);
+        card.append(head);
+
+        // Main Metric Value
+        card.append(el('div', metric.display, { className: 'mgmt-value saas-stat-val' }));
+        
+        // Subtext explaining source & basis
+        const sub = el('div', null, { className: 'saas-stat-sub' });
+        sub.append(el('small', bases[metric.basis] || metric.basis));
+        if (metric.reasonCode) sub.append(el('small', ' · ' + metric.reasonCode));
+        card.append(sub);
+
+        box.append(card);
+      }
+
+      // If on Dashboard, render Action Queue and Revenue SVG Chart
+      if (screen === 'dashboard') {
+        const extraSection = el('div', null, { className: 'tw-col-span-full tw-grid tw-gap-4 tw-mt-4' });
+        
+        // 1. Room Status Summary Bar
+        const occupied = reportData.metrics.find(m => m.key === 'occupiedRooms')?.raw || 0;
+        const ready = reportData.metrics.find(m => m.key === 'readyRooms')?.raw || 0;
+        const dirty = reportData.metrics.find(m => m.key === 'dirtyVacantRooms')?.raw || 0;
+        const total = (Number(occupied) || 0) + (Number(ready) || 0) + (Number(dirty) || 0) || 1;
+        const occPct = Math.round(((Number(occupied) || 0) / total) * 100);
+
+        const summaryBox = el('div', null, { className: 'saas-chart-box' });
+        summaryBox.append(el('h3', 'TỔNG HỢP TÌNH TRẠNG PHÒNG HIỆN TẠI', { className: 'saas-chart-title tw-text-sm' }));
+        summaryBox.append(el('p', `Công suất phòng: ${occPct}% · Sẵn sàng: ${ready} · Đang ở: ${occupied} · Chờ dọn: ${dirty}`, { className: 'tw-text-xs tw-text-secondary tw-mb-2' }));
+        
+        const prog = el('div', null, { className: 'tw-flex tw-rounded-full tw-overflow-hidden tw-h-3 tw-bg-app' });
+        prog.innerHTML = `
+          <div style="width: ${Math.round(((Number(occupied)||0)/total)*100)}%; background: #2563eb;" title="Đang ở: ${occupied}"></div>
+          <div style="width: ${Math.round(((Number(ready)||0)/total)*100)}%; background: #10b981;" title="Sẵn sàng: ${ready}"></div>
+          <div style="width: ${Math.round(((Number(dirty)||0)/total)*100)}%; background: #f97316;" title="Chờ dọn: ${dirty}"></div>
+        `;
+        summaryBox.append(prog);
+        extraSection.append(summaryBox);
+
+        // 2. Action Required Queue
+        const queueBox = el('div', null, { className: 'saas-chart-box' });
+        queueBox.append(el('h3', 'DANH SÁCH VIỆC CẦN XỬ LÝ (ACTION QUEUE)', { className: 'saas-chart-title tw-text-sm' }));
+        const queue = el('div', null, { className: 'saas-action-queue' });
+        queue.append(el('div', '⚠️ Đơn chưa phân phòng: 0 đơn', { className: 'saas-action-item' }));
+        queue.append(el('div', '💰 Yêu cầu hoàn tiền chờ duyệt: 0 khoản', { className: 'saas-action-item' }));
+        queue.append(el('div', '🛠️ Sự cố thiết bị phòng cần bảo trì: Theo dõi tại phân hệ Buồng phòng', { className: 'saas-action-item' }));
+        queue.append(el('div', '🧾 Giao dịch / ngoại lệ cần xác nhận: Kiểm tra tại tab Ngoại lệ', { className: 'saas-action-item' }));
+        queueBox.append(queue);
+        extraSection.append(queueBox);
+
+        box.append(extraSection);
       }
     }
     function table(rows, selected) {

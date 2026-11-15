@@ -107,10 +107,56 @@
   }
   function table(columns, rows, onSelect) { C.table.mount($('desk-results'), columns, rows, { onSelect }); }
   function roomCard(row) {
-    const card = el('article', null, 'sl-room'); card.append(el('h3', 'P. ' + row.number), el('p', 'Tầng ' + row.floor + ' · ' + (roomTypes.find(type => type.id === row.roomTypeId)?.name || 'Hạng ' + row.roomTypeId), 'text-secondary'));
+    const card = el('article', null, 'sl-room kiot-room-card');
+    card.dataset.occupancy = row.occupancyStatus;
+    card.dataset.cleanliness = row.cleanlinessStatus;
+    card.dataset.exploitation = row.exploitationStatus;
+
+    // Header: Room number & class badge (KiotViet Hotel PMS)
+    const head = el('div', null, 'kiot-room-head');
+    head.append(el('h3', 'P. ' + row.number, 'kiot-room-num tw-m-0'));
+    const typeName = roomTypes.find(type => type.id === row.roomTypeId)?.name || 'Hạng ' + row.roomTypeId;
+    head.append(el('span', typeName, 'kiot-room-class'));
+    card.append(head);
+
+    // Floor and info
+    card.append(el('p', 'Tầng ' + row.floor + ' · ' + typeName, 'text-secondary tw-text-xs tw-m-0'));
+
+    // 3 Independent statuses required by contract & tests
     const status = el('div', null, 'sl-room-state');
-    for (const [label, key] of [['Hiện diện', 'occupancyStatus'], ['Vệ sinh', 'cleanlinessStatus'], ['Khai thác', 'exploitationStatus']]) status.append(el('span', label), el('strong', U.label(row[key])));
-    card.append(status); return card;
+    for (const [label, key] of [['Hiện diện', 'occupancyStatus'], ['Vệ sinh', 'cleanlinessStatus'], ['Khai thác', 'exploitationStatus']]) {
+      status.append(el('span', label), el('strong', U.label(row[key])));
+    }
+    card.append(status);
+
+    // Bottom badges & quick actions
+    const badges = el('div', null, 'kiot-room-badges');
+    badges.append(el('span', '🧼 ' + U.label(row.cleanlinessStatus), 'kiot-clean-badge kiot-clean-' + row.cleanlinessStatus));
+    if (row.exploitationStatus === 'MAINTENANCE') {
+      badges.append(el('span', '⛔ Bảo trì', 'kiot-alert-badge'));
+    }
+    card.append(badges);
+
+    card.onclick = () => {
+      // Open detail dialog on click
+      const content = dialog('Phòng ' + row.number + ' · ' + typeName);
+      details(content, {
+        'Số phòng': row.number,
+        'Tầng': row.floor,
+        'Hạng phòng': typeName,
+        'Hiện diện': U.label(row.occupancyStatus),
+        'Vệ sinh': U.label(row.cleanlinessStatus),
+        'Khai thác': U.label(row.exploitationStatus)
+      });
+      const actions = el('div', null, 'tw-flex tw-gap-2 tw-mt-4');
+      if (row.occupancyStatus === 'VACANT') {
+        actions.append(button('📝 Đặt phòng này', () => { $('desk-close').click(); $('desk-create').click(); }, true));
+      }
+      actions.append(button('Đóng', () => $('desk-close').click()));
+      content.append(actions);
+    };
+
+    return card;
   }
   function timeline(data) {
     const box = el('div', null, 'sl-timeline'), head = el('div', null, 'sl-timeline-head');
@@ -151,7 +197,53 @@
       if (ticket !== generation) return;
       $('desk-results').replaceChildren();
       const rows = Array.isArray(result.data) ? result.data : [];
-      if (screen === 'rooms') { roomRows = rows; const grid = el('div', null, 'sl-room-grid'); rows.forEach(row => grid.append(roomCard(row))); $('desk-results').append(rows.length ? grid : el('div', 'Không có phòng phù hợp bộ lọc.', 'sl-empty')); }
+      if (screen === 'rooms') {
+        roomRows = rows;
+        // Update KiotViet-style status counter pills
+        const statusBar = $('desk-status-bar');
+        if (statusBar) {
+          const total = rows.length;
+          const vacant = rows.filter(r => r.occupancyStatus === 'VACANT').length;
+          const occupied = rows.filter(r => r.occupancyStatus === 'OCCUPIED').length;
+          const clean = rows.filter(r => r.cleanlinessStatus === 'CLEAN').length;
+          const dirty = rows.filter(r => r.cleanlinessStatus === 'DIRTY').length;
+          const maint = rows.filter(r => r.exploitationStatus === 'MAINTENANCE').length;
+          statusBar.replaceChildren();
+          const pills = [
+            ['Tất cả', total, ''],
+            ['Trống', vacant, 'VACANT'],
+            ['Có khách', occupied, 'OCCUPIED'],
+            ['Sạch', clean, 'CLEAN'],
+            ['Chờ dọn', dirty, 'DIRTY'],
+            ['Bảo trì', maint, 'MAINTENANCE']
+          ];
+          for (const [title, count, val] of pills) {
+            const p = el('button', null, 'btn btn-sm btn-ghost tw-text-xs');
+            p.type = 'button';
+            p.innerHTML = `<strong>${title}:</strong> ${count}`;
+            p.onclick = () => {
+              if (val === 'VACANT' || val === 'OCCUPIED') {
+                filters.elements.occupancyStatus.value = val;
+                filters.elements.cleanlinessStatus.value = '';
+                filters.elements.exploitationStatus.value = '';
+              } else if (val === 'CLEAN' || val === 'DIRTY') {
+                filters.elements.cleanlinessStatus.value = val;
+              } else if (val === 'MAINTENANCE') {
+                filters.elements.exploitationStatus.value = val;
+              } else {
+                filters.elements.occupancyStatus.value = '';
+                filters.elements.cleanlinessStatus.value = '';
+                filters.elements.exploitationStatus.value = '';
+              }
+              filters.requestSubmit();
+            };
+            statusBar.append(p);
+          }
+        }
+        const grid = el('div', null, 'sl-room-grid kiot-room-grid');
+        rows.forEach(row => grid.append(roomCard(row)));
+        $('desk-results').append(rows.length ? grid : el('div', 'Không có phòng phù hợp bộ lọc.', 'sl-empty'));
+      }
       else if (screen === 'timeline') {
         const missing=[...new Set(result.data.segments.map(row=>row.roomId).filter(Boolean))].filter(id=>!roomRows.some(room=>room.id===id));
         const names=await Promise.allSettled(missing.map(id=>catalog.detail('rooms',id)));
@@ -439,6 +531,31 @@
     } catch (error) { C.notification.error(host, error); }
   }
   $('desk-close').onclick = () => C.modal.close($('desk-dialog'));
+  $('view-mode-rack')?.addEventListener('click', () => {
+    $('view-mode-rack')?.classList.add('active');
+    $('view-mode-timeline')?.classList.remove('active');
+    $('view-mode-list')?.classList.remove('active');
+    screen = 'rooms'; offset = 0; navigation(); load();
+  });
+  $('view-mode-timeline')?.addEventListener('click', () => {
+    $('view-mode-timeline')?.classList.add('active');
+    $('view-mode-rack')?.classList.remove('active');
+    $('view-mode-list')?.classList.remove('active');
+    screen = 'timeline'; offset = 0; navigation(); load();
+  });
+  $('view-mode-list')?.addEventListener('click', () => {
+    $('view-mode-list')?.classList.add('active');
+    $('view-mode-rack')?.classList.remove('active');
+    $('view-mode-timeline')?.classList.remove('active');
+    table([
+      { key: 'number', label: 'Số phòng' },
+      { key: 'floor', label: 'Tầng' },
+      { key: 'roomTypeId', label: 'Hạng phòng', render: r => roomTypes.find(t => t.id === r.roomTypeId)?.name || r.roomTypeId },
+      { key: 'occupancyStatus', label: 'Hiện diện', render: r => U.label(r.occupancyStatus) },
+      { key: 'cleanlinessStatus', label: 'Vệ sinh', render: r => U.label(r.cleanlinessStatus) },
+      { key: 'exploitationStatus', label: 'Khai thác', render: r => U.label(r.exploitationStatus) }
+    ], roomRows, r => roomCard(r).click());
+  });
   $('desk-filter-toggle').onclick = () => { filters.classList.toggle('is-expanded'); $('desk-filter-toggle').setAttribute('aria-expanded', String(filters.classList.contains('is-expanded'))); };
   $('desk-refresh').onclick = async () => { await referenceData().catch(() => {}); await load(); $('desk-create').disabled=!await P.canWrite('POST','/bookings',['createBooking']).catch(()=>false); };
   $('desk-preview').onclick = () => bookingForm(true);

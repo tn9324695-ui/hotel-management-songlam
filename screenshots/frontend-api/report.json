@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-11-15T02:45:18.913Z",
+  "generatedAtUtc": "2026-11-15T03:01:36.091Z",
   "checks": [
     {
       "name": "reception-api.html renders blocked state against actual HTTP backend",
