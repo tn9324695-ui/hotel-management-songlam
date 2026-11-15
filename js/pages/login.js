@@ -64,6 +64,18 @@
       } finally { sending = false; }
     }
     form.addEventListener('submit', submit);
+    if (typeof document.querySelectorAll === 'function') {
+      document.querySelectorAll('.quick-login-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const u = document.getElementById('username');
+          const p = document.getElementById('password');
+          if (u) u.value = btn.dataset.user || '';
+          if (p) p.value = btn.dataset.pass || '';
+          if (typeof form.requestSubmit === 'function') form.requestSubmit();
+          else submit(new Event('submit'));
+        });
+      });
+    }
     const ready = (async () => {
       try {
         const response = await client.request('/auth/status');

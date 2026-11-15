@@ -10,7 +10,8 @@ export function createBookingTestRuntime({config,gateway,auth,logger}) {
   const operationsOps = release.operations?.writesEnabled === true ? (release.operations.allowedOperations || []) : [];
   const consumptionOps = release.consumption?.writesEnabled === true ? (release.consumption.allowedOperations || []) : [];
   const financeOps = release.finance?.writesEnabled === true ? (release.finance.allowedOperations || []) : [];
-  const allowed = [...baseAllowed, ...(gateway.mutationOperations || []), ...(release.checkIn?.writesEnabled === true ? (gateway.checkInOperations || []) : []), ...operationsOps, ...consumptionOps, ...financeOps];
+  const stayOps = release.stays?.writesEnabled === true ? (release.stays.allowedOperations || []) : [];
+  const allowed = [...baseAllowed, ...(gateway.mutationOperations || []), ...(release.checkIn?.writesEnabled === true ? (gateway.checkInOperations || []) : []), ...operationsOps, ...consumptionOps, ...financeOps, ...stayOps];
   if(release.format!=='songlam.booking-test-release.v1'||release.approved!==true||release.approvalReference!==gateway.manifest.approvalReference
     ||release.deploymentId!==gateway.manifest.deploymentId||release.packageSha256!==gateway.manifest.packageSha256||release.backupSetUuid!==gateway.manifest.backupSetUuid
     ||release.target?.server!==config.sql.server||release.target?.database!==config.sql.database||release.target?.environment!=='test'

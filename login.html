@@ -44,20 +44,34 @@
         </div>
         <form id="login-form" data-auth-state="not-configured" aria-describedby="auth-detail">
           <fieldset id="login-fields" disabled>
-            <legend class="visually-hidden">Thông tin đăng nhập chưa được kích hoạt</legend>
+            <legend class="visually-hidden">Thông tin đăng nhập</legend>
             <div class="mb-3">
               <label class="form-label" for="username">Tên đăng nhập</label>
-              <input class="form-control" id="username" type="text" placeholder="Tên tài khoản nhân viên" autocomplete="username" maxlength="100">
+              <input class="form-control" id="username" type="text" placeholder="Tên tài khoản (admin, letan, buongphong...)" autocomplete="username" maxlength="100">
             </div>
             <div class="mb-3">
               <label class="form-label" for="password">Mật khẩu</label>
-              <input class="form-control" id="password" type="password" placeholder="Mật khẩu" autocomplete="current-password">
+              <input class="form-control" id="password" type="password" placeholder="Mật khẩu (ví dụ: 123456)" autocomplete="current-password">
             </div>
             <button class="btn btn-primary w-100" type="submit">Đăng nhập</button>
           </fieldset>
         </form>
-        <p id="login-help" class="login-help">Chức năng đăng nhập đang chờ cấu hình. Hiện chưa cấp phiên đăng nhập hoặc tài khoản mặc định.</p>
-        <a class="btn btn-outline-primary w-100 mb-3" href="admin-api.html">Mở quản trị &amp; báo cáo qua API</a>
+        <p id="login-help" class="login-help">Tài khoản mẫu: <code>admin</code>, <code>letan</code>, <code>buongphong</code> (mật khẩu: <code>123456</code>).</p>
+        <div class="mt-3 pt-3 border-top" id="quick-login-box">
+          <div class="text-secondary small mb-2 fw-bold text-uppercase"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Đăng nhập nhanh 1-Click (Đồ án)</div>
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm text-start py-2 quick-login-btn" data-user="letan" data-pass="123456">
+              <i class="bi bi-calendar-check me-2 text-primary"></i><strong>Lễ tân</strong> <small class="text-secondary ms-1">(letan / 123456 → Sơ đồ phòng &amp; Đặt phòng)</small>
+            </button>
+            <button type="button" class="btn btn-outline-success btn-sm text-start py-2 quick-login-btn" data-user="buongphong" data-pass="123456">
+              <i class="bi bi-stars me-2 text-success"></i><strong>Buồng phòng</strong> <small class="text-secondary ms-1">(buongphong / 123456 → Quản lý phòng &amp; Vệ sinh)</small>
+            </button>
+            <button type="button" class="btn btn-outline-dark btn-sm text-start py-2 quick-login-btn" data-user="admin" data-pass="123456">
+              <i class="bi bi-shield-lock me-2 text-dark"></i><strong>Quản trị &amp; Quản lý</strong> <small class="text-secondary ms-1">(admin / 123456 → Toàn quyền hệ thống)</small>
+            </button>
+          </div>
+        </div>
+        <a class="btn btn-outline-secondary w-100 mt-3 mb-2" href="main.html">Chọn phân hệ làm việc (Hub 3 cổng)</a>
         <div class="login-links" aria-label="Các phân hệ demo">
           <a href="reception.html">Lễ tân</a><a href="housekeeping.html">Buồng phòng</a>
         </div>
