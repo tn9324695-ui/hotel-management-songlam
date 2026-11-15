@@ -5,12 +5,17 @@
   <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quản trị &amp; báo cáo | Sông Lam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/tailwind.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/management.css">
+  <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/management.css">
   <script src="js/api/http-client.js" defer></script>
 <script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script><script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script><script src="js/api/reports-api.js" defer></script><script src="js/api/administration-api.js" defer></script>
   <script src="js/pms-data.js" defer></script><script src="js/pages/admin-api.js" defer></script><script src="js/app.js" defer></script>
-</head>
-<body>
+<link rel="stylesheet" href="css/niceadmin/source.css">
+<link rel="stylesheet" href="css/niceadmin/hotel-components.css">
+<link rel="stylesheet" href="css/niceadmin/bootstrap-icons.css">
+<link rel="stylesheet" href="css/niceadmin-songlam.css">
+<script src="js/niceadmin-shell.js" defer></script>
+<link rel="stylesheet" href="css/niceadmin-refinement.css"><script src="js/niceadmin-refinement.js" defer></script></head>
+<body data-na-portal="admin">
   <header class="ops-topbar"><button class="btn btn-sm" id="ops-menu" aria-controls="ops-sidebar" aria-expanded="false">☰ Menu</button>
     <strong>SÔNG LAM PMS</strong><span class="badge bg-blue-lt">Quản trị qua API</span><span id="mgmt-user" class="ops-identity">Đang xác minh tài khoản…</span><a href="login.html" class="btn btn-sm">Đăng nhập</a></header>
   <div style="background: linear-gradient(90deg, #0f172a, #1d4ed8); color: #fff; padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; font-size: 13px; box-shadow: 0 2px 6px rgba(15,23,42,0.2);">
@@ -21,7 +26,7 @@
     <hr><a id="mgmt-link-finance" href="finance-api.html" hidden>Thu ngân &amp; checkout qua API</a><hr><a id="mgmt-link-services" href="services-api.html" hidden>Dịch vụ &amp; minibar qua API</a><hr><a id="mgmt-link-housekeeping" href="housekeeping-api.html" hidden>Buồng phòng qua API</a>
     <p class="small text-secondary mt-3">Màn hình chỉ đọc dữ liệu backend; không lấy KPI hoặc quyền từ demo cục bộ.</p></aside>
     <main class="ops-main"><div class="ops-heading"><div><div class="small text-secondary">KHÁCH SẠN SÔNG LAM</div><h1 id="mgmt-title">Dashboard &amp; báo cáo</h1></div>
-      <div class="ops-actions"><button id="mgmt-definitions" class="btn" hidden>Định nghĩa chỉ số</button><button id="mgmt-refresh" class="btn" disabled>Tải lại</button><button id="mgmt-quick-rooms" class="btn btn-outline-primary" type="button">🏢 Hạng phòng &amp; Giá</button><button id="mgmt-quick-users" class="btn btn-outline-secondary" type="button">👤 Nhân viên &amp; Phân quyền</button><button id="mgmt-quick-export" class="btn btn-outline-secondary" type="button">📥 Xuất báo cáo</button></div></div>
+      <div class="ops-actions"><button id="mgmt-definitions" class="btn" hidden>Định nghĩa chỉ số</button><button id="mgmt-refresh" class="btn" disabled>Tải lại</button></div></div>
       <div id="mgmt-message" class="alert alert-secondary" role="status" aria-live="polite">Đang xác minh phiên và hợp đồng dữ liệu…</div>
       <p id="mgmt-period" class="mgmt-period">Chưa xác nhận kỳ/múi giờ từ SQL.</p>
       <form id="mgmt-filters" class="card card-body ops-filters" hidden></form>

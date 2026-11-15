@@ -1,0 +1,33 @@
+/* Shared PMS components. Load AFTER NiceAdmin style.css and hotel-custom.css. */
+:root { --pms-primary:#4154f1; --pms-ink:#012970; --pms-muted:#62718a; --pms-line:#e8edf5; --pms-bg:#f6f9ff; }
+.pms-scope { color:#26334d; font-family:'Open Sans',Arial,sans-serif; }
+.pms-scope h1,.pms-scope h2,.pms-scope h3 { color:var(--pms-ink); }
+.pms-panel { background:white; border:1px solid var(--pms-line); border-radius:12px; box-shadow:0 4px 20px #01297005; overflow:hidden; }
+.pms-panel-head { padding:22px 24px; border-bottom:1px solid var(--pms-line); }
+.pms-panel-body { padding:24px; }
+.pms-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.pms-toolbar .form-control { max-width:310px; }
+.pms-toolbar .form-select { width:auto; }
+.pms-table { font-size:14px; }
+.pms-table thead { background:#f8faff; color:var(--pms-muted); }
+.pms-table th,.pms-table td { padding:17px 22px; border-color:var(--pms-line); white-space:nowrap; }
+.pms-table tbody tr:hover { background:#fbfcff; }
+.pms-sort { background:none; border:0; padding:0; font:inherit; font-weight:600; color:inherit; }
+.pms-sort:hover { color:var(--pms-primary); }
+.pms-sort:focus-visible { outline:2px solid var(--pms-primary); outline-offset:4px; }
+.pms-table-footer { padding:18px 24px; }
+.pms-pagination { display:flex; align-items:center; justify-content:space-between; gap:15px; flex-wrap:wrap; }
+.pms-empty { padding:64px!important; text-align:center; color:var(--pms-muted); }
+.pms-badge { font-weight:600; padding:7px 11px; font-size:11px; }
+.pms-badge.text-bg-success { background:#e6f7ef!important; color:#137747!important; }
+.pms-badge.text-bg-warning { background:#fff3d9!important; color:#805500!important; }
+.pms-badge.text-bg-primary { background:#eaf0ff!important; color:#2f4ac5!important; }
+.pms-badge.text-bg-secondary { background:#edf0f5!important; color:#536176!important; }
+#pms-notifications { z-index:1090; max-width:100%; }
+#pms-notifications .toast-body { overflow-wrap:anywhere; }
+.pms-modal-error { max-width:100%; overflow-wrap:anywhere; }
+.modal-content { border:0; border-radius:14px; }
+.pms-scope .btn,.pms-scope .form-control,.pms-scope .form-select { border-radius:7px; }
+.pms-scope .btn-primary { background:var(--pms-primary); border-color:var(--pms-primary); }
+@media(prefers-reduced-motion:reduce) { .pms-scope * { transition:none!important; animation:none!important; } }
+@media print { #pms-notifications,.pms-toolbar,.pms-table-footer { display:none!important; } }

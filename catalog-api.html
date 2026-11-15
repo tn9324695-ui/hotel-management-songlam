@@ -3,13 +3,18 @@
 <head>
  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
  <title>Danh mục & cấu hình · SongLam PMS</title><link rel="icon" href="favicon.svg" type="image/svg+xml">
- <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/tailwind.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/deployment.css">
+ <link rel="stylesheet" href="css/tabler.min.css"><link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css"><link rel="stylesheet" href="css/deployment.css">
  <script src="js/deployment-config.js"></script><script src="js/deployment.js"></script><script src="js/api/write-coordinator.js"></script>
  <script src="js/api/http-client.js" defer></script><script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script>
  <script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script>
  <script src="js/api/catalog-api.js" defer></script><script src="js/pages/catalog-api.js" defer></script>
-</head>
-<body>
+<link rel="stylesheet" href="css/niceadmin/source.css">
+<link rel="stylesheet" href="css/niceadmin/hotel-components.css">
+<link rel="stylesheet" href="css/niceadmin/bootstrap-icons.css">
+<link rel="stylesheet" href="css/niceadmin-songlam.css">
+<script src="js/niceadmin-shell.js" defer></script>
+<link rel="stylesheet" href="css/niceadmin-refinement.css"><script src="js/niceadmin-refinement.js" defer></script></head>
+<body data-na-portal="admin">
  <header class="ops-topbar"><button class="btn btn-icon" id="desk-menu" aria-label="Mở menu" aria-expanded="false" aria-controls="ops-sidebar">☰</button><a class="sl-wordmark" href="catalog-api.html">SL <span>SÔNG LAM <small>QUẢN LÝ KHÁCH SẠN</small></span></a><span class="ops-identity">Đang xác minh phiên…</span><a href="login.html" class="btn btn-sm">Đăng nhập</a></header>
  <div class="ops-shell"><aside class="ops-sidebar" id="ops-sidebar"><p class="sl-section-label">DANH MỤC & CẤU HÌNH</p><nav id="catalog-nav" aria-label="Danh mục"></nav><p class="sl-sidebar-note">Chỉ đọc từ API. Nhập dữ liệu nền cần hợp đồng và lô dữ liệu được duyệt riêng.</p></aside>
  <main class="ops-main">

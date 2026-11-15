@@ -8,7 +8,6 @@
   <title>Buồng phòng &amp; bảo trì | Sông Lam PMS</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/tabler.min.css">
-  <link rel="stylesheet" href="css/tailwind.css">
   <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/pms.css"><link rel="stylesheet" href="css/operations.css">
   <script src="js/api/http-client.js" defer></script>
 <script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script><script src="js/services/ui-service.js" defer></script><script src="js/components/table.js" defer></script><script src="js/components/pagination.js" defer></script><script src="js/components/modal.js" defer></script><script src="js/components/notification.js" defer></script><script src="js/components/workspace.js" defer></script>
@@ -16,8 +15,13 @@
   <script src="js/api/catalog-api.js" defer></script>
   <script src="js/pages/housekeeping-api.js" defer></script>
   <script src="js/housekeeping.js" defer></script>
-</head>
-<body>
+<link rel="stylesheet" href="css/niceadmin/source.css">
+<link rel="stylesheet" href="css/niceadmin/hotel-components.css">
+<link rel="stylesheet" href="css/niceadmin/bootstrap-icons.css">
+<link rel="stylesheet" href="css/niceadmin-songlam.css">
+<script src="js/niceadmin-shell.js" defer></script>
+<link rel="stylesheet" href="css/niceadmin-refinement.css"><script src="js/niceadmin-refinement.js" defer></script></head>
+<body data-na-portal="housekeeping">
   <header class="ops-topbar">
     <button id="ops-menu" class="btn btn-sm" aria-controls="ops-sidebar" aria-expanded="false">☰ Menu</button>
     <strong>SÔNG LAM PMS</strong><span class="badge bg-blue-lt">Vận hành qua API</span>
@@ -34,7 +38,7 @@
     </aside>
     <main class="ops-main">
       <div class="ops-heading"><div><div class="text-secondary small">VẬN HÀNH KHÁCH SẠN</div><h1 id="ops-title">Buồng phòng &amp; bảo trì</h1></div>
-        <div class="ops-actions"><button class="btn" id="ops-refresh" disabled>Tải lại</button><button class="btn btn-primary" id="ops-create" hidden>Tạo mới</button><button class="btn btn-outline-primary" id="hk-quick-ticket" type="button">🛠️ Báo hỏng thiết bị</button><button class="btn btn-outline-secondary" id="hk-quick-minibar" type="button">🥤 Kiểm Minibar</button><button class="btn btn-outline-secondary" id="hk-quick-item" type="button">📦 Đồ thất lạc</button></div>
+        <div class="ops-actions"><button class="btn" id="ops-refresh" disabled>Tải lại</button><button class="btn btn-primary" id="ops-create" hidden>Tạo mới</button></div>
       </div>
       <p class="alert alert-info" id="ops-inspection">Dọn xong chuyển sang chờ kiểm tra. Chưa bật nghiệm thu khi chưa có quyền riêng và hợp đồng SQL được duyệt. Sửa xong không đồng nghĩa phòng sạch.</p>
       <div id="ops-message" role="status" aria-live="polite" class="alert alert-secondary">Đang kết nối backend…</div>
@@ -44,9 +48,6 @@
         <label id="ops-mine-label"><input type="checkbox" class="form-check-input" name="mine"> Chỉ việc của tôi</label>
         <button class="btn btn-primary" type="submit">Lọc</button>
       </form>
-      <!-- Kanban Progress Board for Tasks (4 Cột Tiến Độ) -->
-      <div id="ops-kanban" class="hk-kanban-board tw-mb-4" hidden></div>
-
       <section class="card mt-3" aria-label="Danh sách công việc">
         <div class="table-responsive" id="ops-table"><p class="p-3 mb-0 text-secondary">Chưa tải dữ liệu. Không sử dụng dữ liệu mẫu.</p></div>
         <div class="card-footer ops-pagination"><span id="ops-page">Chưa có dữ liệu</span><div class="ops-actions"><button class="btn btn-sm" id="ops-prev" disabled>Trước</button><button class="btn btn-sm" id="ops-next" disabled>Sau</button></div></div>

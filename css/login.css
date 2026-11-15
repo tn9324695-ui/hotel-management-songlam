@@ -355,89 +355,23 @@ body.songlam-login {
   color: var(--sl-gold-dark) !important;
 }
 
-/* Feature list for 3 portals */
-.sl-portal-feature-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 22px 0;
-}
-
-.sl-portal-feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.2s ease;
-}
-
-.sl-portal-feature-item:hover {
-  background: rgba(255, 255, 255, 0.09);
-  transform: translateY(-1px);
-}
-
-.sl-pfi-icon {
-  font-size: 20px;
-  line-height: 1;
-  padding: 6px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-}
-
-.sl-pfi-content strong {
-  display: block;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #f8fafc;
-  margin-bottom: 3px;
-}
-
-.sl-pfi-mgmt strong { color: #fef08a; }
-.sl-pfi-rec strong { color: #93c5fd; }
-.sl-pfi-hk strong { color: #a7f3d0; }
-
-.sl-pfi-content p {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: #cbd5e1;
-}
-
-.sl-pfi-mgmt { border-left: 3px solid #c5a059; }
-.sl-pfi-rec { border-left: 3px solid #3b82f6; }
-.sl-pfi-hk { border-left: 3px solid #10b981; }
-
 .login-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
   border-top: 1px solid #f1f5f9;
-  padding-top: 16px;
-  font-size: 12px;
+  padding-top: 18px;
+  font-size: 13px;
 }
 
 .login-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  color: #64748b;
   text-decoration: none;
-  font-weight: 600;
-  transition: all 0.15s;
+  transition: color 0.15s;
 }
 
 .login-links a:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-  border-color: #cbd5e1;
+  color: var(--sl-gold-primary);
 }
 
 .login-footer {

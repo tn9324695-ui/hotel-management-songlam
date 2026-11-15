@@ -8,12 +8,16 @@
   <title>Đăng nhập — SongLam PMS</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/tabler.min.css">
-  <link rel="stylesheet" href="css/tailwind.css">
   <link rel="stylesheet" href="css/login.css">
   <script src="js/api/http-client.js" defer></script>
   <script src="js/services/session-service.js" defer></script><script src="js/services/permission-service.js" defer></script>
   <script src="js/pages/login.js" defer></script>
-</head>
+<link rel="stylesheet" href="css/niceadmin/source.css">
+<link rel="stylesheet" href="css/niceadmin/hotel-components.css">
+<link rel="stylesheet" href="css/niceadmin/bootstrap-icons.css">
+<link rel="stylesheet" href="css/niceadmin-songlam.css">
+<script src="js/niceadmin-shell.js" defer></script>
+<link rel="stylesheet" href="css/niceadmin-refinement.css"><script src="js/niceadmin-refinement.js" defer></script></head>
 <body class="songlam-login">
   <header class="login-header">
     <a class="login-brand" href="index.html" aria-label="Mở giao diện demo Sông Lam">
@@ -24,40 +28,11 @@
   </header>
   <main class="login-main">
     <section class="login-intro" aria-labelledby="hotel-title">
-      <div class="login-eyebrow">KHÁCH SẠN SÔNG LAM · HỆ THỐNG PMS 5 SAO</div>
-      <h1 id="hotel-title">3 Không gian làm việc<br>chuyên biệt cho khách sạn</h1>
-      <p>Hệ thống phân tách 3 giao diện nghiệp vụ riêng biệt theo từng bộ phận chuyên trách:</p>
-
-      <div class="sl-portal-feature-list">
-        <div class="sl-portal-feature-item sl-pfi-mgmt">
-          <div class="sl-pfi-icon">👑</div>
-          <div class="sl-pfi-content">
-            <strong>Phân hệ Quản Lý Khách Sạn</strong>
-            <p>Dashboard 8 KPI, doanh thu thời gian thực, quản lý 420 phòng &amp; 11 hạng phòng, kiểm toán vận hành.</p>
-          </div>
-        </div>
-        <div class="sl-portal-feature-item sl-pfi-rec">
-          <div class="sl-pfi-icon">🛎️</div>
-          <div class="sl-pfi-content">
-            <strong>Phân hệ Bộ Phận Lễ Tân</strong>
-            <p>Sơ đồ 420 phòng trực quan, lịch đặt phòng timeline, check-in, check-out, dịch vụ phòng và thu ngân folio.</p>
-          </div>
-        </div>
-        <div class="sl-portal-feature-item sl-pfi-hk">
-          <div class="sl-pfi-icon">🧹</div>
-          <div class="sl-pfi-content">
-            <strong>Phân hệ Bộ Phận Buồng Phòng</strong>
-            <p>Điều phối tình trạng phòng (Sạch/Bẩn/Đang dọn/Nghiệm thu), báo cáo bảo trì và kiểm kê tiêu thụ minibar.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="login-demo-note"><strong>Phân quyền tự động theo vai trò</strong><p>Đăng nhập bằng tài khoản được cấp. Hệ thống tự động chuyển hướng vào đúng không gian làm việc tương ứng với quyền hạn của bạn.</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a class="btn btn-outline-primary" href="admin-api.html">👑 Quản lý</a>
-        <a class="btn btn-outline-primary" href="reception-api.html">🛎️ Lễ tân</a>
-        <a class="btn btn-outline-primary" href="housekeeping-api.html">🧹 Buồng phòng</a>
-      </div>
+      <div class="login-eyebrow">KHÁCH SẠN SÔNG LAM</div>
+      <h1 id="hotel-title">Không gian làm việc<br>cho đội ngũ khách sạn</h1>
+      <p>Quản lý đặt phòng, lưu trú, buồng phòng và thanh toán trong cùng hệ thống.</p>
+      <div class="login-demo-note"><strong>Dữ liệu demo được tách riêng</strong><p>Các trang demo dùng dữ liệu cục bộ, không phải dữ liệu SQL Server. Chỉ các phân hệ API mới sử dụng phiên và quyền từ backend.</p></div>
+      <a class="btn btn-outline-primary" href="reception-api.html">Mở phân hệ lễ tân qua API</a>
     </section>
     <section class="card login-card" aria-labelledby="login-title">
       <div class="card-body">
@@ -83,8 +58,8 @@
         </form>
         <p id="login-help" class="login-help">Chức năng đăng nhập đang chờ cấu hình. Hiện chưa cấp phiên đăng nhập hoặc tài khoản mặc định.</p>
         <a class="btn btn-outline-primary w-100 mb-3" href="admin-api.html">Mở quản trị &amp; báo cáo qua API</a>
-        <div class="login-links" aria-label="3 Phân hệ làm việc">
-          <a href="admin-api.html">👑 Quản lý</a><a href="reception-api.html">🛎️ Lễ tân</a><a href="housekeeping-api.html">🧹 Buồng phòng</a>
+        <div class="login-links" aria-label="Các phân hệ demo">
+          <a href="reception.html">Lễ tân</a><a href="housekeeping.html">Buồng phòng</a>
         </div>
       </div>
     </section>

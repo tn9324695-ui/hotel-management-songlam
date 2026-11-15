@@ -79,71 +79,6 @@
       return node;
     }
     function table() {
-      // 1. Render visual Kanban Board for Tasks (4 Cột Tiến Độ)
-      const kanban = $('ops-kanban');
-      if (kanban) {
-        if (resource === 'tasks' && rows.length) {
-          kanban.hidden = false;
-          kanban.replaceChildren();
-
-          const cols = [
-            { id: 'QUEUED', title: '⏳ Chờ thực hiện', phases: ['QUEUED', 'PENDING'] },
-            { id: 'CLEANING', title: '🔄 Đang thực hiện', phases: ['CLAIMED', 'CLEANING', 'IN_PROGRESS'] },
-            { id: 'INSPECTING', title: '🔍 Chờ nghiệm thu', phases: ['AWAITING_INSPECTION', 'INSPECTING'] },
-            { id: 'COMPLETED', title: '✅ Hoàn tất', phases: ['COMPLETED'] }
-          ];
-
-          for (const col of cols) {
-            const colEl = el('div', { className: 'hk-kanban-col' });
-            const colHead = el('div', { className: 'hk-col-head' });
-            const colTasks = rows.filter(r => col.phases.includes(r.phase || r.status));
-            colHead.append(
-              el('span', { className: 'hk-col-title' }, col.title),
-              el('span', { className: 'hk-col-badge' }, String(colTasks.length))
-            );
-            colEl.append(colHead);
-
-            for (const task of colTasks) {
-              const card = el('div', { className: 'hk-task-card' });
-              const cardHead = el('div', { className: 'tw-flex tw-items-center tw-justify-between' });
-              cardHead.append(
-                el('span', { className: 'hk-task-room' }, task.roomId ? 'Phòng ' + task.roomId : '#' + task.id),
-                el('span', { className: 'hk-task-priority hk-priority-' + (task.priority || 'NORMAL') }, display(task.priority || 'NORMAL'))
-              );
-              card.append(cardHead);
-              card.append(el('div', { className: 'tw-text-xs tw-font-semibold tw-text-secondary' }, 'Loại việc: ' + display(task.taskType)));
-              card.append(el('div', { className: 'tw-text-xs tw-text-muted' }, 'Phụ trách: ' + (task.assignedToId ? display(task.assignedToId) : 'Chưa phân công')));
-
-              const actBox = el('div', { className: 'hk-task-actions tw-flex tw-gap-1 tw-flex-wrap tw-mt-2' });
-              const availableActions = task.allowedActions?.length ? task.allowedActions : (
-                ['QUEUED', 'PENDING'].includes(task.phase || task.status) ? ['claim', 'start'] :
-                ['CLAIMED'].includes(task.phase || task.status) ? ['start', 'unable'] :
-                ['CLEANING', 'IN_PROGRESS'].includes(task.phase || task.status) ? ['submit', 'unable'] :
-                ['AWAITING_INSPECTION', 'INSPECTING'].includes(task.phase || task.status) ? ['inspect-approve', 'inspect-reject'] : []
-              );
-              for (const action of availableActions) {
-                if (!actionNames[action]) continue;
-                actBox.append(el('button', { className: 'btn btn-xs btn-outline-primary tw-py-1 tw-px-2 tw-text-xs', type: 'button', onClick: () => actionForm(action, task) }, actionNames[action]));
-              }
-              if (['CLEANING', 'IN_PROGRESS'].includes(task.phase || task.status)) {
-                actBox.append(el('button', { className: 'btn btn-xs btn-outline-secondary tw-py-1 tw-px-2 tw-text-xs', type: 'button', onClick: () => location.assign('services-api.html#minibar') }, '🥤 Minibar'));
-              }
-              card.append(actBox);
-              colEl.append(card);
-            }
-
-            if (!colTasks.length) {
-              colEl.append(el('p', { className: 'tw-text-xs tw-text-muted tw-text-center tw-my-auto' }, 'Không có việc'));
-            }
-            kanban.append(colEl);
-          }
-        } else {
-          kanban.hidden = true;
-          kanban.replaceChildren();
-        }
-      }
-
-      // 2. Standard Table for all resources
       const { table, body } = root.SongLamComponents.table.create(resource === 'rooms' ? ['Phòng', 'Hiện diện / vệ sinh / khai thác', 'Thao tác'] : ['Mã / phòng', 'Nội dung', 'Trạng thái', 'Nhân viên / thời điểm', 'Thao tác']);
       for (const row of rows) {
         const tr = el('tr');
@@ -299,9 +234,6 @@
     $('ops-filters').addEventListener('submit', event => { event.preventDefault(); offset = 0; load(); });
     $('ops-refresh').addEventListener('click', load);
     $('ops-create').addEventListener('click', () => actionForm('create'));
-    $('hk-quick-ticket')?.addEventListener('click', () => select('tickets'));
-    $('hk-quick-minibar')?.addEventListener('click', () => location.assign('services-api.html#minibar'));
-    $('hk-quick-item')?.addEventListener('click', () => select('items'));
     $('ops-prev').addEventListener('click', () => { offset = Math.max(0, offset - pageSize); load(); });
     $('ops-next').addEventListener('click', () => { offset += pageSize; load(); });
     async function boot() {

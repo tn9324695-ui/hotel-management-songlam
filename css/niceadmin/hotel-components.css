@@ -1,0 +1,218 @@
+/* ===== HOTEL MANAGEMENT CUSTOM STYLES ===== */
+
+/* --- Màu trạng thái phòng --- */
+:root {
+  --room-empty: #198754;
+  --room-occupied: #dc3545;
+  --room-cleaning: #ffc107;
+  --room-maintenance: #6c757d;
+  --room-reserved: #0d6efd;
+}
+
+/* --- Badge trạng thái phòng --- */
+.badge-room-empty      { background-color: var(--room-empty); color: #fff; }
+.badge-room-occupied   { background-color: var(--room-occupied); color: #fff; }
+.badge-room-cleaning   { background-color: var(--room-cleaning); color: #000; }
+.badge-room-maintenance{ background-color: var(--room-maintenance); color: #fff; }
+.badge-room-reserved   { background-color: var(--room-reserved); color: #fff; }
+
+/* --- Badge trạng thái đặt phòng --- */
+.badge-pending    { background-color: #ffc107; color: #000; }
+.badge-confirmed  { background-color: #0dcaf0; color: #000; }
+.badge-checkin    { background-color: #0d6efd; color: #fff; }
+.badge-checkout   { background-color: #198754; color: #fff; }
+.badge-cancelled  { background-color: #dc3545; color: #fff; }
+
+/* --- Thẻ thống kê dashboard --- */
+.stat-card {
+  border-radius: 8px;
+  border: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+.stat-card .icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+.stat-card .icon.bg-primary-light  { background-color: rgba(13,110,253,0.15); color: #0d6efd; }
+.stat-card .icon.bg-success-light  { background-color: rgba(25,135,84,0.15);  color: #198754; }
+.stat-card .icon.bg-warning-light  { background-color: rgba(255,193,7,0.15);  color: #e6ac00; }
+.stat-card .icon.bg-danger-light   { background-color: rgba(220,53,69,0.15);  color: #dc3545; }
+.stat-card .icon.bg-info-light     { background-color: rgba(13,202,240,0.15); color: #0dcaf0; }
+.stat-card .icon.bg-secondary-light{ background-color: rgba(108,117,125,0.15);color: #6c757d; }
+
+/* --- Sơ đồ phòng --- */
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.room-cell {
+  border-radius: 8px;
+  padding: 12px 8px;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.room-cell:hover {
+  border-color: #0d6efd;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.room-cell .room-number {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.room-cell .room-type {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+.room-cell .room-status-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+.room-cell.empty      { background: #d1e7dd; color: #0a3622; }
+.room-cell.occupied   { background: #f8d7da; color: #58151c; }
+.room-cell.cleaning   { background: #fff3cd; color: #664d03; }
+.room-cell.maintenance{ background: #e2e3e5; color: #41464b; }
+.room-cell.reserved   { background: #cfe2ff; color: #052c65; }
+
+/* --- Bảng dữ liệu --- */
+.table th {
+  font-weight: 600;
+  font-size: 0.85rem;
+  background-color: #f8f9fa;
+}
+.table td {
+  font-size: 0.875rem;
+  vertical-align: middle;
+}
+.table-hover tbody tr:hover {
+  background-color: #f0f5ff;
+}
+
+/* --- Form --- */
+.form-label {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+.form-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+}
+
+/* --- Timeline lịch sử --- */
+.timeline {
+  position: relative;
+  padding-left: 24px;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #dee2e6;
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0d6efd;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #0d6efd;
+}
+.timeline-item .time {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+/* --- Trang đăng nhập --- */
+.login-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a3a5c 0%, #0d6efd 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-width: 420px;
+  width: 100%;
+}
+.login-card .hotel-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #0d6efd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  font-size: 2rem;
+  color: #fff;
+}
+
+/* --- Hóa đơn --- */
+.invoice-header {
+  background: linear-gradient(135deg, #1a3a5c, #0d6efd);
+  color: #fff;
+  border-radius: 8px 8px 0 0;
+  padding: 24px;
+}
+.invoice-table tfoot td {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.invoice-total-row {
+  background-color: #e7f1ff;
+  font-weight: 700;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .room-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+  }
+  .room-cell {
+    min-height: 70px;
+    padding: 8px 4px;
+  }
+}
