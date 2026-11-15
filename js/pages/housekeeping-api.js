@@ -114,14 +114,21 @@
               card.append(el('div', { className: 'tw-text-xs tw-font-semibold tw-text-secondary' }, 'Loại việc: ' + display(task.taskType)));
               card.append(el('div', { className: 'tw-text-xs tw-text-muted' }, 'Phụ trách: ' + (task.assignedToId ? display(task.assignedToId) : 'Chưa phân công')));
 
-              if (task.allowedActions?.length) {
-                const actBox = el('div', { className: 'hk-task-actions' });
-                for (const action of task.allowedActions) {
-                  if (!actionNames[action]) continue;
-                  actBox.append(el('button', { className: 'btn btn-sm btn-outline-primary', type: 'button', onClick: () => actionForm(action, task) }, actionNames[action]));
-                }
-                card.append(actBox);
+              const actBox = el('div', { className: 'hk-task-actions tw-flex tw-gap-1 tw-flex-wrap tw-mt-2' });
+              const availableActions = task.allowedActions?.length ? task.allowedActions : (
+                ['QUEUED', 'PENDING'].includes(task.phase || task.status) ? ['claim', 'start'] :
+                ['CLAIMED'].includes(task.phase || task.status) ? ['start', 'unable'] :
+                ['CLEANING', 'IN_PROGRESS'].includes(task.phase || task.status) ? ['submit', 'unable'] :
+                ['AWAITING_INSPECTION', 'INSPECTING'].includes(task.phase || task.status) ? ['inspect-approve', 'inspect-reject'] : []
+              );
+              for (const action of availableActions) {
+                if (!actionNames[action]) continue;
+                actBox.append(el('button', { className: 'btn btn-xs btn-outline-primary tw-py-1 tw-px-2 tw-text-xs', type: 'button', onClick: () => actionForm(action, task) }, actionNames[action]));
               }
+              if (['CLEANING', 'IN_PROGRESS'].includes(task.phase || task.status)) {
+                actBox.append(el('button', { className: 'btn btn-xs btn-outline-secondary tw-py-1 tw-px-2 tw-text-xs', type: 'button', onClick: () => location.assign('services-api.html#minibar') }, '🥤 Minibar'));
+              }
+              card.append(actBox);
               colEl.append(card);
             }
 
@@ -292,6 +299,9 @@
     $('ops-filters').addEventListener('submit', event => { event.preventDefault(); offset = 0; load(); });
     $('ops-refresh').addEventListener('click', load);
     $('ops-create').addEventListener('click', () => actionForm('create'));
+    $('hk-quick-ticket')?.addEventListener('click', () => select('tickets'));
+    $('hk-quick-minibar')?.addEventListener('click', () => location.assign('services-api.html#minibar'));
+    $('hk-quick-item')?.addEventListener('click', () => select('items'));
     $('ops-prev').addEventListener('click', () => { offset = Math.max(0, offset - pageSize); load(); });
     $('ops-next').addEventListener('click', () => { offset += pageSize; load(); });
     async function boot() {

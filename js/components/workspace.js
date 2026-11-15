@@ -128,9 +128,9 @@
     switcher.setAttribute('aria-label', 'Chuyển phân hệ làm việc');
 
     const portalTabs = [
-      { id: 'management', href: 'admin-api.html', icon: '👑', label: 'Quản Lý', rights: ['viewDailyRevenue', 'systemConfig', 'viewAuditLog', 'editRoomClasses'] },
+      { id: 'management', href: 'admin-api.html', icon: '👑', label: 'Quản Lý', rights: ['viewDailyRevenue', 'systemConfig'] },
       { id: 'reception', href: 'reception-api.html', icon: '🛎️', label: 'Lễ Tân', rights: ['viewRoomRack', 'createBooking', 'manageCheckIn'] },
-      { id: 'housekeeping', href: 'housekeeping-api.html', icon: '🧹', label: 'Buồng Phòng', rights: ['updateCleanStatus', 'manageHousekeepingTasks', 'reportMaintenance'] }
+      { id: 'housekeeping', href: 'housekeeping-api.html', icon: '🧹', label: 'Buồng Phòng', rights: ['updateCleanStatus', 'manageHousekeepingTasks'] }
     ];
     for (const pt of portalTabs) {
       const tab = C.el('a', null, 'sl-portal-tab sl-portal-tab-' + pt.id + (pt.id === currentPortal ? ' active' : ''));
@@ -274,13 +274,48 @@
       if (identity) previousIdentity = identity;
 
       // Update visibility of portal tabs based on permissions
+      let visiblePortalCount = 0;
       for (const tab of switcher.children) {
-        tab.hidden = !me || !root.SongLamPermissions?.any(tab.dataset.rights.split(','));
+        const canAccess = me && root.SongLamPermissions?.any(tab.dataset.rights.split(','));
+        tab.hidden = !canAccess;
+        if (canAccess) visiblePortalCount++;
+      }
+      if (portalHeaderLabel) {
+        portalHeaderLabel.textContent = visiblePortalCount > 1 ? 'CHUYỂN PHÂN HỆ NGHIỆP VỤ' : 'PHÂN HỆ ĐƯỢC PHÂN QUYỀN';
+      }
+
+      // Check portal-level access enforcement
+      const portalRules = {
+        management: ['viewDailyRevenue', 'systemConfig'],
+        reception: ['viewRoomRack', 'createBooking', 'manageCheckIn'],
+        housekeeping: ['updateCleanStatus', 'manageHousekeepingTasks']
+      };
+      const allowedOnCurrentPortal = !me || root.SongLamPermissions?.any(portalRules[currentPortal] || []);
+      const existingGuard = document.querySelector('.sl-portal-guard');
+      if (!allowedOnCurrentPortal && me) {
+        if (!existingGuard) {
+          const main = document.querySelector('.ops-main');
+          if (main) {
+            const guard = C.el('div', null, 'alert alert-warning sl-portal-guard tw-mb-4');
+            guard.setAttribute('role', 'alert');
+            guard.innerHTML = `
+              <div class="tw-font-bold tw-text-sm">⚠️ Giới hạn phân quyền tài khoản</div>
+              <div class="tw-text-xs tw-mt-1">Tài khoản <strong>${me.user.fullName || me.user.username}</strong> không thuộc phân hệ ${pCfg.label}. Vui lòng chuyển về đúng phân hệ được giao.</div>
+              <div class="tw-mt-2"><button type="button" class="btn btn-sm btn-primary" onclick="location.assign('${root.SongLamPermissions.home()}')">Chuyển về phân hệ của bạn →</button></div>
+            `;
+            main.prepend(guard);
+          }
+        }
+      } else if (existingGuard) {
+        existingGuard.remove();
       }
 
       // Update visibility of workspace links based on permissions
       for (const a of links.children) {
-        a.hidden = !me || !root.SongLamPermissions?.any(a.dataset.rights.split(','));
+        const hasRights = me && root.SongLamPermissions?.any(a.dataset.rights.split(','));
+        const pGroup = a.dataset.portal;
+        const canPortal = !pGroup || root.SongLamPermissions?.any(portalRules[pGroup] || []);
+        a.hidden = !hasRights || !canPortal;
         const hrefBase = a.getAttribute('href')?.split('#')[0];
         if (hrefBase && location.pathname.endsWith('/' + hrefBase)) {
           if (a.getAttribute('href') === location.pathname.split('/').pop() || (location.hash && a.getAttribute('href').endsWith(location.hash))) {

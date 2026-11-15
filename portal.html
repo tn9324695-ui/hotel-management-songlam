@@ -371,5 +371,56 @@
       </div>
     </main>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const me = await window.SongLamSession?.restore();
+        if (me?.data?.user) {
+          const user = me.data.user;
+          const userIdentity = document.getElementById('desk-user');
+          if (userIdentity) userIdentity.textContent = '👤 ' + (user.fullName || user.username);
+
+          const permissions = window.SongLamPermissions;
+          if (permissions) {
+            const hasAdmin = permissions.any(['systemConfig', 'viewDailyRevenue']);
+            const hasReception = permissions.any(['createBooking', 'manageCheckIn']);
+            const hasHousekeeping = permissions.any(['updateCleanStatus', 'manageHousekeepingTasks']);
+
+            // Auto-redirect specialized single-role users directly to their portal
+            if (!hasAdmin && hasReception && !hasHousekeeping) {
+              window.location.replace('reception-api.html');
+              return;
+            }
+            if (!hasAdmin && !hasReception && hasHousekeeping) {
+              window.location.replace('housekeeping-api.html');
+              return;
+            }
+
+            // Role visual indicators on cards
+            const cardMgmt = document.querySelector('.portal-card-mgmt');
+            const cardRec = document.querySelector('.portal-card-rec');
+            const cardHk = document.querySelector('.portal-card-hk');
+
+            if (cardMgmt && !hasAdmin) {
+              cardMgmt.style.opacity = '0.6';
+              const btn = cardMgmt.querySelector('.portal-btn-primary');
+              if (btn) { btn.textContent = '🔒 Không có quyền Quản Lý'; btn.style.pointerEvents = 'none'; btn.style.background = '#94a3b8'; }
+            }
+            if (cardRec && !hasReception && !permissions.has('viewRoomRack')) {
+              cardRec.style.opacity = '0.6';
+              const btn = cardRec.querySelector('.portal-btn-primary');
+              if (btn) { btn.textContent = '🔒 Không có quyền Lễ Tân'; btn.style.pointerEvents = 'none'; btn.style.background = '#94a3b8'; }
+            }
+            if (cardHk && !hasHousekeeping) {
+              cardHk.style.opacity = '0.6';
+              const btn = cardHk.querySelector('.portal-btn-primary');
+              if (btn) { btn.textContent = '🔒 Không có quyền Buồng Phòng'; btn.style.pointerEvents = 'none'; btn.style.background = '#94a3b8'; }
+            }
+          }
+        }
+      } catch (e) {}
+    });
+  </script>
 </body>
 </html>

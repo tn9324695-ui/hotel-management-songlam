@@ -521,6 +521,21 @@ html.dark .kiot-alert-badge {
   border-color: #7f1d1d;
 }
 
+.kiot-room-quick-bar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.btn-xs {
+  font-size: 11px;
+  padding: 2px 7px;
+  line-height: 1.3;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
 /* ==========================================================================
    Management Overview Stat Cards & Dashboard (KiotViet / Modern SaaS)
    ========================================================================== */

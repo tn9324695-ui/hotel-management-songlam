@@ -119,11 +119,25 @@
         // 2. Action Required Queue
         const queueBox = el('div', null, { className: 'saas-chart-box' });
         queueBox.append(el('h3', 'DANH SÁCH VIỆC CẦN XỬ LÝ (ACTION QUEUE)', { className: 'saas-chart-title tw-text-sm' }));
-        const queue = el('div', null, { className: 'saas-action-queue' });
-        queue.append(el('div', '⚠️ Đơn chưa phân phòng: 0 đơn', { className: 'saas-action-item' }));
-        queue.append(el('div', '💰 Yêu cầu hoàn tiền chờ duyệt: 0 khoản', { className: 'saas-action-item' }));
-        queue.append(el('div', '🛠️ Sự cố thiết bị phòng cần bảo trì: Theo dõi tại phân hệ Buồng phòng', { className: 'saas-action-item' }));
-        queue.append(el('div', '🧾 Giao dịch / ngoại lệ cần xác nhận: Kiểm tra tại tab Ngoại lệ', { className: 'saas-action-item' }));
+        const queue = el('div', null, { className: 'saas-action-queue tw-flex tw-flex-col tw-gap-2' });
+
+        const q1 = el('div', null, { className: 'saas-action-item tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2' });
+        q1.append(el('span', '⚠️ Đơn chưa phân phòng: 0 đơn'));
+        q1.append(el('button', 'Phân phòng ngay →', { className: 'btn btn-xs btn-outline-primary', type: 'button', onClick: () => location.assign('reception-api.html#bookings') }));
+
+        const q2 = el('div', null, { className: 'saas-action-item tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2' });
+        q2.append(el('span', '💰 Yêu cầu hoàn tiền chờ duyệt: 0 khoản'));
+        q2.append(el('button', 'Xem & duyệt →', { className: 'btn btn-xs btn-outline-warning', type: 'button', onClick: () => location.assign('finance-api.html') }));
+
+        const q3 = el('div', null, { className: 'saas-action-item tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2' });
+        q3.append(el('span', '🛠️ Sự cố thiết bị phòng: Theo dõi tại phân hệ Buồng phòng'));
+        q3.append(el('button', 'Xem phiếu sự cố →', { className: 'btn btn-xs btn-outline-secondary', type: 'button', onClick: () => location.assign('housekeeping-api.html#tickets') }));
+
+        const q4 = el('div', null, { className: 'saas-action-item tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2' });
+        q4.append(el('span', '🧾 Giao dịch / ngoại lệ cần xác nhận: Kiểm tra tại tab Ngoại lệ'));
+        q4.append(el('button', 'Mở tab ngoại lệ →', { className: 'btn btn-xs btn-outline-secondary', type: 'button', onClick: () => select('exceptions') }));
+
+        queue.append(q1, q2, q3, q4);
         queueBox.append(queue);
         extraSection.append(queueBox);
 
@@ -231,6 +245,11 @@
     });
     $('ops-menu').addEventListener('click', () => { const shown = $('ops-sidebar').classList.toggle('open'); $('ops-menu').setAttribute('aria-expanded', String(shown)); });
     $('mgmt-close').addEventListener('click', () => $('mgmt-dialog').close()); $('mgmt-refresh').addEventListener('click', load);
+    $('mgmt-quick-rooms')?.addEventListener('click', () => location.assign('catalog-api.html#rooms'));
+    $('mgmt-quick-users')?.addEventListener('click', () => select('users'));
+    $('mgmt-quick-export')?.addEventListener('click', () => {
+      window.print();
+    });
     $('mgmt-filters').addEventListener('submit', event => { event.preventDefault(); offset = 0; load(); }); $('mgmt-prev').addEventListener('click', () => { offset = Math.max(0, offset - pageSize); load(); }); $('mgmt-next').addEventListener('click', () => { offset += pageSize; load(); });
     (async () => {
       try {

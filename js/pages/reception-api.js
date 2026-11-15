@@ -137,8 +137,32 @@
     }
     card.append(badges);
 
+    // Quick action buttons directly on the card
+    const cardActions = el('div', null, 'kiot-room-quick-bar tw-flex tw-gap-1 tw-mt-2');
+    if (row.occupancyStatus === 'VACANT') {
+      const bBook = el('button', '+ Đặt', 'btn btn-xs btn-outline-primary tw-py-0.5 tw-px-1.5 tw-text-xs');
+      bBook.type = 'button';
+      bBook.onclick = (e) => { e.stopPropagation(); bookingForm(false, row); };
+      cardActions.append(bBook);
+    } else if (row.occupancyStatus === 'OCCUPIED') {
+      const bSvc = el('button', '🍹 Dịch vụ', 'btn btn-xs btn-outline-secondary tw-py-0.5 tw-px-1.5 tw-text-xs');
+      bSvc.type = 'button';
+      bSvc.onclick = (e) => { e.stopPropagation(); location.assign('services-api.html'); };
+      const bOut = el('button', '💳 Trả', 'btn btn-xs btn-outline-danger tw-py-0.5 tw-px-1.5 tw-text-xs');
+      bOut.type = 'button';
+      bOut.onclick = (e) => { e.stopPropagation(); location.assign('finance-api.html#checkout'); };
+      cardActions.append(bSvc, bOut);
+    }
+    if (row.cleanlinessStatus === 'DIRTY') {
+      const bClean = el('button', '🧹 Báo dọn', 'btn btn-xs btn-outline-warning tw-py-0.5 tw-px-1.5 tw-text-xs');
+      bClean.type = 'button';
+      bClean.onclick = (e) => { e.stopPropagation(); location.assign('housekeeping-api.html#tasks'); };
+      cardActions.append(bClean);
+    }
+    if (cardActions.children.length) card.append(cardActions);
+
     card.onclick = () => {
-      // Open detail dialog on click
+      // Open comprehensive action dialog on click
       const content = dialog('Phòng ' + row.number + ' · ' + typeName);
       details(content, {
         'Số phòng': row.number,
@@ -148,9 +172,38 @@
         'Vệ sinh': U.label(row.cleanlinessStatus),
         'Khai thác': U.label(row.exploitationStatus)
       });
-      const actions = el('div', null, 'tw-flex tw-gap-2 tw-mt-4');
+      const actions = el('div', null, 'tw-flex tw-flex-wrap tw-gap-2 tw-mt-4');
       if (row.occupancyStatus === 'VACANT') {
-        actions.append(button('📝 Đặt phòng này', () => { $('desk-close').click(); $('desk-create').click(); }, true));
+        actions.append(button('📝 Đặt phòng này', () => { $('desk-close').click(); bookingForm(false, row); }, true));
+        actions.append(button('⚡ Nhận khách vãng lai (Walk-in)', () => { $('desk-close').click(); bookingForm(false, row); }));
+        actions.append(button('🧹 Yêu cầu buồng phòng dọn', () => { location.assign('housekeeping-api.html#tasks'); }));
+        actions.append(button('🛠️ Báo bảo trì phòng', () => { location.assign('housekeeping-api.html#tickets'); }));
+      } else if (row.occupancyStatus === 'OCCUPIED') {
+        actions.append(button('👥 Tra cứu lượt lưu trú', async () => {
+          try {
+            const inHouse = await stays.listStays({ status: 'IN_HOUSE', limit: 50 });
+            const matching = inHouse.data?.find(s => s.segments?.some(seg => seg.roomId === row.id && seg.departedAtUtc === null));
+            if (matching) stayDetail(matching.id);
+            else { screen = 'stays'; offset = 0; navigation(); load(); $('desk-close').click(); }
+          } catch { screen = 'stays'; offset = 0; navigation(); load(); $('desk-close').click(); }
+        }, true));
+        actions.append(button('🍹 Gọi dịch vụ & Minibar', () => { location.assign('services-api.html'); }));
+        actions.append(button('🔄 Chuyển phòng', async () => {
+          try {
+            const inHouse = await stays.listStays({ status: 'IN_HOUSE', limit: 50 });
+            const matching = inHouse.data?.find(s => s.segments?.some(seg => seg.roomId === row.id && seg.departedAtUtc === null));
+            if (matching) stayDetail(matching.id);
+            else { screen = 'stays'; offset = 0; navigation(); load(); $('desk-close').click(); }
+          } catch { screen = 'stays'; offset = 0; navigation(); load(); $('desk-close').click(); }
+        }));
+        actions.append(button('💳 Quyết toán & Trả phòng', () => { location.assign('finance-api.html#checkout'); }));
+        actions.append(button('🛠️ Báo hỏng thiết bị', () => { location.assign('housekeeping-api.html#tickets'); }));
+      }
+      if (row.cleanlinessStatus === 'DIRTY' || row.cleanlinessStatus === 'CLEANING') {
+        actions.append(button('⚡ Ưu tiên dọn đón khách', () => { location.assign('housekeeping-api.html#tasks'); }));
+      }
+      if (row.exploitationStatus === 'MAINTENANCE') {
+        actions.append(button('🛠️ Xem phiếu bảo trì', () => { location.assign('housekeeping-api.html#tickets'); }));
       }
       actions.append(button('Đóng', () => $('desk-close').click()));
       content.append(actions);
@@ -303,7 +356,7 @@
     form.oninput=form.onchange=()=>{result.replaceChildren();result.className='sl-quote';};
     host.append(el('p','Giá do backend tính theo chính sách được duyệt. Báo giá không giữ phòng và không thu tiền.','small text-secondary'));
   }
-  async function bookingForm(preview = false) {
+  async function bookingForm(preview = false, prefillRoom = null) {
     const host = dialog('Đặt phòng lẻ / khách đoàn'), form = el('form', null, 'sl-form-grid'), quote = el('section', null, 'sl-quote'); form.dataset.pmsReadOnly='true'; host.append(form);
     if (preview) blocked(host, 'Đây là bản xem biểu mẫu. Không xác nhận đơn, không thu cọc, không ghi dữ liệu.');
     const canEstimate = availableModules.includes('pricingGateway') && availableModules.includes('bookingsGateway') && catalogCapabilities.ratePlans?.supported === true && catalogCapabilities.customers?.supported === true && ratePlans.some(item => item.active) && Boolean(hotel?.timeZoneId);
@@ -378,6 +431,20 @@
       field(row, 'adults', 'Người lớn', { type: 'number', value: '1', min: 1, max: 32767 }); field(row, 'children', 'Trẻ em', { type: 'number', value: '0', min: 0, max: 32767 });
       field(row, 'leadCustomerId', 'Khách chính ở phòng', { options: [['', 'Chọn khách chính'], ...customerRows.map(item => [item.id, item.fullName])] });
       const companions = field(row, 'guestCustomerIds', 'Khách đồng hành (có thể chọn nhiều)', { options: customerRows.map(item => [item.id, item.fullName]) }); companions.multiple = true; companions.selectedIndex = -1;
+      if (prefillRoom) {
+        roomType.value = prefillRoom.roomTypeId;
+        plansForMode();
+        plannedRoom.add(new Option('P. ' + prefillRoom.number + ' · ' + U.label(prefillRoom.cleanlinessStatus), prefillRoom.id));
+        plannedRoom.value = prefillRoom.id;
+        const today = hotel?.workingDate || new Date().toISOString().slice(0, 10);
+        const checkIn = row.querySelector('[name=checkInAt]');
+        const checkOut = row.querySelector('[name=checkOutAt]');
+        if (checkIn && !checkIn.value) checkIn.value = today + 'T14:00';
+        if (checkOut && !checkOut.value) {
+          const nextDay = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+          checkOut.value = nextDay + 'T12:00';
+        }
+      }
       row.append(button('Bỏ dòng phòng', () => { if (roomForms.length === 1) return; roomForms.splice(roomForms.indexOf(row), 1); row.remove(); invalidateQuote(); })); roomForms.push(row); roomSection.append(row);
     }
     addRoom(); const add = button('+ Thêm phòng vào đoàn', () => { if (roomForms.length >= 50) return; addRoom(); kind.value = 'GROUP'; kind.dispatchEvent(new Event('change')); quote.replaceChildren(); }); form.append(add);
@@ -561,6 +628,9 @@
   $('desk-preview').onclick = () => bookingForm(true);
   $('desk-create').onclick = () => bookingForm();
   $('desk-quote').onclick = () => quoteForm();
+  $('desk-quick-checkin')?.addEventListener('click', () => { screen = 'arrivals'; offset = 0; navigation(); load(); });
+  $('desk-quick-service')?.addEventListener('click', () => { location.assign('services-api.html'); });
+  $('desk-quick-cashier')?.addEventListener('click', () => { location.assign('finance-api.html'); });
   filters.onsubmit = event => { event.preventDefault(); offset = 0; load(); };
   root.addEventListener('hashchange', () => {
     const target = location.hash.slice(1);
